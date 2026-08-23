@@ -101,24 +101,13 @@ public static class Photo
             releves.Add(Simple(cat, "achievements", id => id <= int.MaxValue && succes->IsComplete((int)id)));
         }
 
-        // --- L'armoire -------------------------------------------------------
-        // Le catalogue numérote les cases à partir de 1, le jeu à partir de 0.
-        var armoireLue = ui->Cabinet.IsCabinetLoaded();
-        if (!armoireLue)
-        {
-            releves.Add(new Releve("armoires", [], null, Total(cat, "armoires"),
-                "ouvre une fois ton armoire chez un rassembleur pour que le jeu la charge"));
-        }
-        else
-        {
-            releves.Add(Simple(cat, "armoires", id => id > 0 && ui->Cabinet.IsItemInCabinet(id - 1)));
-        }
-
         // --- Les sorts bleus -------------------------------------------------
         releves.Add(Sorts(cat, sorts, ui));
 
-        // --- Les pièces de tenue ---------------------------------------------
+        // --- Les dépôts ------------------------------------------------------
+        var armoireLue = ui->Cabinet.IsCabinetLoaded();
         var coffre = Coffre(cat, ui, armoireLue, objets, ensembles);
+        releves.Add(Armoire(cat, ui, armoireLue, coffre));
         releves.AddRange(Tenues(cat, armoireLue, coffre));
 
         return new Lecture(releves, coffre);
@@ -238,6 +227,45 @@ public static class Photo
         s.Ring.RowId,
     ];
 
+    /// <summary>
+    /// L'armoire.
+    ///
+    /// L'application y suit ce que le joueur <b>possède</b>, pas ce qu'il a
+    /// rangé : une pièce déposée à la coiffeuse compte donc autant qu'une pièce
+    /// déposée à l'armoire, et il faut le dire, sans quoi l'application propose
+    /// sans fin de cocher une case qu'elle sait déjà due.
+    ///
+    /// Et comme un dépôt ne prouve jamais l'absence, la portée se limite à ce
+    /// qu'on a trouvé : cette collection ne peut qu'ajouter.
+    /// </summary>
+    private static unsafe Releve Armoire(Catalogue cat, UIState* ui, bool lue, Coffre coffre)
+    {
+        if (!cat.Ids.TryGetValue("armoires", out var ids))
+            return new Releve("armoires", [], null, 0, "catalogue absent");
+        if (!lue)
+            return new Releve("armoires", [], null, ids.Length,
+                "ouvre une fois ton armoire chez un rassembleur pour que le jeu la charge");
+
+        // La case d'armoire d'une pièce, quand le catalogue en donne une : c'est
+        // par là que la coiffeuse répond pour l'armoire.
+        var parCase = new Dictionary<uint, uint>();
+        foreach (var t in cat.Tenues)
+            foreach (var p in t.Pieces)
+                if (p.Armoire > 0)
+                    parCase[p.Armoire] = p.Objet;
+
+        var trouves = new List<uint>();
+        foreach (var id in ids)
+        {
+            if (id == 0) continue;
+            // Le catalogue numérote les cases à partir de 1, le jeu à partir de 0.
+            var rangee = ui->Cabinet.IsItemInCabinet(id - 1);
+            var ailleurs = parCase.TryGetValue(id, out var objet) && coffre.Coiffeuse.Contains(objet);
+            if (rangee || ailleurs) trouves.Add(id);
+        }
+        return new Releve("armoires", trouves, [.. trouves], ids.Length);
+    }
+
     private static int Total(Catalogue cat, string cle) => cat.Ids.TryGetValue(cle, out var l) ? l.Length : 0;
 
     /// <summary>Une question par entrée du catalogue, sans exception : la portée
@@ -351,10 +379,15 @@ public static class Photo
             if (complete) entieres.Add(tenue.Id);
         }
 
+        // La portée se limite à ce qu'on a trouvé, et ce n'est pas une prudence
+        // de circonstance : une pièce d'équipement peut dormir dans un sac, chez
+        // un servant, ou n'avoir jamais été déposée. Ne pas l'avoir vue ne dit
+        // rien. Ces deux collections ne peuvent donc qu'ajouter.
+        var vues = pieces.Distinct().ToList();
         return
         [
-            new Releve("outfitpieces", [.. pieces.Distinct()], null, totalPieces, null, vu),
-            new Releve("outfits", entieres, null, cat.Tenues.Count),
+            new Releve("outfitpieces", vues, [.. vues], totalPieces, null, vu),
+            new Releve("outfits", entieres, [.. entieres], cat.Tenues.Count),
             new Releve("adeposer", [.. aDeposer.Distinct()], null, totalPieces),
         ];
     }
