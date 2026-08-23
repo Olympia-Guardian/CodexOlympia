@@ -1,5 +1,7 @@
 using System.Net.Http;
 using Dalamud.Game.Command;
+using Dalamud.Game.Inventory;
+using Dalamud.Game.Inventory.InventoryEventArgTypes;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -26,6 +28,8 @@ public sealed class Greffon : IDalamudPlugin
     private readonly IDataManager donnees;
     private readonly IPluginLog journal;
     private readonly IChatGui discussion;
+    private readonly IGameInventory sacs;
+    private readonly IFramework cadence;
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
     private readonly Fenetre fenetre;
@@ -54,6 +58,112 @@ public sealed class Greffon : IDalamudPlugin
     public string Jeton =>
         ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
 
+    private List<TenueARanger> aRanger = [];
+    private double prochainARanger;
+
+    /// <summary>
+    /// Ce que le personnage a sous la main et n'a pas depose.
+    ///
+    /// Le calcul parcourt les six mille pieces du catalogue : le refaire soixante
+    /// fois par seconde pour une liste qui bouge quand on ramasse un objet serait
+    /// du gachis. Deux fois par seconde suffit largement a suivre un inventaire.
+    /// </summary>
+    public List<TenueARanger> ARanger()
+    {
+        var cat = Catalogue;
+        var coffre = Coffre;
+        if (cat is null || !cat.Pret || coffre is null) return [];
+
+        var maintenant = Environment.TickCount64 / 1000.0;
+        if (maintenant < prochainARanger) return aRanger;
+        prochainARanger = maintenant + 0.5;
+        try
+        {
+            aRanger = CodexOlympia.ARanger.Calculer(cat, coffre, Sacs.Miennes(sacs), ServantsDuPerso());
+        }
+        catch (Exception e)
+        {
+            journal.Error(e, "lecture des sacs impossible");
+        }
+        return aRanger;
+    }
+
+    public Dictionary<string, uint[]> ServantsDuPerso() =>
+        Reglages.Servants.TryGetValue(ContentId, out var s) ? s : [];
+
+    /// <summary>Quand on a regarde le servant ouvert pour la derniere fois.</summary>
+    private double prochainServant;
+
+    /// <summary>
+    /// Retenir ce que porte le servant a qui on parle.
+    ///
+    /// Le jeu ne charge son sac que pendant la conversation : c'est la seule
+    /// fenetre pendant laquelle on peut voir quoi que ce soit. On la saisit, une
+    /// fois par seconde, et on ne garde que les pieces de tenue.
+    /// </summary>
+    private void Veiller(IFramework _)
+    {
+        var maintenant = Environment.TickCount64 / 1000.0;
+        if (maintenant < prochainServant) return;
+        prochainServant = maintenant + 1.0;
+
+        var cat = Catalogue;
+        if (cat is null || !cat.Pret || ContentId == 0) return;
+        string? nom;
+        try
+        {
+            nom = Sacs.ServantOuvert();
+        }
+        catch
+        {
+            return;
+        }
+        if (nom is null) return;
+
+        var connues = new HashSet<uint>();
+        foreach (var t in cat.Tenues)
+            foreach (var p in t.Pieces)
+                connues.Add(p.Objet);
+
+        var vus = Sacs.ChezLeServant(sacs).Where(connues.Contains).ToArray();
+        if (!Reglages.Servants.TryGetValue(ContentId, out var chez))
+        {
+            chez = [];
+            Reglages.Servants[ContentId] = chez;
+        }
+        if (chez.TryGetValue(nom, out var avant) && avant.SequenceEqual(vus)) return;
+        chez[nom] = vus;
+        Enregistrer();
+    }
+
+    /// <summary>
+    /// Un mot quand une piece de tenue arrive dans les sacs.
+    ///
+    /// Elle n'est pas cochee pour autant : un objet qui traine peut se vendre ou
+    /// se jeter. Le message dit ou la mettre pour qu'elle compte, et rien de
+    /// plus.
+    /// </summary>
+    private void PieceArrivee(GameInventoryEvent quoi, InventoryEventArgs e)
+    {
+        if (!Reglages.AvisEnJeu) return;
+        var cat = Catalogue;
+        if (cat is null || !cat.Pret) return;
+        var id = e.Item.ItemId >= 1_000_000 ? e.Item.ItemId - 1_000_000 : e.Item.ItemId;
+        if (id == 0) return;
+        // Deja depose : il n'y a rien a aller ranger.
+        if (Coffre is not null && (Coffre.Coiffeuse.Contains(id) || Coffre.Armoire.Contains(id))) return;
+
+        foreach (var t in cat.Tenues)
+        {
+            foreach (var p in t.Pieces)
+            {
+                if (p.Objet != id) continue;
+                discussion.Print("[Codex Olympia] " + Mots.AvisPiece(p.Nom, t.Nom));
+                return;
+            }
+        }
+    }
+
     /// <summary>Range le jeton du personnage connecte. Vide = on l'oublie.</summary>
     public void PoserJeton(string valeur)
     {
@@ -71,7 +181,9 @@ public sealed class Greffon : IDalamudPlugin
         IPlayerState perso,
         IDataManager donnees,
         IPluginLog journal,
-        IChatGui discussion)
+        IChatGui discussion,
+        IGameInventory sacs,
+        IFramework cadence)
     {
         this.pi = pi;
         this.commandes = commandes;
@@ -80,6 +192,8 @@ public sealed class Greffon : IDalamudPlugin
         this.donnees = donnees;
         this.journal = journal;
         this.discussion = discussion;
+        this.sacs = sacs;
+        this.cadence = cadence;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
@@ -96,11 +210,16 @@ public sealed class Greffon : IDalamudPlugin
             HelpMessage = Mots.AideCommande,
         });
 
+        sacs.ItemAdded += PieceArrivee;
+        cadence.Update += Veiller;
+
         RechargerCatalogue();
     }
 
     public void Dispose()
     {
+        sacs.ItemAdded -= PieceArrivee;
+        cadence.Update -= Veiller;
         commandes.RemoveHandler(Commande);
         pi.UiBuilder.Draw -= fenetres.Draw;
         pi.UiBuilder.OpenMainUi -= Ouvrir;
@@ -167,6 +286,9 @@ public sealed class Greffon : IDalamudPlugin
         Faites = 0;
         AFaire = Photo.Ordre.Length;
         prochaine = 0;
+        // Les depots vont changer : ce qui restait a ranger n'est plus a jour.
+        aRanger = [];
+        prochainARanger = 0;
     }
 
     /// <summary>Quand la prochaine etape a le droit de partir, en secondes.</summary>

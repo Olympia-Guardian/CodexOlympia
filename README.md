@@ -80,6 +80,24 @@ Certaines lectures demandent que le jeu ait chargé la donnée au moins une fois
 dans la session : ouvre ton armoire chez un rassembleur et ta coiffeuse mirage,
 puis relance la lecture. Le tableau te dit quoi ouvrir.
 
+## Ce qui reste à ranger
+
+Une troisième page liste ce que tu possèdes **sans l'avoir déposé** : les pièces
+de tenue qui dorment dans tes sacs, ton armurerie, ton cabas, sur toi, ou chez un
+servant. Elles ne comptent pour rien tant qu'elles ne sont pas dans ta coiffeuse
+ou ton armoire, parce qu'un objet qui traîne peut se vendre ou se jeter.
+
+Les tenues qu'un seul rangement achève passent en tête : c'est là que l'effort
+rapporte le plus.
+
+Le sac d'un servant n'est lisible **que pendant qu'on lui parle**. Le greffon
+retient donc ce qu'il a vu la dernière fois. Un servant à qui tu n'as jamais
+parlé depuis l'installation ne compte pas.
+
+Et quand une pièce de tenue arrive dans tes sacs, un mot dans le journal te dit
+à quelle tenue elle appartient et où la mettre. Ça se coupe dans la
+configuration.
+
 ## Ce qu'il ne lit pas
 
 - **Les reliques.** Le jeu ne tient pas l'état d'avancement d'une relique. Le

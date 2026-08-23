@@ -184,6 +184,53 @@ public static class Mots
     public static string AideCommande =>
         D("Ouvre la fenetre de synchronisation Codex Olympia.", "Opens the Codex Olympia sync window.");
 
+    public static string Soutien => D("Offrir un café", "Buy a coffee");
+    public static string SoutienAide => D(
+        "Le greffon et l'application sont gratuits, et le resteront.",
+        "The plugin and the app are free, and will stay that way.");
+
+    // ---------------------------------------------------------- a ranger
+
+    public static string PageARanger => D("À ranger", "To store");
+    public static string ARangerQuoi => D(
+        "Ce que tu possèdes sans l'avoir déposé. Une pièce rangée dans un sac, portée sur toi " +
+        "ou confiée à un servant ne compte pour rien tant qu'elle n'est pas dans ta coiffeuse " +
+        "ou ton armoire : elle peut se vendre, se jeter, se perdre de vue.",
+        "What you own without having deposited it. A piece sitting in a bag, worn, or left with " +
+        "a retainer counts for nothing until it reaches your glamour dresser or armoire: it can " +
+        "be sold, discarded, forgotten.");
+    public static string ARangerDAbord => D(
+        "Regarde d'abord ce que tu as : cette page compare tes sacs à tes dépôts.",
+        "Look at what you have first: this page compares your bags with your deposits.");
+    public static string ARangerRien => D(
+        "Rien à ranger : tout ce que tu as sous la main est déjà déposé.",
+        "Nothing to store: everything you are carrying is already deposited.");
+    public static string ARangerCompte(int tenues, int pieces) => D(
+        $"{pieces} pièces à déposer, réparties sur {tenues} tenues.",
+        $"{pieces} pieces to deposit, across {tenues} outfits.");
+    public static string ARangerComplete => D("complète la tenue", "completes the outfit");
+    public static string ARangerEtat(int deposees, int total) =>
+        D($"{deposees}/{total} déposées", $"{deposees}/{total} deposited");
+    public static string ServantsVus(int n) => n == 0
+        ? D("Aucun servant consulté : parle-leur une fois pour qu'ils comptent.",
+            "No retainer seen yet: talk to them once so they count.")
+        : D($"{n} servants connus, d'après la dernière fois que tu leur as parlé.",
+            $"{n} retainers known, from the last time you talked to them.");
+
+    public static string OuSac => D("sac", "bag");
+    public static string OuArmurerie => D("armurerie", "armoury");
+    public static string OuPorte => D("porté", "worn");
+    public static string OuCabas => D("cabas", "saddlebag");
+    public static string OuServant(string nom) => D($"servant « {nom} »", $"retainer \"{nom}\"");
+
+    public static string AvisPiece(string piece, string tenue) => D(
+        $"« {piece} » fait partie de la tenue « {tenue} ». Dépose-la dans ta coiffeuse pour qu'elle compte.",
+        $"\"{piece}\" belongs to the \"{tenue}\" outfit. Put it in your glamour dresser so it counts.");
+    public static string AvisTitre => D("Prévenir en jeu", "Notify in game");
+    public static string AvisExplique => D(
+        "Un mot dans le journal quand tu obtiens une pièce de tenue que tu n'as pas encore déposée.",
+        "A line in the chat log when you get an outfit piece you have not deposited yet.");
+
     // ------------------------------------------------------- les collections
 
     /// <summary>Le nom lisible de chaque collection, dans l'ordre d'affichage.

@@ -34,4 +34,18 @@ public sealed class Reglages : IPluginConfiguration
 
     /// <summary>La langue de la fenêtre. Par défaut celle du client de jeu.</summary>
     public Langue Langue { get; set; } = Langue.Auto;
+
+    /// <summary>Prévenir dans le journal quand une pièce de tenue arrive.</summary>
+    public bool AvisEnJeu { get; set; } = true;
+
+    /// <summary>
+    /// Ce que chaque servant portait la dernière fois qu'on lui a parlé, par
+    /// personnage puis par nom de servant.
+    ///
+    /// Le jeu ne charge le sac d'un servant que pendant qu'on lui parle. Sans
+    /// cette mémoire, la page « à ranger » oublierait tout dès qu'on referme la
+    /// fenêtre, et ne dirait plus jamais rien des servants. Seules les pièces de
+    /// tenue y sont gardées : le reste ne regarde pas ce greffon.
+    /// </summary>
+    public Dictionary<ulong, Dictionary<string, uint[]>> Servants { get; set; } = new();
 }

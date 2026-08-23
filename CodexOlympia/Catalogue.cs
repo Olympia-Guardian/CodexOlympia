@@ -3,11 +3,18 @@ using System.Text.Json;
 
 namespace CodexOlympia;
 
-/// <summary>Une pièce de tenue : son objet, et sa case d'armoire s'il y en a une.</summary>
-public sealed record Piece(uint Objet, uint Armoire);
+/// <summary>Une pièce de tenue : son objet, sa case d'armoire s'il y en a une,
+/// et son nom dans les deux langues.</summary>
+public sealed record Piece(uint Objet, uint Armoire, string Fr, string En)
+{
+    public string Nom => Mots.Fr ? Fr : En;
+}
 
 /// <summary>Une tenue et les pièces qui la composent.</summary>
-public sealed record Tenue(uint Id, IReadOnlyList<Piece> Pieces);
+public sealed record Tenue(uint Id, string Fr, string En, IReadOnlyList<Piece> Pieces)
+{
+    public string Nom => Mots.Fr ? Fr : En;
+}
 
 /// <summary>
 /// Le catalogue de l'application, tel qu'elle le publie.
@@ -96,6 +103,13 @@ public sealed class Catalogue
         return cat;
     }
 
+    /// <summary>Un champ texte, vide plutôt qu'absent : un nom manquant ne doit
+    /// pas faire tomber la lecture du catalogue entier.</summary>
+    private static string Texte(JsonElement e, string champ) =>
+        e.TryGetProperty(champ, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString() ?? string.Empty
+            : string.Empty;
+
     private void Lire(string cle, string texte)
     {
         using var doc = JsonDocument.Parse(texte);
@@ -122,9 +136,10 @@ public sealed class Catalogue
                 var arm = p.TryGetProperty("armoireId", out var pa) && pa.ValueKind == JsonValueKind.Number
                     ? pa.GetUInt32()
                     : 0u;
-                pieces.Add(new Piece(pi.GetUInt32(), arm));
+                pieces.Add(new Piece(pi.GetUInt32(), arm, Texte(p, "name"), Texte(p, "nameEn")));
             }
-            if (pieces.Count > 0) Tenues.Add(new Tenue(id, pieces));
+            if (pieces.Count > 0)
+                Tenues.Add(new Tenue(id, Texte(e, "name"), Texte(e, "nameEn"), pieces));
         }
 
         Ids[cle] = [.. ids];

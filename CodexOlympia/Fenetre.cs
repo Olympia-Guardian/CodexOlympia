@@ -52,6 +52,11 @@ public sealed class Fenetre : Window, IDisposable
             PageSynchronisation();
             ImGui.EndTabItem();
         }
+        if (ImGui.BeginTabItem(Mots.PageARanger))
+        {
+            PageARanger();
+            ImGui.EndTabItem();
+        }
         // Le bouton « Aller a la configuration » n'a de sens que s'il y va.
         var force = ongletVoulu == 1 ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
         ongletVoulu = -1;
@@ -284,6 +289,79 @@ public sealed class Fenetre : Window, IDisposable
         }
     }
 
+    // ------------------------------------------------------- ce qui traine
+
+    /// <summary>
+    /// Ce qu'on possède sans l'avoir déposé.
+    ///
+    /// Elle ne coche rien et n'envoie rien : c'est une liste de courses. Un objet
+    /// qui traîne dans un sac peut se vendre ou se jeter, le compter comme acquis
+    /// serait promettre ce qu'on ne peut pas tenir.
+    /// </summary>
+    private void PageARanger()
+    {
+        ImGui.Spacing();
+        ImGui.TextWrapped(Mots.ARangerQuoi);
+        ImGui.Spacing();
+
+        if (greffon.Coffre is null)
+        {
+            ImGui.TextColored(Ambre, Mots.ARangerDAbord);
+            ImGui.Spacing();
+            if (ImGui.Button(Mots.Regarder))
+            {
+                greffon.Regarder();
+                ongletVoulu = 0;
+            }
+            return;
+        }
+
+        var tenues = greffon.ARanger();
+        ImGui.TextColored(Gris, Mots.ServantsVus(greffon.ServantsDuPerso().Count));
+        ImGui.Spacing();
+
+        if (tenues.Count == 0)
+        {
+            ImGui.TextColored(Vert, Mots.ARangerRien);
+            return;
+        }
+
+        ImGui.TextColored(Or, Mots.ARangerCompte(tenues.Count, tenues.Sum(t => t.Egarees.Count)));
+        ImGui.Spacing();
+
+        if (!ImGui.BeginChild("aranger", new Vector2(0, 0), false)) return;
+        foreach (var t in tenues)
+        {
+            // Une tenue qu'un seul rangement achève mérite d'être signalée : c'est
+            // là que l'effort rapporte le plus.
+            var complete = t.Deposees + t.Egarees.Count == t.Total;
+            if (complete) ImGui.TextColored(Or, t.Nom);
+            else ImGui.Text(t.Nom);
+            ImGui.SameLine();
+            ImGui.TextColored(Gris, complete
+                ? $"· {Mots.ARangerComplete}"
+                : $"· {Mots.ARangerEtat(t.Deposees, t.Total)}");
+
+            if (ImGui.BeginTable($"p{t.Id}", 2,
+                    ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+            {
+                ImGui.TableSetupColumn("##nom", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("##ou", ImGuiTableColumnFlags.WidthFixed, 150);
+                foreach (var e in t.Egarees)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.Text(e.Nom);
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(Gris, e.Ou);
+                }
+                ImGui.EndTable();
+            }
+            ImGui.Spacing();
+        }
+        ImGui.EndChild();
+    }
+
     // -------------------------------------------------- la page qu'on ouvre une fois
 
     /// <summary>Vaut 1 quand un bouton demande à passer sur la configuration.</summary>
@@ -323,6 +401,20 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
+        ImGui.TextColored(Or, Mots.AvisTitre);
+        var avis = r.AvisEnJeu;
+        if (ImGui.Checkbox("##avis", ref avis))
+        {
+            r.AvisEnJeu = avis;
+            greffon.Enregistrer();
+        }
+        ImGui.SameLine();
+        ImGui.TextWrapped(Mots.AvisExplique);
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
         ImGui.TextColored(Or, Mots.Langue_);
         ImGui.SetNextItemWidth(200);
         var choix = (int)r.Langue;
@@ -330,7 +422,18 @@ public sealed class Fenetre : Window, IDisposable
         {
             greffon.ChoisirLangue((Langue)choix);
         }
+
+        // En bas, discret : ce greffon est gratuit et le restera.
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        if (ImGui.Button(Mots.Soutien)) Dalamud.Utility.Util.OpenLink(Cafe);
+        ImGui.SameLine();
+        ImGui.TextColored(Gris, Mots.SoutienAide);
     }
+
+    /// <summary>Le pot à café de l'auteur de l'application.</summary>
+    private const string Cafe = "https://buymeacoffee.com/derp4kiin";
 
     // ------------------------------------------------------------------ menu
 
