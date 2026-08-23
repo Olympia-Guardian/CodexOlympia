@@ -34,6 +34,8 @@ public sealed class Greffon : IDalamudPlugin
     public Reglages Reglages { get; }
     public Catalogue? Catalogue { get; private set; }
     public List<Releve> Releves { get; private set; } = [];
+    /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
+    public Coffre? Coffre { get; private set; }
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 
@@ -131,8 +133,10 @@ public sealed class Greffon : IDalamudPlugin
         Dernier = null;
         try
         {
-            var sorts = donnees.GetExcelSheet<AozAction>();
-            Releves = Photo.Prendre(cat, sorts);
+            var lecture = Photo.Prendre(
+                cat, donnees.GetExcelSheet<AozAction>(), donnees.GetExcelSheet<Item>());
+            Releves = lecture.Releves;
+            Coffre = lecture.Coffre;
         }
         catch (Exception e)
         {

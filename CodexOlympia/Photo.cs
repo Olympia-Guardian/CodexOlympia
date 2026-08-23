@@ -25,6 +25,15 @@ public sealed record Releve(
     string? Empeche = null,
     string? Note = null);
 
+/// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
+public sealed record Coffre(
+    HashSet<uint> Coiffeuse,
+    HashSet<uint> Armoire,
+    List<string> Echantillon);
+
+/// <summary>Une lecture complète : les relevés, et ce qu'on a vu dans les dépôts.</summary>
+public sealed record Lecture(List<Releve> Releves, Coffre Coffre);
+
 /// <summary>
 /// La lecture du jeu, à un instant donné.
 ///
@@ -37,7 +46,10 @@ public static class Photo
     /// <summary>Les objets marchands portent un décalage qu'on retire.</summary>
     private const uint SeuilHq = 1_000_000;
 
-    public static unsafe List<Releve> Prendre(Catalogue cat, Lumina.Excel.ExcelSheet<AozAction> sorts)
+    public static unsafe Lecture Prendre(
+        Catalogue cat,
+        Lumina.Excel.ExcelSheet<AozAction> sorts,
+        Lumina.Excel.ExcelSheet<Item> objets)
     {
         var releves = new List<Releve>();
         var ps = PlayerState.Instance();
@@ -88,9 +100,48 @@ public static class Photo
         releves.Add(Sorts(cat, sorts, ui));
 
         // --- Les pièces de tenue ---------------------------------------------
-        releves.AddRange(Tenues(cat, ui, armoireLue));
+        var coffre = Coffre(cat, ui, armoireLue, objets);
+        releves.AddRange(Tenues(cat, armoireLue, coffre));
 
-        return releves;
+        return new Lecture(releves, coffre);
+    }
+
+    /// <summary>
+    /// Ce que les deux dépôts contiennent, tel quel.
+    ///
+    /// L'échantillon n'est pas décoratif : quand une lecture ne trouve rien, il
+    /// dit si le greffon lit des identifiants d'objet ou tout autre chose. Sans
+    /// lui, on en serait réduit à supposer.
+    /// </summary>
+    private static unsafe Coffre Coffre(
+        Catalogue cat, UIState* ui, bool armoireLue, Lumina.Excel.ExcelSheet<Item> objets)
+    {
+        var mirage = MirageManager.Instance();
+        var brut = new List<uint>();
+        foreach (var v in mirage->PrismBoxItemIds)
+            if (v != 0)
+                brut.Add(v);
+        if (brut.Count == 0) mirage->PrismBoxRequested = true;
+
+        var coiffeuse = new HashSet<uint>();
+        foreach (var v in brut) coiffeuse.Add(v >= SeuilHq ? v - SeuilHq : v);
+
+        var cases = new HashSet<uint>();
+        if (armoireLue)
+            foreach (var t in cat.Tenues)
+                foreach (var p in t.Pieces)
+                    if (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1))
+                        cases.Add(p.Objet);
+
+        var echantillon = new List<string>();
+        foreach (var v in brut.Take(12))
+        {
+            var net = v >= SeuilHq ? v - SeuilHq : v;
+            var nom = objets.GetRowOrDefault(net)?.Name.ExtractText();
+            echantillon.Add(string.IsNullOrEmpty(nom) ? $"{v} : aucun objet de ce numéro" : $"{v} : {nom}");
+        }
+
+        return new Coffre(coiffeuse, cases, echantillon);
     }
 
     private static int Total(Catalogue cat, string cle) => cat.Ids.TryGetValue(cle, out var l) ? l.Length : 0;
@@ -163,40 +214,16 @@ public static class Photo
     /// tout : une lecture partielle ferait passer pour manquantes des pièces
     /// simplement rangées ailleurs.
     /// </summary>
-    private static unsafe List<Releve> Tenues(Catalogue cat, UIState* ui, bool armoireLue)
+    private static List<Releve> Tenues(Catalogue cat, bool armoireLue, Coffre coffre)
     {
         var totalPieces = cat.Tenues.Sum(t => t.Pieces.Count);
+        var vu = $"coiffeuse : {coffre.Coiffeuse.Count} objets, armoire : " +
+                 (armoireLue ? $"{coffre.Armoire.Count} pièces" : "non chargée");
 
-        // Ce que la coiffeuse contient vraiment. Le drapeau « chargée » du jeu ne
-        // suffit pas : il est vrai avant même que la liste soit remplie, et une
-        // liste vide se lirait alors comme une garde-robe vide. On compte donc ce
-        // qu'on a sous les yeux, pas ce que le jeu prétend avoir chargé.
-        var mirage = MirageManager.Instance();
-        var coiffeuse = new HashSet<uint>();
-        foreach (var brut in mirage->PrismBoxItemIds)
-        {
-            var objet = brut >= SeuilHq ? brut - SeuilHq : brut;
-            if (objet != 0) coiffeuse.Add(objet);
-        }
-        if (coiffeuse.Count == 0) mirage->PrismBoxRequested = true;
-
-        // Ce que l'armoire apporte, compté pour le dire au joueur : c'est le
-        // chiffre qui lui permet de reconnaître une lecture juste d'une lecture
-        // vide, et donc de refuser d'envoyer.
-        var cases = 0;
-        if (armoireLue)
-            foreach (var t in cat.Tenues)
-                foreach (var p in t.Pieces)
-                    if (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1))
-                        cases++;
-
-        var vu = $"coiffeuse : {coiffeuse.Count} objets, armoire : " +
-                 (armoireLue ? $"{cases} pièces" : "non chargée");
-
-        // La coiffeuse est le depot principal : tant qu'on ne l'a pas vue, on
-        // n'envoie rien. L'armoire seule est un echantillon trop etroit, et ce
+        // La coiffeuse est le dépôt principal : tant qu'on ne l'a pas vue, on
+        // n'envoie rien. L'armoire seule est un échantillon trop étroit, et ce
         // qu'elle ne contient pas passerait pour perdu.
-        if (coiffeuse.Count == 0)
+        if (coffre.Coiffeuse.Count == 0)
         {
             var quoi = armoireLue
                 ? "ouvre ta coiffeuse mirage une fois, puis regarde à nouveau : le jeu ne charge son contenu qu'à ce moment-là"
@@ -208,15 +235,18 @@ public static class Photo
             ];
         }
 
+        // Une tenue déposée d'un bloc n'occupe qu'un emplacement, et c'est
+        // l'identifiant de la tenue qui y figure, pas celui de ses pièces. Un
+        // dépôt de ce genre vaut donc pour toutes ses pièces à la fois.
         var pieces = new List<uint>();
         var entieres = new List<uint>();
         foreach (var tenue in cat.Tenues)
         {
+            var enBloc = coffre.Coiffeuse.Contains(tenue.Id);
             var complete = true;
             foreach (var p in tenue.Pieces)
             {
-                var la = coiffeuse.Contains(p.Objet)
-                    || (armoireLue && p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1));
+                var la = enBloc || coffre.Coiffeuse.Contains(p.Objet) || coffre.Armoire.Contains(p.Objet);
                 if (la) pieces.Add(p.Objet);
                 else complete = false;
             }
