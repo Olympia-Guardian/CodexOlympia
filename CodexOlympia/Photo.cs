@@ -39,7 +39,9 @@ public sealed record Coffre(
     /// <summary>Emplacements a zero qui portent pourtant un ensemble.</summary>
     int VidesHabites = 0,
     /// <summary>Ce que la coiffeuse rend et que le catalogue connait.</summary>
-    int Touchees = 0);
+    int Touchees = 0,
+    /// <summary>Les ensembles trouves, et combien de leurs pieces y sont.</summary>
+    List<string>? Detail = null);
 
 /// <summary>Une lecture complète : les relevés, et ce qu'on a vu dans les dépôts.</summary>
 public sealed record Lecture(List<Releve> Releves, Coffre Coffre);
@@ -141,6 +143,7 @@ public static class Photo
 
         var coiffeuse = new HashSet<uint>();
         var echantillon = new List<string>();
+        var detail = new List<string>();
         int occupes = 0, vusEnsembles = 0, reconnus = 0, videsHabites = 0;
 
         for (var i = 0; i < emplacements.Length; i++)
@@ -167,11 +170,26 @@ public static class Photo
             if (estEnsemble)
             {
                 vusEnsembles++;
-                coiffeuse.Add(net);
                 var dedans = Slots(set!.Value);
+                var definis = 0;
+                var presents = new List<string>();
                 for (var k = 0; k < dedans.Length; k++)
-                    if (dedans[k] != 0 && mirage->IsSetSlotUnlocked((uint)i, k))
-                        coiffeuse.Add(dedans[k]);
+                {
+                    if (dedans[k] == 0) continue;
+                    definis++;
+                    // Un ensemble range n'est pas forcement complet : on ne
+                    // retient QUE les emplacements que le jeu declare remplis.
+                    // L'identifiant de l'ensemble lui-meme n'entre jamais ici,
+                    // sans quoi une tenue entamee vaudrait une tenue entiere.
+                    if (!mirage->IsSetSlotUnlocked((uint)i, k)) continue;
+                    coiffeuse.Add(dedans[k]);
+                    presents.Add(objets.GetRowOrDefault(dedans[k])?.Name.ExtractText() ?? $"#{dedans[k]}");
+                }
+                if (detail.Count < 12)
+                {
+                    var nomSet = objets.GetRowOrDefault(net)?.Name.ExtractText() ?? $"#{net}";
+                    detail.Add($"{nomSet} : {presents.Count}/{definis} — {string.Join(", ", presents)}");
+                }
             }
             else
             {
@@ -207,7 +225,8 @@ public static class Photo
         var touchees = coiffeuse.Count(x => connuesPieces.Contains(x) || connuesTenues.Contains(x));
 
         return new Coffre(
-            coiffeuse, cases, echantillon, occupes, reconnus, vusEnsembles, videsHabites, touchees);
+            coiffeuse, cases, echantillon, occupes, reconnus, vusEnsembles, videsHabites, touchees,
+            detail);
     }
 
     /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille :

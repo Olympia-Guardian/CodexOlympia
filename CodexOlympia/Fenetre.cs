@@ -338,6 +338,16 @@ public sealed class Fenetre : Window, IDisposable
         }
         ImGui.TextWrapped("Les douze premiers emplacements, tels que le jeu les donne :");
         foreach (var ligne in coffre.Echantillon) ImGui.TextColored(Gris, ligne);
+
+        // Un ensemble rangé peut être entamé. Le compte affiché ici se compare
+        // à ce que dit l'infobulle du jeu : c'est la seule façon de s'assurer
+        // qu'une tenue incomplète n'est pas lue comme entière.
+        if (coffre.Detail is { Count: > 0 })
+        {
+            ImGui.Spacing();
+            ImGui.TextWrapped("Les ensembles trouvés, et les pièces qui s'y trouvent :");
+            foreach (var ligne in coffre.Detail) ImGui.TextColored(Gris, ligne);
+        }
     }
 
     // ------------------------------------------------------------------ menu
