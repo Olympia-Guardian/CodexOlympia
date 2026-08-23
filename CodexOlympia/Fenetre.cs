@@ -301,11 +301,11 @@ public sealed class Fenetre : Window, IDisposable
     private void PageARanger()
     {
         ImGui.Spacing();
-        ImGui.TextWrapped(Mots.ARangerQuoi);
-        ImGui.Spacing();
 
         if (greffon.Coffre is null)
         {
+            ImGui.TextWrapped(Mots.ARangerQuoi);
+            ImGui.Spacing();
             ImGui.TextColored(Ambre, Mots.ARangerDAbord);
             ImGui.Spacing();
             if (ImGui.Button(Mots.Regarder))
@@ -316,50 +316,69 @@ public sealed class Fenetre : Window, IDisposable
             return;
         }
 
-        var tenues = greffon.ARanger();
-        ImGui.TextColored(Gris, Mots.ServantsVus(greffon.ServantsDuPerso().Count));
-        ImGui.Spacing();
-
-        if (tenues.Count == 0)
+        var egarees = greffon.ARanger();
+        if (egarees.Count == 0)
         {
             ImGui.TextColored(Vert, Mots.ARangerRien);
+            ImGui.Spacing();
+            ImGui.TextColored(Gris, Mots.ServantsVus(greffon.ServantsDuPerso().Count));
             return;
         }
 
-        ImGui.TextColored(Or, Mots.ARangerCompte(tenues.Count, tenues.Sum(t => t.Egarees.Count)));
+        // Une ligne de compte, et l'explication au survol : elle se lit une fois,
+        // pas à chaque ouverture.
+        var achevent = egarees.Count(e => e.Acheve);
+        ImGui.TextColored(Or, Mots.ARangerCompte(egarees.Count, achevent));
+        ImGui.SameLine();
+        ImGui.TextDisabled("(?)");
+        Survol(Mots.ARangerQuoi + "\n\n" + Mots.ServantsVus(greffon.ServantsDuPerso().Count));
         ImGui.Spacing();
 
         if (!ImGui.BeginChild("aranger", new Vector2(0, 0), false)) return;
-        foreach (var t in tenues)
-        {
-            // Une tenue qu'un seul rangement achève mérite d'être signalée : c'est
-            // là que l'effort rapporte le plus.
-            var complete = t.Deposees + t.Egarees.Count == t.Total;
-            if (complete) ImGui.TextColored(Or, t.Nom);
-            else ImGui.Text(t.Nom);
-            ImGui.SameLine();
-            ImGui.TextColored(Gris, complete
-                ? $"· {Mots.ARangerComplete}"
-                : $"· {Mots.ARangerEtat(t.Deposees, t.Total)}");
 
-            if (ImGui.BeginTable($"p{t.Id}", 2,
-                    ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
-            {
-                ImGui.TableSetupColumn("##nom", ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn("##ou", ImGuiTableColumnFlags.WidthFixed, 150);
-                foreach (var e in t.Egarees)
-                {
-                    ImGui.TableNextRow();
-                    ImGui.TableNextColumn();
-                    ImGui.Text(e.Nom);
-                    ImGui.TableNextColumn();
-                    ImGui.TextColored(Gris, e.Ou);
-                }
-                ImGui.EndTable();
-            }
+        // D'abord ce qui paie : les tenues qu'un rangement achève. Ensuite le
+        // reste, groupé par ENDROIT, parce qu'on range en allant quelque part.
+        if (achevent > 0)
+        {
+            ImGui.TextColored(Or, Mots.ARangerAchevent);
+            Groupe(egarees.Where(e => e.Acheve), true);
+            ImGui.Spacing();
+            ImGui.Separator();
             ImGui.Spacing();
         }
+
+        var reste = egarees.Where(e => !e.Acheve).ToList();
+        if (reste.Count > 0)
+        {
+            ImGui.TextColored(Gris, Mots.ARangerReste);
+            Groupe(reste, false);
+        }
         ImGui.EndChild();
+    }
+
+    /// <summary>Les pièces regroupées par endroit, un endroit par pliage.</summary>
+    private void Groupe(IEnumerable<Egaree> pieces, bool ouvert)
+    {
+        foreach (var lot in pieces.GroupBy(e => e.Ou).OrderByDescending(g => g.Count()))
+        {
+            ImGui.SetNextItemOpen(ouvert, ImGuiCond.FirstUseEver);
+            if (!ImGui.CollapsingHeader($"{lot.Key}  ({lot.Count()})###{lot.Key}{ouvert}")) continue;
+            if (!ImGui.BeginTable($"t{lot.Key}{ouvert}", 2,
+                    ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+                continue;
+            ImGui.TableSetupColumn("##piece", ImGuiTableColumnFlags.WidthStretch, 1f);
+            ImGui.TableSetupColumn("##tenue", ImGuiTableColumnFlags.WidthStretch, 1f);
+            foreach (var e in lot.OrderBy(x => x.Tenue, StringComparer.CurrentCultureIgnoreCase))
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.Text(e.Nom);
+                ImGui.TableNextColumn();
+                ImGui.TextColored(Gris, e.Tenue);
+            }
+            ImGui.EndTable();
+            ImGui.Spacing();
+        }
     }
 
     // -------------------------------------------------- la page qu'on ouvre une fois

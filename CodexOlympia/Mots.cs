@@ -205,12 +205,13 @@ public static class Mots
     public static string ARangerRien => D(
         "Rien à ranger : tout ce que tu as sous la main est déjà déposé.",
         "Nothing to store: everything you are carrying is already deposited.");
-    public static string ARangerCompte(int tenues, int pieces) => D(
-        $"{pieces} pièces à déposer, réparties sur {tenues} tenues.",
-        $"{pieces} pieces to deposit, across {tenues} outfits.");
-    public static string ARangerComplete => D("complète la tenue", "completes the outfit");
-    public static string ARangerEtat(int deposees, int total) =>
-        D($"{deposees}/{total} déposées", $"{deposees}/{total} deposited");
+    public static string ARangerCompte(int pieces, int achevent) => achevent == 0
+        ? D($"{pieces} pièces à déposer.", $"{pieces} pieces to deposit.")
+        : D($"{pieces} pièces à déposer, dont {achevent} qui achèvent une tenue.",
+            $"{pieces} pieces to deposit, {achevent} of which complete an outfit.");
+    public static string ARangerAchevent =>
+        D("Celles-ci achèvent une tenue", "These complete an outfit");
+    public static string ARangerReste => D("Le reste", "The rest");
     public static string ServantsVus(int n) => n == 0
         ? D("Aucun servant consulté : parle-leur une fois pour qu'ils comptent.",
             "No retainer seen yet: talk to them once so they count.")

@@ -1,25 +1,26 @@
 namespace CodexOlympia;
 
-/// <summary>Une pièce qu'on possède sans l'avoir déposée, et où elle dort.</summary>
-public sealed record Egaree(uint Objet, string Nom, string Ou);
-
-/// <summary>Une tenue dont il manque des pièces qu'on a pourtant quelque part.</summary>
-public sealed record TenueARanger(uint Id, string Nom, int Total, int Deposees, List<Egaree> Egarees);
+/// <summary>Une pièce qu'on possède sans l'avoir déposée.</summary>
+public sealed record Egaree(uint Objet, string Nom, string Ou, string Tenue, bool Acheve);
 
 /// <summary>
 /// Ce qu'il reste à ranger.
 ///
 /// Le rapprochement tient en une phrase : parmi les pièces qu'une tenue attend,
-/// certaines ne sont dans aucun dépôt, et on les a pourtant sous la main. Ce
-/// sont celles-là qu'il faut déposer, et c'est tout ce que cette page dit.
+/// certaines ne sont dans aucun dépôt, et on les a pourtant sous la main.
 ///
-/// Elle ne coche rien et n'envoie rien. Un objet qui traîne dans un sac peut se
-/// vendre ou se jeter : le compter comme acquis serait promettre ce qu'on ne
-/// peut pas tenir.
+/// La liste est rendue à plat, pièce par pièce. Le regroupement se fait à
+/// l'affichage, et il se fait par ENDROIT : on range en allant quelque part,
+/// pas en pensant à une tenue. Une liste triée par tenue obligeait à faire le
+/// tri soi-même pour savoir quoi prendre chez quel servant.
+///
+/// Rien n'est coché ni envoyé. Un objet qui traîne dans un sac peut se vendre ou
+/// se jeter : le compter comme acquis serait promettre ce qu'on ne peut pas
+/// tenir.
 /// </summary>
 public static class ARanger
 {
-    public static List<TenueARanger> Calculer(
+    public static List<Egaree> Calculer(
         Catalogue cat,
         Coffre coffre,
         IReadOnlyList<Trouvaille> sousLaMain,
@@ -33,32 +34,25 @@ public static class ARanger
             foreach (var o in objets)
                 ou.TryAdd(o, Mots.OuServant(nom));
 
-        var sortie = new List<TenueARanger>();
+        var sortie = new List<Egaree>();
         foreach (var tenue in cat.Tenues)
         {
-            var deposees = 0;
-            var egarees = new List<Egaree>();
+            var manquantes = new List<(uint Objet, string Nom, string Ou)>();
+            var introuvables = 0;
             foreach (var p in tenue.Pieces)
             {
-                if (coffre.Coiffeuse.Contains(p.Objet) || coffre.Armoire.Contains(p.Objet))
-                {
-                    deposees++;
-                    continue;
-                }
-                if (ou.TryGetValue(p.Objet, out var endroit))
-                    egarees.Add(new Egaree(p.Objet, p.Nom, endroit));
+                if (coffre.Coiffeuse.Contains(p.Objet) || coffre.Armoire.Contains(p.Objet)) continue;
+                if (ou.TryGetValue(p.Objet, out var endroit)) manquantes.Add((p.Objet, p.Nom, endroit));
+                else introuvables++;
             }
-            if (egarees.Count > 0)
-                sortie.Add(new TenueARanger(tenue.Id, tenue.Nom, tenue.Pieces.Count, deposees, egarees));
-        }
+            if (manquantes.Count == 0) continue;
 
-        // Les tenues qu'on peut compléter d'un coup passent devant : ce sont
-        // celles où le rangement rapporte le plus.
-        return
-        [
-            .. sortie.OrderByDescending(t => t.Deposees + t.Egarees.Count == t.Total)
-                .ThenByDescending(t => t.Egarees.Count)
-                .ThenBy(t => t.Nom, StringComparer.CurrentCultureIgnoreCase),
-        ];
+            // Une tenue qu'un seul rangement achève : c'est là que l'effort
+            // rapporte, et c'est la seule chose qui mérite d'être signalée.
+            var acheve = introuvables == 0;
+            foreach (var (objet, nom, endroit) in manquantes)
+                sortie.Add(new Egaree(objet, nom, endroit, tenue.Nom, acheve));
+        }
+        return sortie;
     }
 }

@@ -58,7 +58,7 @@ public sealed class Greffon : IDalamudPlugin
     public string Jeton =>
         ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
 
-    private List<TenueARanger> aRanger = [];
+    private List<Egaree> aRanger = [];
     private double prochainARanger;
 
     /// <summary>
@@ -68,7 +68,7 @@ public sealed class Greffon : IDalamudPlugin
     /// fois par seconde pour une liste qui bouge quand on ramasse un objet serait
     /// du gachis. Deux fois par seconde suffit largement a suivre un inventaire.
     /// </summary>
-    public List<TenueARanger> ARanger()
+    public List<Egaree> ARanger()
     {
         var cat = Catalogue;
         var coffre = Coffre;
