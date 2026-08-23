@@ -57,6 +57,11 @@ public sealed class Fenetre : Window, IDisposable
             PageARanger();
             ImGui.EndTabItem();
         }
+        if (ImGui.BeginTabItem(Mots.PageSonde))
+        {
+            PageSonde();
+            ImGui.EndTabItem();
+        }
         // Le bouton « Aller a la configuration » n'a de sens que s'il y va.
         var force = ongletVoulu == 1 ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
         ongletVoulu = -1;
@@ -499,6 +504,51 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.EndTable();
             ImGui.Spacing();
         }
+    }
+
+    // ------------------------------------------------------------ la sonde
+
+    /// <summary>
+    /// Ce que contient la fenêtre « Ranger » du jeu.
+    ///
+    /// Page temporaire, et elle ne fait que lire : le jeu n'expose aucun appel
+    /// pour déposer une pièce seule, il faut donc piloter cette fenêtre, et pour
+    /// la piloter il faut d'abord savoir comment elle range sa liste.
+    /// </summary>
+    private void PageSonde()
+    {
+        ImGui.Spacing();
+        ImGui.TextWrapped(Mots.SondeQuoi);
+        ImGui.Spacing();
+
+        var vu = false;
+        foreach (var nom in Sonde.Fenetres)
+        {
+            var valeurs = Sonde.Lire(plugin.InterfaceJeu, nom, 200);
+            if (valeurs is null) continue;
+            vu = true;
+            ImGui.TextColored(Or, $"{nom}  ({valeurs.Count})");
+            if (ImGui.BeginTable($"s{nom}", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+            {
+                ImGui.TableSetupColumn("##i", ImGuiTableColumnFlags.WidthFixed, 44);
+                ImGui.TableSetupColumn("##t", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableSetupColumn("##v", ImGuiTableColumnFlags.WidthStretch);
+                foreach (var v in valeurs)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(Gris, v.Index.ToString());
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(Gris, v.Type);
+                    ImGui.TableNextColumn();
+                    ImGui.Text(v.Contenu);
+                }
+                ImGui.EndTable();
+            }
+            ImGui.Spacing();
+        }
+
+        if (!vu) ImGui.TextColored(Ambre, Mots.SondeRien);
     }
 
     // -------------------------------------------------- la page qu'on ouvre une fois

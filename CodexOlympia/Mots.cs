@@ -45,6 +45,17 @@ public static class Mots
 
     public static string PageSync => D("Synchronisation", "Sync");
     public static string PageConfig => D("Configuration", "Settings");
+    public static string PageSonde => D("Sonde", "Probe");
+    public static string SondeQuoi => D(
+        "Page temporaire, et elle ne fait QUE lire : rien n’est cliqué, rien n’est déposé, aucun "
+        + "prisme n’est consommé. Ouvre ta coiffeuse mirage, clique « Ranger », et montre-moi ce "
+        + "tableau : c’est ce qui me permettra de piloter cette fenêtre correctement.",
+        "Temporary page, and it only READS: nothing is clicked, nothing is stored, no prism is "
+        + "used. Open your glamour dresser, click Store, and show me this table: it is what lets "
+        + "me drive that window correctly.");
+    public static string SondeRien => D(
+        "Aucune de ces fenêtres n’est ouverte. Ouvre ta coiffeuse mirage, puis « Ranger ».",
+        "None of those windows is open. Open your glamour dresser, then Store.");
 
     public static string AllerConfig => D("Aller à la configuration", "Go to settings");
     public static string CataloguePasPret =>

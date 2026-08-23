@@ -32,6 +32,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IFramework cadence;
     private readonly IGameGui interfaceJeu;
 
+    /// <summary>L'interface du jeu, pour la sonde.</summary>
+    public IGameGui InterfaceJeu => interfaceJeu;
+
     private readonly WindowSystem fenetres = new("CodexOlympia");
     private readonly Fenetre fenetre;
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
