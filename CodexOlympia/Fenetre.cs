@@ -28,26 +28,6 @@ public sealed class Fenetre : Window, IDisposable
     private static readonly Vector4 Ambre = new(0.98f, 0.70f, 0.10f, 1f);
     private static readonly Vector4 Gris = new(0.54f, 0.53f, 0.51f, 1f);
 
-    /// <summary>Le nom lisible de chaque collection, dans l'ordre d'affichage.</summary>
-    private static readonly (string Cle, string Nom)[] Noms =
-    [
-        ("mounts", "Montures"),
-        ("minions", "Mascottes"),
-        ("orchestrions", "Rouleaux d'orchestrion"),
-        ("emotes", "Emotes"),
-        ("hairstyles", "Coiffures"),
-        ("fashions", "Accessoires de mode"),
-        ("facewear", "Lunettes"),
-        ("bardings", "Bardes"),
-        ("cards", "Cartes de Triple Triade"),
-        ("frames", "Portraits"),
-        ("spells", "Sorts bleus"),
-        ("achievements", "Succès"),
-        ("armoires", "Armoire"),
-        ("outfitpieces", "Pièces de tenue"),
-        ("outfits", "Tenues entières"),
-    ];
-
     public Fenetre(Greffon greffon) : base("Codex Olympia###codex-olympia")
     {
         this.greffon = greffon;
@@ -67,7 +47,7 @@ public sealed class Fenetre : Window, IDisposable
         greffon.Avancer(ImGui.GetTime());
 
         if (!ImGui.BeginTabBar("pages")) return;
-        if (ImGui.BeginTabItem("Synchronisation"))
+        if (ImGui.BeginTabItem(Mots.PageSync))
         {
             PageSynchronisation();
             ImGui.EndTabItem();
@@ -75,7 +55,7 @@ public sealed class Fenetre : Window, IDisposable
         // Le bouton « Aller a la configuration » n'a de sens que s'il y va.
         var force = ongletVoulu == 1 ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
         ongletVoulu = -1;
-        if (ImGui.BeginTabItem("Configuration", force))
+        if (ImGui.BeginTabItem(Mots.PageConfig, force))
         {
             PageConfiguration();
             ImGui.EndTabItem();
@@ -94,7 +74,7 @@ public sealed class Fenetre : Window, IDisposable
         {
             ImGui.TextColored(Ambre, manque);
             ImGui.Spacing();
-            if (ImGui.Button("Aller à la configuration")) ongletVoulu = 1;
+            if (ImGui.Button(Mots.AllerConfig)) ongletVoulu = 1;
             return;
         }
 
@@ -104,8 +84,8 @@ public sealed class Fenetre : Window, IDisposable
         if (greffon.Catalogue?.Pret != true)
         {
             ImGui.Spacing();
-            ImGui.TextColored(Ambre, "Le catalogue de l'application n'est pas encore chargé.");
-            if (ImGui.Button("Réessayer")) greffon.RechargerCatalogue();
+            ImGui.TextColored(Ambre, Mots.CataloguePasPret);
+            if (ImGui.Button(Mots.Reessayer)) greffon.RechargerCatalogue();
             return;
         }
 
@@ -113,19 +93,17 @@ public sealed class Fenetre : Window, IDisposable
 
         ImGui.Spacing();
         ImGui.BeginDisabled(lecture);
-        if (ImGui.Button("Regarder ce que j'ai", new Vector2(180, 28))) greffon.Regarder();
+        if (ImGui.Button(Mots.Regarder, new Vector2(180, 28))) greffon.Regarder();
         ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.AlignTextToFramePadding();
-        ImGui.TextColored(Gris, "rien n'est envoyé à cette étape");
+        ImGui.TextColored(Gris, Mots.RienNePart);
 
         var releves = greffon.Releves;
         if (releves.Count == 0 && !lecture)
         {
             ImGui.Spacing();
-            ImGui.TextWrapped(
-                "Le greffon lit ce que le jeu tient pour débloqué, te le montre, et n'envoie " +
-                "que si tu le lui dis. Rien n'est jamais décoché à ta place.");
+            ImGui.TextWrapped(Mots.Presentation);
             return;
         }
 
@@ -134,7 +112,7 @@ public sealed class Fenetre : Window, IDisposable
         {
             // Le tableau se remplit de haut en bas : on voit ce qui est fait, ce
             // qui est en train de se faire, et ce qui attend.
-            ImGui.TextColored(Or, "On récupère tes déblocages" + Points());
+            ImGui.TextColored(Or, Mots.OnRecupere + Points());
             ImGui.PushStyleColor(ImGuiCol.PlotHistogram, Or);
             ImGui.ProgressBar(
                 greffon.AFaire == 0 ? 0f : (float)greffon.Faites / greffon.AFaire,
@@ -156,10 +134,8 @@ public sealed class Fenetre : Window, IDisposable
         var aDeposer = releves.FirstOrDefault(r => r.Cle == "adeposer");
         if (aDeposer is not null && aDeposer.Trouves.Count > 0)
         {
-            ImGui.TextColored(Or, aDeposer.Trouves.Count == 1
-                ? "Une pièce de tenue dort dans ton armoire."
-                : $"{aDeposer.Trouves.Count} pièces de tenue dorment dans ton armoire.");
-            ImGui.TextColored(Gris, "Dépose-les dans la coiffeuse pour pouvoir t'en servir.");
+            ImGui.TextColored(Or, Mots.PieceQuiDort(aDeposer.Trouves.Count));
+            ImGui.TextColored(Gris, Mots.PieceQuiDortAide);
             ImGui.Spacing();
         }
 
@@ -168,17 +144,15 @@ public sealed class Fenetre : Window, IDisposable
         var bloquees = releves.Count(r => r.Empeche is not null);
         if (bloquees > 0)
         {
-            ImGui.TextColored(Ambre, bloquees == 1
-                ? "Une collection n'a pas pu être lue : elle ne sera pas envoyée."
-                : $"{bloquees} collections n'ont pas pu être lues : elles ne seront pas envoyées.");
+            ImGui.TextColored(Ambre, Mots.NonLues(bloquees));
             ImGui.Spacing();
         }
 
         if (greffon.EnvoiEnCours)
         {
-            ImGui.TextColored(Gris, "envoi en cours...");
+            ImGui.TextColored(Gris, Mots.EnvoiEnCours);
         }
-        else if (ImGui.Button("Envoyer à Codex Olympia", new Vector2(220, 30)))
+        else if (ImGui.Button(Mots.Envoyer, new Vector2(220, 30)))
         {
             greffon.Envoyer();
         }
@@ -192,14 +166,14 @@ public sealed class Fenetre : Window, IDisposable
             | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.PadOuterX;
         if (!ImGui.BeginTable("releves", 4, style)) return;
 
-        ImGui.TableSetupColumn("Collection", ImGuiTableColumnFlags.WidthFixed, 190);
-        ImGui.TableSetupColumn("Trouvé", ImGuiTableColumnFlags.WidthFixed, 96);
+        ImGui.TableSetupColumn(Mots.ColCollection, ImGuiTableColumnFlags.WidthFixed, 190);
+        ImGui.TableSetupColumn(Mots.ColTrouve, ImGuiTableColumnFlags.WidthFixed, 96);
         ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 110);
         ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableHeadersRow();
 
         var attendu = greffon.EnCours;
-        foreach (var (cle, nom) in Noms)
+        foreach (var (cle, nom) in Mots.Collections)
         {
             var x = releves.FirstOrDefault(v => v.Cle == cle);
             // Pendant la lecture, les lignes pas encore faites restent visibles :
@@ -217,13 +191,13 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.AlignTextToFramePadding();
             if (aVenir)
             {
-                if (cle == attendu) ImGui.TextColored(Or, "lecture" + Points());
-                else ImGui.TextColored(Gris, "en attente");
+                if (cle == attendu) ImGui.TextColored(Or, Mots.Lecture + Points());
+                else ImGui.TextColored(Gris, Mots.EnAttente);
                 ImGui.TableNextColumn();
                 ImGui.TableNextColumn();
                 continue;
             }
-            if (x!.Empeche is not null) ImGui.TextColored(Ambre, "non lu");
+            if (x!.Empeche is not null) ImGui.TextColored(Ambre, Mots.NonLu);
             else ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
 
             // La barre ne dit rien de neuf : elle rend la colonne lisible d'un
@@ -258,17 +232,12 @@ public sealed class Fenetre : Window, IDisposable
         switch (x.Limite)
         {
             case Limite.Capacite:
-                ImGui.TextColored(Gris, $"{x.Portee?.Count ?? 0} sur {x.Total} vérifiables");
-                Survol(
-                    "Le jeu ne sait pas répondre pour le reste de cette collection.\n" +
-                    "Ces entrées-là sont laissées tranquilles : ni ajoutées, ni signalées manquantes.");
+                ImGui.TextColored(Gris, Mots.Verifiables(x.Portee?.Count ?? 0, x.Total));
+                Survol(Mots.VerifiablesAide);
                 break;
             case Limite.Depot:
-                ImGui.TextColored(Gris, "ajout seulement");
-                Survol(
-                    "Cette collection se constate dans un dépôt : la coiffeuse mirage ou l'armoire.\n" +
-                    "On y voit ce qui s'y trouve, jamais ce qui n'y est pas. Une pièce peut dormir\n" +
-                    "dans un sac ou chez un servant. Rien ne sera donc signalé comme manquant.");
+                ImGui.TextColored(Gris, Mots.AjoutSeulement);
+                Survol(Mots.AjoutSeulementAide);
                 if (x.Note is not null)
                 {
                     ImGui.SameLine();
@@ -303,13 +272,13 @@ public sealed class Fenetre : Window, IDisposable
 
         if (retour.Ajouts.Count > 0)
         {
-            ImGui.TextColored(Vert, "Ajouté");
+            ImGui.TextColored(Vert, Mots.Ajoute);
             ImGui.SameLine();
             ImGui.TextWrapped(string.Join(", ", retour.Ajouts.Select(a => $"{a.Value} {Lisible(a.Key)}")));
         }
         if (retour.Ecarts.Count > 0)
         {
-            ImGui.TextColored(Ambre, "À trancher dans l'application");
+            ImGui.TextColored(Ambre, Mots.ATrancher);
             ImGui.SameLine();
             ImGui.TextWrapped(string.Join(", ", retour.Ecarts.Select(a => $"{a.Value} {Lisible(a.Key)}")));
         }
@@ -328,32 +297,39 @@ public sealed class Fenetre : Window, IDisposable
         var contentId = greffon.ContentId;
         if (contentId == 0)
         {
-            ImGui.TextColored(Ambre, "Connecte-toi avec un personnage.");
+            ImGui.TextColored(Ambre, Mots.PasDePerso);
             return;
         }
 
         // Un jeton par personnage, et c'est le seul champ de cette page. Le
         // jeton désigne lui-même le personnage qu'il alimente : rien d'autre
         // n'est à recopier depuis l'application.
-        var nom = r.Noms.TryGetValue(contentId, out var n) ? n : "ce personnage";
-        ImGui.TextColored(Or, $"Le jeton de {nom}");
-        ImGui.TextWrapped(
-            "Il se crée dans Codex Olympia, page de compte, section « Plugin Codex Olympia " +
-            "Dalamud ». Choisis ce personnage au moment de le créer, colle-le ici, et c'est " +
-            "tout. Il ne sait faire qu'une chose : déposer une photo de tes déblocages. Il " +
-            "ne peut ni lire ton compte, ni le modifier, ni l'effacer.");
+        var nom = r.Noms.TryGetValue(contentId, out var n) ? n : "?";
+        ImGui.TextColored(Or, Mots.JetonDe(nom));
+        ImGui.TextWrapped(Mots.JetonExplique);
         ImGui.Spacing();
         ImGui.SetNextItemWidth(-1);
         var jeton = greffon.Jeton;
-        if (ImGui.InputTextWithHint("##jeton", "colle ton jeton ici", ref jeton, 200,
+        if (ImGui.InputTextWithHint("##jeton", Mots.ColleJeton, ref jeton, 200,
                 ImGuiInputTextFlags.Password))
         {
             greffon.PoserJeton(jeton);
         }
         ImGui.TextColored(greffon.Jeton.Length > 0 ? Vert : Ambre,
-            greffon.Jeton.Length > 0
-                ? "jeton enregistré pour ce personnage"
-                : "aucun jeton pour ce personnage");
+            greffon.Jeton.Length > 0 ? Mots.JetonRange : Mots.PasDeJeton);
+
+        // La langue suit le client de jeu, sauf demande contraire : quelqu'un qui
+        // joue en anglais depuis dix ans lit son jeu en anglais.
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        ImGui.TextColored(Or, Mots.Langue_);
+        ImGui.SetNextItemWidth(200);
+        var choix = (int)r.Langue;
+        if (ImGui.Combo("##langue", ref choix, $"{Mots.LangueAuto}\0Français\0English\0"))
+        {
+            greffon.ChoisirLangue((Langue)choix);
+        }
     }
 
     // ------------------------------------------------------------------ menu
@@ -361,12 +337,12 @@ public sealed class Fenetre : Window, IDisposable
     /// <summary>Ce qui empêche encore d'envoyer, dit en une phrase.</summary>
     private string? Manque()
     {
-        if (greffon.ContentId == 0) return "Aucun personnage connecté.";
-        if (greffon.Jeton.Length == 0) return "Il manque le jeton de ce personnage.";
+        if (greffon.ContentId == 0) return Mots.ManquePerso;
+        if (greffon.Jeton.Length == 0) return Mots.ManqueJeton;
         return null;
     }
 
     private static string Lisible(string cle) =>
-        Noms.FirstOrDefault(n => n.Cle == cle).Nom?.ToLowerInvariant() ?? cle;
+        Mots.Collections.FirstOrDefault(n => n.Cle == cle).Nom?.ToLowerInvariant() ?? cle;
 
 }

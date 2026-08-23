@@ -31,4 +31,7 @@ public sealed class Reglages : IPluginConfiguration
 
     /// <summary>Un rappel lisible, pour reconnaître une ligne du tableau.</summary>
     public Dictionary<ulong, string> Noms { get; set; } = new();
+
+    /// <summary>La langue de la fenêtre. Par défaut celle du client de jeu.</summary>
+    public Langue Langue { get; set; } = Langue.Auto;
 }

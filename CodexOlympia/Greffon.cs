@@ -82,6 +82,7 @@ public sealed class Greffon : IDalamudPlugin
         this.discussion = discussion;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
+        Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
 
         fenetre = new Fenetre(this);
         fenetres.AddWindow(fenetre);
@@ -92,7 +93,7 @@ public sealed class Greffon : IDalamudPlugin
 
         commandes.AddHandler(Commande, new CommandInfo((_, _) => Ouvrir())
         {
-            HelpMessage = "Ouvre la fenetre de synchronisation Codex Olympia.",
+            HelpMessage = Mots.AideCommande,
         });
 
         RechargerCatalogue();
@@ -116,6 +117,14 @@ public sealed class Greffon : IDalamudPlugin
     }
 
     public void Enregistrer() => pi.SavePluginConfig(Reglages);
+
+    /// <summary>Change la langue de la fenetre et s'en souvient.</summary>
+    public void ChoisirLangue(Langue l)
+    {
+        Reglages.Langue = l;
+        Mots.Choisir(l, etat.ClientLanguage);
+        Enregistrer();
+    }
 
     /// <summary>Le nom du personnage sert d'étiquette, rien de plus : il dit au
     /// joueur de quel jeton il est en train de parler.</summary>
@@ -205,7 +214,7 @@ public sealed class Greffon : IDalamudPlugin
             journal.Error(e, "lecture du jeu impossible ({0})", cle);
             Releves = [];
             AFaire = 0;
-            Dernier = new Retour(false, "la lecture du jeu a echoue : " + e.Message, [], []);
+            Dernier = new Retour(false, Mots.LectureEchouee(e.Message), [], []);
         }
     }
 
@@ -227,7 +236,7 @@ public sealed class Greffon : IDalamudPlugin
             catch (Exception e)
             {
                 journal.Error(e, "envoi impossible");
-                Dernier = new Retour(false, "envoi impossible : " + e.Message, [], []);
+                Dernier = new Retour(false, Mots.ServeurInjoignable(e.Message), [], []);
             }
             finally
             {

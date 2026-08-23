@@ -36,7 +36,7 @@ public static class Envoi
             if (x.Portee is not null) portee[x.Cle] = x.Portee;
         }
         if (collections.Count == 0)
-            return new Retour(false, "rien à envoyer : aucune collection n'a pu être lue", [], []);
+            return new Retour(false, Mots.RienAEnvoyer, [], []);
 
         // Le personnage n'est pas dit ici : le jeton le porte. Une photo ne
         // choisit pas qui elle alimente.
@@ -56,7 +56,7 @@ public static class Envoi
         }
         catch (Exception e)
         {
-            return new Retour(false, "le serveur est injoignable : " + e.Message, [], []);
+            return new Retour(false, Mots.ServeurInjoignable(e.Message), [], []);
         }
 
         var texte = await rep.Content.ReadAsStringAsync();
@@ -70,26 +70,24 @@ public static class Envoi
             var ecarts = Compter(doc.RootElement, "ecarts");
             var rapport = doc.RootElement.TryGetProperty("rapport", out var jr)
                           && jr.ValueKind == JsonValueKind.String;
-            var message = rapport
-                ? "envoyé. Le rapport t'attend dans les notifications de Codex Olympia."
-                : "envoyé. Rien de nouveau : l'application savait déjà tout ça.";
+            var message = rapport ? Mots.EnvoyeAvecRapport : Mots.EnvoyeRienDeNeuf;
             return new Retour(true, message, ajouts, ecarts);
         }
         catch
         {
-            return new Retour(false, "le serveur a répondu quelque chose d'illisible", [], []);
+            return new Retour(false, Mots.ReponseIllisible, [], []);
         }
     }
 
     /// <summary>Un code d'erreur ne dit rien à personne : on le traduit.</summary>
     private static string Expliquer(HttpStatusCode code, string texte) => code switch
     {
-        HttpStatusCode.Unauthorized => "jeton refusé. Il a peut-être été révoqué : refais-en un dans la page de compte.",
-        HttpStatusCode.Forbidden => "le personnage de ce jeton n'est plus vérifié sur ton compte.",
-        HttpStatusCode.Conflict => "ce jeton date d'avant et ne désigne aucun personnage. Révoque-le et refais-en un.",
-        HttpStatusCode.TooManyRequests => "trop d'envois d'affilée. Laisse passer un moment.",
-        (HttpStatusCode)422 => "photo refusée : " + texte,
-        _ => $"le serveur a répondu {(int)code}.",
+        HttpStatusCode.Unauthorized => Mots.JetonRefuse,
+        HttpStatusCode.Forbidden => Mots.PersoNonVerifie,
+        HttpStatusCode.Conflict => Mots.JetonSansPerso,
+        HttpStatusCode.TooManyRequests => Mots.TropDEnvois,
+        (HttpStatusCode)422 => Mots.PhotoRefusee(texte),
+        _ => Mots.ServeurRepondu((int)code),
     };
 
     private static Dictionary<string, int> Compter(JsonElement racine, string champ)

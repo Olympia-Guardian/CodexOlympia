@@ -38,6 +38,12 @@ Tu cliques, il regarde, il te montre, tu envoies. C'est tout.
 C'est tout : le jeton désigne lui-même le personnage qu'il alimente. Un
 personnage de plus, un jeton de plus, et le plugin garde celui de chacun.
 
+## La langue
+
+La fenêtre suit la langue de ton client de jeu : français si tu joues en
+français, anglais sinon. Tu peux forcer l'une ou l'autre dans l'onglet
+**Configuration**.
+
 ## Le jeton
 
 Un jeton de synchronisation ne sait faire qu'une chose : **déposer une photo**,

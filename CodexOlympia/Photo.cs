@@ -132,7 +132,7 @@ public static class Photo
                     return
                     [
                         new Releve(cle, [], null, Total(cat, cle),
-                            "ouvre ton carnet de succès une fois, puis regarde à nouveau"),
+                            Mots.OuvreSucces),
                     ];
                 }
                 return [Simple(cat, cle, id => id <= int.MaxValue && succes->IsComplete((int)id))];
@@ -232,10 +232,10 @@ public static class Photo
     private static unsafe Releve Armoire(Catalogue cat, UIState* ui, bool lue, Coffre coffre)
     {
         if (!cat.Ids.TryGetValue("armoires", out var ids))
-            return new Releve("armoires", [], null, 0, "catalogue absent");
+            return new Releve("armoires", [], null, 0, Mots.CatalogueAbsent);
         if (!lue)
             return new Releve("armoires", [], null, ids.Length,
-                "ouvre une fois ton armoire chez un rassembleur pour que le jeu la charge");
+                Mots.OuvreArmoire);
 
         // La case d'armoire d'une pièce, quand le catalogue en donne une : c'est
         // par là que la coiffeuse répond pour l'armoire.
@@ -263,7 +263,8 @@ public static class Photo
     /// est la collection entière.</summary>
     private static Releve Simple(Catalogue cat, string cle, Func<uint, bool> possede)
     {
-        if (!cat.Ids.TryGetValue(cle, out var ids)) return new Releve(cle, [], null, 0, "catalogue absent");
+        if (!cat.Ids.TryGetValue(cle, out var ids))
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
         var trouves = new List<uint>();
         foreach (var id in ids)
             if (possede(id))
@@ -276,7 +277,7 @@ public static class Photo
     private static unsafe Releve ParObjet(Catalogue cat, string cle)
     {
         if (!cat.Ids.TryGetValue(cle, out var ids) || !cat.Objets.TryGetValue(cle, out var objets))
-            return new Releve(cle, [], null, 0, "catalogue absent");
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
 
         var ui = UIState.Instance();
         var trouves = new List<uint>();
@@ -302,7 +303,8 @@ public static class Photo
     private static unsafe Releve Sorts(Catalogue cat, Lumina.Excel.ExcelSheet<AozAction> sorts, UIState* ui)
     {
         const string cle = "spells";
-        if (!cat.Ids.TryGetValue(cle, out var ids)) return new Releve(cle, [], null, 0, "catalogue absent");
+        if (!cat.Ids.TryGetValue(cle, out var ids))
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
 
         var trouves = new List<uint>();
         var portee = new List<uint>();
@@ -336,21 +338,20 @@ public static class Photo
     private static List<Releve> Tenues(Catalogue cat, bool armoireLue, Coffre coffre)
     {
         var totalPieces = cat.Tenues.Sum(t => t.Pieces.Count);
-        var vu = $"coiffeuse : {coffre.Coiffeuse.Count} objets, armoire : " +
-                 (armoireLue ? $"{coffre.Armoire.Count} pièces" : "non chargée");
+        var vu = Mots.Depots(
+            coffre.Coiffeuse.Count,
+            armoireLue ? Mots.ArmoirePieces(coffre.Armoire.Count) : Mots.ArmoireNonChargee);
 
         // La coiffeuse est le dépôt principal : tant qu'on ne l'a pas vue, on
         // n'envoie rien. L'armoire seule est un échantillon trop étroit, et ce
         // qu'elle ne contient pas passerait pour perdu.
         if (coffre.Coiffeuse.Count == 0)
         {
-            var quoi = armoireLue
-                ? "ouvre ta coiffeuse mirage une fois, puis regarde à nouveau : le jeu ne charge son contenu qu'à ce moment-là"
-                : "ouvre ta coiffeuse mirage et ton armoire chez un rassembleur, puis regarde à nouveau";
+            var quoi = armoireLue ? Mots.OuvreCoiffeuse : Mots.OuvreLesDeux;
             return
             [
                 new Releve("outfitpieces", [], null, totalPieces, quoi, vu),
-                new Releve("outfits", [], null, cat.Tenues.Count, "elles se déduisent des pièces"),
+                new Releve("outfits", [], null, cat.Tenues.Count, Mots.TenuesDeduites),
             ];
         }
 
