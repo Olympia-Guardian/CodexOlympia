@@ -189,6 +189,37 @@ public static class Mots
         "Le plugin et l'application sont gratuits, et le resteront.",
         "The plugin and the app are free, and will stay that way.");
 
+    // ------------------------------------------ le rangement automatique
+
+    public static string RangeurTitre => D("Ranger tout seul", "Store automatically");
+    public static string RangeurExperimental => D("EXPÉRIMENTAL", "EXPERIMENTAL");
+    public static string RangeurAvertissement => D(
+        "C'est la seule chose que ce plugin fasse AGIR dans le jeu : tout le reste se contente " +
+        "de lire. Chaque dépôt est un ordre envoyé au serveur. Une opération à la fois, à " +
+        "cadence humaine, et tout s'arrête au premier imprévu. Reste devant ta coiffeuse ou ton " +
+        "armoire, ouverte, pendant que ça travaille.",
+        "This is the only thing in this plugin that ACTS on the game: everything else only " +
+        "reads. Each deposit is an order sent to the server. One operation at a time, at human " +
+        "pace, and everything stops at the first surprise. Stay at your glamour dresser or " +
+        "armoire, open, while it works.");
+    public static string RangeurRien => D("Rien à ranger d'ici.", "Nothing to store from here.");
+    public static string RangeurAMain => D("tu as appuyé sur Arrêter.", "you pressed Stop.");
+    public static string RangeurLancer => D("Ranger", "Store");
+    public static string RangeurStop => D("Arrêter", "Stop");
+    public static string RangeurAvance(int fait, int total, string quoi) =>
+        D($"{fait}/{total} · {quoi}", $"{fait}/{total} · {quoi}");
+    public static string RangeurFini(int n) => D($"Rangé : {n} opérations.", $"Stored: {n} operations.");
+    public static string RangeurArrete(string pourquoi) =>
+        D("Arrêté : " + pourquoi, "Stopped: " + pourquoi);
+    public static string RangeurArmoireFermee =>
+        D("ton armoire n'est pas ouverte.", "your armoire is not open.");
+    public static string RangeurCoiffeuseFermee =>
+        D("ta coiffeuse mirage n'est pas ouverte.", "your glamour dresser is not open.");
+    public static string RangeurRefus(string quoi) =>
+        D($"le jeu a refusé « {quoi} ».", $"the game refused \"{quoi}\".");
+    public static string RangeurSansCatalogue => D("le catalogue a disparu.", "the catalogue is gone.");
+    public static string RangeurErreur => D("quelque chose a mal tourné.", "something went wrong.");
+
     // ---------------------------------------------------------- a ranger
 
     public static string PageARanger => D("À ranger", "To store");

@@ -103,6 +103,32 @@ ne dit pas quel sac une grille affiche : le plugin le reconnaît en comparant le
 icônes affichées à celles de chaque sac. Quand rien ne correspond, il ne dessine
 rien plutôt que de dessiner faux.
 
+## Ranger tout seul (expérimental)
+
+Sur la page « À ranger », replié, un bouton dépose pour toi ce que tu as sous la
+main : les objets d'armoire, les tenues complètes, et les pièces manquantes des
+tenues déjà déposées. Une tenue déjà dans la coiffeuse est **complétée**, jamais
+dupliquée.
+
+**C'est la seule chose que ce plugin fasse agir dans le jeu.** Tout le reste se
+contente de lire la mémoire du client, ce qui ne produit aucun paquet et
+n'existe pas pour le serveur. Ici, chaque dépôt est un ordre envoyé. Sache-le
+avant de t'en servir.
+
+Quatre garde-fous :
+
+- une opération à la fois, espacée d'une demi-seconde plus une variation ;
+- aucune case n'est mémorisée : chaque tâche vise un objet, et sa position est
+  retrouvée juste avant d'agir, parce qu'une case change dès qu'un objet en sort ;
+- arrêt au premier imprévu, avec la raison affichée ;
+- rien de partiel : le jeu range une tenue d'un bloc, donc on ne dépose que ce
+  qu'on a en entier.
+
+Reste devant ta coiffeuse ou ton armoire, ouverte, pendant que ça travaille. Une
+pièce isolée qui n'appartient à aucune tenue complétable et n'a pas de case
+d'armoire reste où elle est : le jeu n'offre pas d'appel propre pour déposer une
+pièce seule dans la coiffeuse.
+
 ## Ce qu'il ne lit pas
 
 - **Les reliques.** Le jeu ne tient pas l'état d'avancement d'une relique. Le

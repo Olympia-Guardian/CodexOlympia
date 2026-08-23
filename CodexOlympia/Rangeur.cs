@@ -1,0 +1,287 @@
+using Dalamud.Game.Inventory;
+using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
+
+namespace CodexOlympia;
+
+public enum EtatRangement
+{
+    Arrete,
+    EnMarche,
+    Fini,
+    Interrompu,
+}
+
+/// <summary>Ce qu'il y a a faire, et par quel moyen.</summary>
+public enum Moyen
+{
+    /// <summary>Un objet a ranger dans l'armoire.</summary>
+    Armoire,
+
+    /// <summary>Une tenue a deposer d'un bloc dans la coiffeuse.</summary>
+    TenueNeuve,
+
+    /// <summary>Des pieces a ajouter a une tenue deja deposee.</summary>
+    TenueEntamee,
+}
+
+/// <summary>Une operation, decrite par ce qu'elle vise et jamais par des cases.</summary>
+public sealed record Tache(Moyen Moyen, uint Cible, string Nom, uint Emplacement = 0);
+
+/// <summary>
+/// Le rangement automatique. FONCTION EXPERIMENTALE.
+///
+/// <para><b>Ce module agit sur le jeu.</b> Tout le reste du plugin lit la
+/// memoire du client, ce qui ne produit aucun paquet. Ici, chaque operation est
+/// un ordre envoye au serveur. C'est la seule partie du plugin dont le serveur
+/// voit passer quelque chose, et c'est la raison de tout ce qui suit.</para>
+///
+/// <para><b>Une operation a la fois, a cadence humaine.</b> Une salve a vitesse
+/// machine ne ressemble a rien de ce qu'un joueur produit.</para>
+///
+/// <para><b>Rien n'est memorise par sa case.</b> Une case change des qu'un objet
+/// en sort. Chaque tache designe un OBJET, et sa position est retrouvee juste
+/// avant d'agir. Ranger le mauvais objet parce qu'on visait une case perimee est
+/// exactement l'accident qu'on ne peut pas defaire.</para>
+///
+/// <para><b>On s'arrete au premier imprevu.</b> Fenetre fermee, depot plein,
+/// objet disparu, retour negatif : on cesse et on dit pourquoi.</para>
+/// </summary>
+public sealed class Rangeur
+{
+    private readonly IGameInventory sacs;
+    private readonly IPluginLog journal;
+    private readonly Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.MirageStoreSetItem> ensembles;
+    private readonly Random hasard = new();
+
+    private readonly List<Tache> file = [];
+    private int fait;
+    private double prochaine;
+
+    public EtatRangement Etat { get; private set; } = EtatRangement.Arrete;
+    public string? Pourquoi { get; private set; }
+    public int Faits => fait;
+    public int Total => file.Count;
+    public Tache? EnCours => Etat == EtatRangement.EnMarche && fait < file.Count ? file[fait] : null;
+
+    public Rangeur(
+        IGameInventory sacs,
+        IPluginLog journal,
+        Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.MirageStoreSetItem> ensembles)
+    {
+        this.sacs = sacs;
+        this.journal = journal;
+        this.ensembles = ensembles;
+    }
+
+    /// <summary>Les contenants ou le jeu accepte de puiser pour un depot.</summary>
+    private static readonly (GameInventoryType Vue, InventoryType Jeu)[] Puisables =
+    [
+        (GameInventoryType.Inventory1, InventoryType.Inventory1),
+        (GameInventoryType.Inventory2, InventoryType.Inventory2),
+        (GameInventoryType.Inventory3, InventoryType.Inventory3),
+        (GameInventoryType.Inventory4, InventoryType.Inventory4),
+        (GameInventoryType.ArmoryMainHand, InventoryType.ArmoryMainHand),
+        (GameInventoryType.ArmoryOffHand, InventoryType.ArmoryOffHand),
+        (GameInventoryType.ArmoryHead, InventoryType.ArmoryHead),
+        (GameInventoryType.ArmoryBody, InventoryType.ArmoryBody),
+        (GameInventoryType.ArmoryHands, InventoryType.ArmoryHands),
+        (GameInventoryType.ArmoryLegs, InventoryType.ArmoryLegs),
+        (GameInventoryType.ArmoryFeets, InventoryType.ArmoryFeets),
+        (GameInventoryType.ArmoryEar, InventoryType.ArmoryEar),
+        (GameInventoryType.ArmoryNeck, InventoryType.ArmoryNeck),
+        (GameInventoryType.ArmoryWrist, InventoryType.ArmoryWrist),
+        (GameInventoryType.ArmoryRings, InventoryType.ArmoryRings),
+    ];
+
+    private const uint SeuilHq = 1_000_000;
+
+    /// <summary>Ou se trouve cet objet, maintenant. Nul s'il n'y est plus.</summary>
+    private (InventoryType Contenant, ushort Case)? Trouver(uint objet)
+    {
+        foreach (var (vue, jeu) in Puisables)
+        {
+            var items = sacs.GetInventoryItems(vue);
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (items[i].IsEmpty) continue;
+                var id = items[i].ItemId >= SeuilHq ? items[i].ItemId - SeuilHq : items[i].ItemId;
+                if (id == objet) return (jeu, (ushort)items[i].InventorySlot);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Batit la liste des operations.
+    ///
+    /// Trois familles, et rien d'autre : l'armoire, les tenues qu'on peut
+    /// deposer entieres, et celles deja entamees qu'on peut completer. Une piece
+    /// isolee qui ne rentre dans aucune des trois est laissee ou elle est : le
+    /// jeu n'offre pas de moyen propre de la deposer seule.
+    /// </summary>
+    public unsafe List<Tache> Preparer(Catalogue cat, Coffre coffre)
+    {
+        var taches = new List<Tache>();
+        var ui = UIState.Instance();
+        var mirage = MirageManager.Instance();
+
+        // L'armoire, objet par objet.
+        var vus = new HashSet<uint>();
+        foreach (var t in cat.Tenues)
+        {
+            foreach (var p in t.Pieces)
+            {
+                if (p.Armoire == 0 || !vus.Add(p.Armoire)) continue;
+                if (ui->Cabinet.IsItemInCabinet(p.Armoire - 1)) continue;
+                if (Trouver(p.Objet) is null) continue;
+                taches.Add(new Tache(Moyen.Armoire, p.Armoire, p.Nom));
+            }
+        }
+
+        // Les emplacements de la coiffeuse : c'est la qu'on voit si une tenue y
+        // est deja, et donc s'il faut la completer plutot que d'en creer une
+        // seconde.
+        var deposees = new Dictionary<uint, uint>();
+        var emplacements = mirage->PrismBoxItemIds;
+        for (var i = 0; i < emplacements.Length; i++)
+        {
+            var v = emplacements[i];
+            if (v == 0) continue;
+            deposees.TryAdd(v >= SeuilHq ? v - SeuilHq : v, (uint)i);
+        }
+
+        foreach (var t in cat.Tenues)
+        {
+            var manquantes = t.Pieces.Where(p => !coffre.Coiffeuse.Contains(p.Objet)).ToList();
+            if (manquantes.Count == 0) continue;
+            // On ne depose que ce qu'on a EN ENTIER : le jeu range une tenue d'un
+            // bloc, et un depot partiel gaspillerait un emplacement.
+            if (manquantes.Any(p => Trouver(p.Objet) is null)) continue;
+
+            if (deposees.TryGetValue(t.Id, out var place))
+                taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place));
+            else if (manquantes.Count == t.Pieces.Count)
+                taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom));
+        }
+
+        return taches;
+    }
+
+    public void Demarrer(List<Tache> taches)
+    {
+        file.Clear();
+        file.AddRange(taches);
+        fait = 0;
+        prochaine = 0;
+        Pourquoi = null;
+        Etat = file.Count == 0 ? EtatRangement.Fini : EtatRangement.EnMarche;
+    }
+
+    public void Arreter(string? pourquoi)
+    {
+        if (Etat != EtatRangement.EnMarche) return;
+        Pourquoi = pourquoi;
+        Etat = pourquoi is null ? EtatRangement.Fini : EtatRangement.Interrompu;
+    }
+
+    /// <summary>Une operation au plus par appel, et seulement quand l'heure est
+    /// venue. Appele depuis le fil du jeu.</summary>
+    public void Tic(Catalogue? cat, double maintenant)
+    {
+        if (Etat != EtatRangement.EnMarche) return;
+        if (fait >= file.Count)
+        {
+            Arreter(null);
+            return;
+        }
+        if (maintenant < prochaine) return;
+        // Une demi-seconde et des poussieres, et la poussiere varie : une cadence
+        // reguliere au millieme ne ressemble a personne.
+        prochaine = maintenant + 0.5 + hasard.NextDouble() * 0.4;
+
+        if (cat is null)
+        {
+            Arreter(Mots.RangeurSansCatalogue);
+            return;
+        }
+
+        try
+        {
+            if (!Faire(cat, file[fait])) return;
+        }
+        catch (Exception e)
+        {
+            journal.Error(e, "rangement impossible");
+            Arreter(Mots.RangeurErreur);
+            return;
+        }
+        fait++;
+    }
+
+    /// <summary>Fait une operation. Rend faux et arrete si quelque chose cloche.</summary>
+    private unsafe bool Faire(Catalogue cat, Tache tache)
+    {
+        var ui = UIState.Instance();
+        var mirage = MirageManager.Instance();
+
+        if (tache.Moyen == Moyen.Armoire)
+        {
+            if (!ui->Cabinet.IsCabinetLoaded())
+            {
+                Arreter(Mots.RangeurArmoireFermee);
+                return false;
+            }
+            // Deja range entre-temps : ce n'est pas une erreur, c'est fait.
+            if (ui->Cabinet.IsItemInCabinet(tache.Cible - 1)) return true;
+            if (!ui->Cabinet.StoreCabinetItem(tache.Cible - 1))
+            {
+                Arreter(Mots.RangeurRefus(tache.Nom));
+                return false;
+            }
+            return true;
+        }
+
+        if (!mirage->PrismBoxLoaded)
+        {
+            Arreter(Mots.RangeurCoiffeuseFermee);
+            return false;
+        }
+
+        var tenue = cat.Tenues.FirstOrDefault(x => x.Id == tache.Cible);
+        if (tenue is null) return true;
+
+        // Onze emplacements, dans l'ordre de la feuille du jeu. Ce qu'on ne
+        // depose pas reste `Invalid` et case zero, comme le jeu l'attend.
+        var contenants = stackalloc InventoryType[11];
+        var cases = stackalloc ushort[11];
+        var rangs = Photo.SlotsDe(ensembles, tenue.Id);
+        var quelquechose = false;
+        for (var k = 0; k < 11; k++)
+        {
+            contenants[k] = InventoryType.Invalid;
+            cases[k] = 0;
+            var objet = k < rangs.Length ? rangs[k] : 0;
+            if (objet == 0) continue;
+            // Une piece deja dans la coiffeuse ne se redepose pas.
+            if (tache.Moyen == Moyen.TenueEntamee && mirage->IsSetSlotUnlocked(tache.Emplacement, k)) continue;
+            var ou = Trouver(objet);
+            if (ou is null) continue;
+            contenants[k] = ou.Value.Contenant;
+            cases[k] = ou.Value.Case;
+            quelquechose = true;
+        }
+        if (!quelquechose) return true;
+
+        var ok = tache.Moyen == Moyen.TenueNeuve
+            ? mirage->StoreNewOutfit(tenue.Id, contenants, cases)
+            : mirage->StoreExistingOutfit(tache.Emplacement, contenants, cases);
+        if (!ok)
+        {
+            Arreter(Mots.RangeurRefus(tache.Nom));
+            return false;
+        }
+        return true;
+    }
+}

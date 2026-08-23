@@ -209,6 +209,14 @@ public static class Photo
         return new Coffre(coiffeuse, cases);
     }
 
+    /// <summary>Les onze emplacements d'une tenue, ou un tableau vide si le jeu
+    /// n'en connaît pas. Même ordre que ci-dessous, pour la même raison.</summary>
+    public static uint[] SlotsDe(Lumina.Excel.ExcelSheet<MirageStoreSetItem> feuille, uint tenue)
+    {
+        var r = feuille.GetRowOrDefault(tenue);
+        return r is null ? [] : Slots(r.Value);
+    }
+
     /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille :
     /// c'est cet ordre-là que le jeu attend pour désigner un emplacement.</summary>
     private static uint[] Slots(MirageStoreSetItem s) =>

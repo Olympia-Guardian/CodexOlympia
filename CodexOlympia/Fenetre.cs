@@ -334,6 +334,8 @@ public sealed class Fenetre : Window, IDisposable
         Survol(Mots.ARangerQuoi + "\n\n" + Mots.ServantsVus(plugin.ServantsDuPerso().Count));
         ImGui.Spacing();
 
+        Rangement();
+
         if (!ImGui.BeginChild("aranger", new Vector2(0, 0), false)) return;
 
         // D'abord ce qui paie : les tenues qu'un rangement achève. Ensuite le
@@ -354,6 +356,63 @@ public sealed class Fenetre : Window, IDisposable
             Groupe(reste, false);
         }
         ImGui.EndChild();
+    }
+
+    /// <summary>
+    /// Le rangement automatique, replié et signalé pour ce qu'il est.
+    ///
+    /// C'est la seule commande du plugin qui agisse sur le jeu. Elle ne se
+    /// déclenche pas par mégarde : il faut déplier, lire, et appuyer.
+    /// </summary>
+    private void Rangement()
+    {
+        var r = plugin.Rangeur;
+
+        if (r.Etat == EtatRangement.EnMarche)
+        {
+            var quoi = r.EnCours?.Nom ?? string.Empty;
+            ImGui.TextColored(Or, Mots.RangeurAvance(r.Faits, r.Total, quoi) + Points());
+            ImGui.PushStyleColor(ImGuiCol.PlotHistogram, Or);
+            ImGui.ProgressBar(r.Total == 0 ? 0f : (float)r.Faits / r.Total, new Vector2(-1, 6), string.Empty);
+            ImGui.PopStyleColor();
+            if (ImGui.Button(Mots.RangeurStop)) r.Arreter(Mots.RangeurAMain);
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+            return;
+        }
+
+        if (r.Etat == EtatRangement.Interrompu && r.Pourquoi is not null)
+        {
+            ImGui.TextColored(Ambre, Mots.RangeurArrete(r.Pourquoi));
+            ImGui.Spacing();
+        }
+
+        if (!ImGui.CollapsingHeader($"{Mots.RangeurTitre}  [{Mots.RangeurExperimental}]###rangeur"))
+            return;
+
+        ImGui.TextColored(Ambre, Mots.RangeurAvertissement);
+        ImGui.Spacing();
+
+        var cat = plugin.Catalogue;
+        var coffre = plugin.Coffre;
+        if (cat is null || coffre is null) return;
+
+        // La liste se bâtit au moment où on la demande : un inventaire d'il y a
+        // trente secondes ne vaut rien pour décider de déplacer des objets.
+        if (ImGui.Button(Mots.RangeurLancer))
+        {
+            var taches = r.Preparer(cat, coffre);
+            r.Demarrer(taches);
+        }
+        if (r.Etat == EtatRangement.Fini && r.Total > 0)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Vert, Mots.RangeurFini(r.Faits));
+        }
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
     }
 
     /// <summary>Les pièces regroupées par endroit, un endroit par pliage.</summary>

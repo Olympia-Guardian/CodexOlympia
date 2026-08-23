@@ -37,6 +37,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     public Reglages Reglages { get; }
+    /// <summary>Le rangement automatique. Expérimental, et il agit sur le jeu.</summary>
+    public Rangeur Rangeur { get; }
     public Catalogue? Catalogue { get; private set; }
     public List<Releve> Releves { get; private set; } = [];
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
@@ -95,6 +97,9 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Quand on a regarde le servant ouvert pour la derniere fois.</summary>
     private double prochainServant;
 
+    /// <summary>Pour ne dire qu'une fois qu'un rangement s'est acheve.</summary>
+    private bool ditFini = true;
+
     /// <summary>
     /// Retenir ce que porte le servant a qui on parle.
     ///
@@ -105,6 +110,22 @@ public sealed class Plugin : IDalamudPlugin
     private void Veiller(IFramework _)
     {
         var maintenant = Environment.TickCount64 / 1000.0;
+        // Le rangement passe avant : il attend son tour et sa cadence lui est
+        // propre, la veille des servants peut patienter une seconde de plus.
+        Rangeur.Tic(Catalogue, maintenant);
+        if (Rangeur.Etat == EtatRangement.Fini && !ditFini)
+        {
+            ditFini = true;
+            discussion.Print("[Codex Olympia] " + Mots.RangeurFini(Rangeur.Faits));
+            // Ce qui vient d'etre depose n'est plus a ranger : la prochaine
+            // lecture le dira, et en attendant on ne promet rien.
+            Regarder();
+        }
+        else if (Rangeur.Etat == EtatRangement.EnMarche)
+        {
+            ditFini = false;
+        }
+
         if (maintenant < prochainServant) return;
         prochainServant = maintenant + 1.0;
 
@@ -235,6 +256,7 @@ public sealed class Plugin : IDalamudPlugin
         this.interfaceJeu = interfaceJeu;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
+        Rangeur = new Rangeur(sacs, journal, donnees.GetExcelSheet<MirageStoreSetItem>());
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
 
         fenetre = new Fenetre(this);
