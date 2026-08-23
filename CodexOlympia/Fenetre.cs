@@ -204,10 +204,50 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.TableNextColumn();
             ImGui.AlignTextToFramePadding();
             if (x.Empeche is not null) ImGui.TextWrapped(x.Empeche);
-            else if (x.Portee is not null) ImGui.TextColored(Gris, $"{x.Portee.Count} entrées interrogeables");
-            else if (x.Note is not null) ImGui.TextColored(Gris, x.Note);
+            else Limitation(x);
         }
         ImGui.EndTable();
+    }
+
+    /// <summary>
+    /// Ce qui borne une lecture, dit en trois mots avec l'explication au survol.
+    ///
+    /// Les deux bornes n'ont rien à voir et les confondre trompe : l'une dit que
+    /// le jeu ne sait pas répondre pour toutes les entrées, l'autre qu'on
+    /// regarde un dépôt, où l'on voit ce qui s'y trouve et jamais ce qui n'y est
+    /// pas.
+    /// </summary>
+    private void Limitation(Releve x)
+    {
+        switch (x.Limite)
+        {
+            case Limite.Capacite:
+                ImGui.TextColored(Gris, $"{x.Portee?.Count ?? 0} sur {x.Total} vérifiables");
+                Survol(
+                    "Le jeu ne sait pas répondre pour le reste de cette collection.\n" +
+                    "Ces entrées-là sont laissées tranquilles : ni ajoutées, ni signalées manquantes.");
+                break;
+            case Limite.Depot:
+                ImGui.TextColored(Gris, "ajout seulement");
+                Survol(
+                    "Cette collection se constate dans un dépôt : la coiffeuse mirage ou l'armoire.\n" +
+                    "On y voit ce qui s'y trouve, jamais ce qui n'y est pas. Une pièce peut dormir\n" +
+                    "dans un sac ou chez un servant. Rien ne sera donc signalé comme manquant.");
+                if (x.Note is not null)
+                {
+                    ImGui.SameLine();
+                    ImGui.TextColored(Gris, $"· {x.Note}");
+                }
+                break;
+            default:
+                if (x.Note is not null) ImGui.TextColored(Gris, x.Note);
+                break;
+        }
+    }
+
+    private static void Survol(string texte)
+    {
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(texte);
     }
 
     private void Retour()
@@ -245,55 +285,35 @@ public sealed class Fenetre : Window, IDisposable
         var r = greffon.Reglages;
         ImGui.Spacing();
 
-        ImGui.TextColored(Or, "Le jeton");
-        ImGui.TextWrapped(
-            "Il se crée dans Codex Olympia, page de compte, section « Greffon de " +
-            "synchronisation ». Il ne sait faire qu'une chose : déposer une photo de tes " +
-            "déblocages. Il ne peut ni lire ton compte, ni le modifier, ni l'effacer.");
-        ImGui.Spacing();
-        ImGui.SetNextItemWidth(-1);
-        var jeton = r.Jeton;
-        if (ImGui.InputTextWithHint("##jeton", "colle ton jeton ici", ref jeton, 200,
-                ImGuiInputTextFlags.Password))
-        {
-            r.Jeton = jeton.Trim();
-            greffon.Enregistrer();
-        }
-        ImGui.TextColored(r.Jeton.Length > 0 ? Vert : Ambre,
-            r.Jeton.Length > 0 ? "jeton enregistré" : "aucun jeton");
-
-        ImGui.Spacing();
-        ImGui.Separator();
-        ImGui.Spacing();
-
-        ImGui.TextColored(Or, "Le personnage");
         var contentId = greffon.ContentId;
         if (contentId == 0)
         {
             ImGui.TextColored(Ambre, "Connecte-toi avec un personnage.");
-        }
-        else
-        {
-            ImGui.TextWrapped(
-                "Le jeu ne connaît pas le Lodestone : c'est à toi de faire le lien, une fois " +
-                "par personnage. Ouvre ta fiche sur le Lodestone, le nombre à la fin de " +
-                "l'adresse est cet identifiant.");
-            ImGui.Spacing();
-            var nom = r.Noms.TryGetValue(contentId, out var n) ? n : "ce personnage";
-            ImGui.Text(nom);
-            ImGui.SameLine();
-            r.Personnages.TryGetValue(contentId, out var lodestone);
-            var saisie = lodestone == 0 ? string.Empty : lodestone.ToString();
-            ImGui.SetNextItemWidth(140);
-            if (ImGui.InputTextWithHint("##lodestone", "identifiant", ref saisie, 12,
-                    ImGuiInputTextFlags.CharsDecimal))
-            {
-                if (uint.TryParse(saisie, out var id) && id > 0) r.Personnages[contentId] = id;
-                else r.Personnages.Remove(contentId);
-                greffon.Enregistrer();
-            }
+            return;
         }
 
+        // Un jeton par personnage, et c'est le seul champ de cette page. Le
+        // jeton désigne lui-même le personnage qu'il alimente : rien d'autre
+        // n'est à recopier depuis l'application.
+        var nom = r.Noms.TryGetValue(contentId, out var n) ? n : "ce personnage";
+        ImGui.TextColored(Or, $"Le jeton de {nom}");
+        ImGui.TextWrapped(
+            "Il se crée dans Codex Olympia, page de compte, section « Plugin Codex Olympia " +
+            "Dalamud ». Choisis ce personnage au moment de le créer, colle-le ici, et c'est " +
+            "tout. Il ne sait faire qu'une chose : déposer une photo de tes déblocages. Il " +
+            "ne peut ni lire ton compte, ni le modifier, ni l'effacer.");
+        ImGui.Spacing();
+        ImGui.SetNextItemWidth(-1);
+        var jeton = greffon.Jeton;
+        if (ImGui.InputTextWithHint("##jeton", "colle ton jeton ici", ref jeton, 200,
+                ImGuiInputTextFlags.Password))
+        {
+            greffon.PoserJeton(jeton);
+        }
+        ImGui.TextColored(greffon.Jeton.Length > 0 ? Vert : Ambre,
+            greffon.Jeton.Length > 0
+                ? "jeton enregistré pour ce personnage"
+                : "aucun jeton pour ce personnage");
     }
 
     // ------------------------------------------------------------------ menu
@@ -301,10 +321,8 @@ public sealed class Fenetre : Window, IDisposable
     /// <summary>Ce qui empêche encore d'envoyer, dit en une phrase.</summary>
     private string? Manque()
     {
-        if (greffon.Reglages.Jeton.Length == 0) return "Il manque le jeton.";
         if (greffon.ContentId == 0) return "Aucun personnage connecté.";
-        if (!greffon.Reglages.Personnages.ContainsKey(greffon.ContentId))
-            return "Il manque l'identifiant Lodestone de ce personnage.";
+        if (greffon.Jeton.Length == 0) return "Il manque le jeton de ce personnage.";
         return null;
     }
 

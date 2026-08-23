@@ -42,6 +42,20 @@ public sealed class Greffon : IDalamudPlugin
     /// <summary>Zero tant qu'aucun personnage n'est connecte.</summary>
     public ulong ContentId => etat.IsLoggedIn ? perso.ContentId : 0;
 
+    /// <summary>Le jeton du personnage connecte, ou rien.</summary>
+    public string Jeton =>
+        ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
+
+    /// <summary>Range le jeton du personnage connecte. Vide = on l'oublie.</summary>
+    public void PoserJeton(string valeur)
+    {
+        if (ContentId == 0) return;
+        var net = valeur.Trim();
+        if (net.Length == 0) Reglages.Jetons.Remove(ContentId);
+        else Reglages.Jetons[ContentId] = net;
+        Enregistrer();
+    }
+
     public Greffon(
         IDalamudPluginInterface pi,
         ICommandManager commandes,
@@ -95,8 +109,8 @@ public sealed class Greffon : IDalamudPlugin
 
     public void Enregistrer() => pi.SavePluginConfig(Reglages);
 
-    /// <summary>Le nom du personnage sert d'étiquette, rien de plus : c'est
-    /// l'identifiant Lodestone que le serveur reconnaît.</summary>
+    /// <summary>Le nom du personnage sert d'étiquette, rien de plus : il dit au
+    /// joueur de quel jeton il est en train de parler.</summary>
     private void RetenirLeNom()
     {
         var id = ContentId;
@@ -151,7 +165,8 @@ public sealed class Greffon : IDalamudPlugin
     public void Envoyer()
     {
         if (EnvoiEnCours || Releves.Count == 0) return;
-        if (!Reglages.Personnages.TryGetValue(ContentId, out var charId) || charId == 0) return;
+        var jeton = Jeton;
+        if (jeton.Length == 0) return;
 
         EnvoiEnCours = true;
         var aEnvoyer = Releves;
@@ -159,7 +174,7 @@ public sealed class Greffon : IDalamudPlugin
         {
             try
             {
-                Dernier = await Envoi.Deposer(http, Reglages, charId, aEnvoyer);
+                Dernier = await Envoi.Deposer(http, Reglages, jeton, aEnvoyer);
                 if (Dernier.Ok) discussion.Print("[Codex Olympia] " + Dernier.Message);
             }
             catch (Exception e)

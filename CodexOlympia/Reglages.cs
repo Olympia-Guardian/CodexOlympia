@@ -20,15 +20,14 @@ public sealed class Reglages : IPluginConfiguration
     /// <summary>Le catalogue vient du même endroit que l'application.</summary>
     public string Catalogue { get; set; } = "https://olympia-guardian.github.io/data";
 
-    /// <summary>Le jeton de synchronisation, créé dans la page de compte.</summary>
-    public string Jeton { get; set; } = string.Empty;
-
     /// <summary>
-    /// L'identifiant Lodestone de chaque personnage, retenu par identifiant de
-    /// sauvegarde. Le jeu ne connaît pas le Lodestone : c'est le joueur qui fait
-    /// le lien, une fois par personnage.
+    /// Un jeton par personnage, retenu par identifiant de sauvegarde.
+    ///
+    /// Le jeton désigne lui-même le personnage qu'il alimente : c'est décidé
+    /// dans l'application, à sa création. Le greffon n'a donc rien à savoir du
+    /// Lodestone, et il ne reste qu'un champ à remplir au lieu de deux.
     /// </summary>
-    public Dictionary<ulong, uint> Personnages { get; set; } = new();
+    public Dictionary<ulong, string> Jetons { get; set; } = new();
 
     /// <summary>Un rappel lisible, pour reconnaître une ligne du tableau.</summary>
     public Dictionary<ulong, string> Noms { get; set; } = new();

@@ -17,13 +17,30 @@ namespace CodexOlympia;
 /// collection empêchée n'est pas envoyée du tout : mieux vaut une collection
 /// absente qu'une collection fausse.</para>
 /// </summary>
+/// <summary>Pourquoi une portée est restreinte. Les deux raisons n'ont rien à
+/// voir, et les dire de la même façon a induit en erreur.</summary>
+public enum Limite
+{
+    /// <summary>Portée entière : l'omission vaut absence.</summary>
+    Aucune,
+
+    /// <summary>Le jeu ne sait pas répondre pour toutes les entrées. Celles
+    /// qu'on n'a pas pu interroger sont laissées tranquilles.</summary>
+    Capacite,
+
+    /// <summary>Ce qui se constate par un dépôt : on voit ce qui y est, jamais
+    /// ce qui n'y est pas. La collection ne peut donc qu'ajouter.</summary>
+    Depot,
+}
+
 public sealed record Releve(
     string Cle,
     List<uint> Trouves,
     List<uint>? Portee,
     int Total,
     string? Empeche = null,
-    string? Note = null);
+    string? Note = null,
+    Limite Limite = Limite.Aucune);
 
 /// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
 public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire);
@@ -197,7 +214,7 @@ public static class Photo
             var ailleurs = parCase.TryGetValue(id, out var objet) && coffre.Coiffeuse.Contains(objet);
             if (rangee || ailleurs) trouves.Add(id);
         }
-        return new Releve("armoires", trouves, [.. trouves], ids.Length);
+        return new Releve("armoires", trouves, [.. trouves], ids.Length, null, null, Limite.Depot);
     }
 
     private static int Total(Catalogue cat, string cle) => cat.Ids.TryGetValue(cle, out var l) ? l.Length : 0;
@@ -234,7 +251,10 @@ public static class Photo
         }
         // Portée déclarée seulement si elle est incomplète : sinon c'est du poids
         // sur le réseau pour rien.
-        return new Releve(cle, trouves, portee.Count == ids.Length ? null : portee, ids.Length);
+        var complet = portee.Count == ids.Length;
+        return new Releve(
+            cle, trouves, complet ? null : portee, ids.Length, null, null,
+            complet ? Limite.Aucune : Limite.Capacite);
     }
 
     /// <summary>Un sort bleu s'apprend, et le jeu le note comme n'importe quel
@@ -254,7 +274,10 @@ public static class Photo
             portee.Add(id);
             if (ui->IsUnlockLinkUnlocked(lien)) trouves.Add(id);
         }
-        return new Releve(cle, trouves, portee.Count == ids.Length ? null : portee, ids.Length);
+        var complet = portee.Count == ids.Length;
+        return new Releve(
+            cle, trouves, complet ? null : portee, ids.Length, null, null,
+            complet ? Limite.Aucune : Limite.Capacite);
     }
 
     /// <summary>
@@ -320,8 +343,8 @@ public static class Photo
         var vues = pieces.Distinct().ToList();
         return
         [
-            new Releve("outfitpieces", vues, [.. vues], totalPieces, null, vu),
-            new Releve("outfits", entieres, [.. entieres], cat.Tenues.Count),
+            new Releve("outfitpieces", vues, [.. vues], totalPieces, null, vu, Limite.Depot),
+            new Releve("outfits", entieres, [.. entieres], cat.Tenues.Count, null, null, Limite.Depot),
             new Releve("adeposer", [.. aDeposer.Distinct()], null, totalPieces),
         ];
     }

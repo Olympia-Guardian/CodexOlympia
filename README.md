@@ -30,20 +30,22 @@ Tu cliques, il regarde, il te montre, tu envoies. C'est tout.
    ```
 
 2. `/xlplugins`, cherche **Codex Olympia**, installe.
-3. Dans Codex Olympia, page **Compte**, section *Greffon de synchronisation* :
-   crée un jeton et copie-le. Il ne s'affiche qu'une fois.
-4. Dans le jeu : `/codex`, ouvre les **Réglages**, colle le jeton.
-5. Toujours dans `/codex` : colle l'**identifiant Lodestone** de ton personnage.
-   Le jeu ne connaît pas le Lodestone, c'est à toi de faire le lien. Ouvre ta
-   fiche sur le Lodestone : le nombre à la fin de l'adresse est cet identifiant.
+3. Dans Codex Olympia, page **Compte**, section *Plugin Codex Olympia Dalamud* :
+   crée un jeton **en choisissant ton personnage**, et copie-le. Il ne s'affiche
+   qu'une fois.
+4. Dans le jeu : `/codex`, onglet **Configuration**, colle le jeton.
+
+C'est tout : le jeton désigne lui-même le personnage qu'il alimente. Un
+personnage de plus, un jeton de plus, et le plugin garde celui de chacun.
 
 ## Le jeton
 
-Un jeton de synchronisation ne sait faire qu'une chose : **déposer une photo**.
-Il ne peut ni lire ton compte, ni le modifier, ni l'effacer, ni voir tes groupes
-ou tes contacts. Il est écrit en clair dans le fichier de configuration du
-greffon, comme n'importe quel réglage : c'est précisément pour ça qu'il ne donne
-aucun autre droit.
+Un jeton de synchronisation ne sait faire qu'une chose : **déposer une photo**,
+et pour **un seul personnage**. Il ne peut ni lire ton compte, ni le modifier,
+ni l'effacer, ni voir tes groupes ou tes contacts, ni toucher à tes autres
+personnages. Il est écrit en clair dans le fichier de configuration du greffon,
+comme n'importe quel réglage : c'est précisément pour ça qu'il ne donne aucun
+autre droit.
 
 Il se révoque depuis la page de compte, sans toucher à tes sessions.
 
@@ -58,10 +60,15 @@ Il se révoque depuis la page de compte, sans toucher à tes sessions.
 | Sorts bleus | le carnet de mage bleu |
 | Pièces de tenue, tenues entières | la coiffeuse mirage et l'armoire |
 
-Trois de ces collections ne sont lisibles qu'en partie : le catalogue ne donne
-pas d'objet déverrouillant à toutes leurs entrées. Le greffon **déclare alors ce
-qu'il a regardé**, et l'application ne conclut rien sur le reste. Le tableau te
-le dit, ligne par ligne.
+Le tableau annonce deux bornes, et elles n'ont rien à voir.
+
+**« 145 sur 398 vérifiables »** : le catalogue ne donne pas d'objet déverrouillant
+à toutes les entrées de cette collection, donc le jeu ne sait pas répondre pour le
+reste. Ces entrées-là sont laissées tranquilles, ni ajoutées ni signalées.
+
+**« ajout seulement »** : cette collection se constate dans un dépôt, la coiffeuse
+ou l'armoire. On y voit ce qui s'y trouve, jamais ce qui n'y est pas. Rien ne sera
+donc jamais signalé comme manquant.
 
 Certaines lectures demandent que le jeu ait chargé la donnée au moins une fois
 dans la session : ouvre ton armoire chez un rassembleur et ta coiffeuse mirage,

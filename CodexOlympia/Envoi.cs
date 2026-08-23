@@ -21,7 +21,7 @@ public sealed record Retour(
 public static class Envoi
 {
     public static async Task<Retour> Deposer(
-        HttpClient http, Reglages r, uint charId, IReadOnlyList<Releve> releves)
+        HttpClient http, Reglages r, string jeton, IReadOnlyList<Releve> releves)
     {
         var collections = new Dictionary<string, List<uint>>();
         var portee = new Dictionary<string, List<uint>>();
@@ -38,14 +38,16 @@ public static class Envoi
         if (collections.Count == 0)
             return new Retour(false, "rien à envoyer : aucune collection n'a pu être lue", [], []);
 
-        var corps = new Dictionary<string, object> { ["charId"] = charId, ["collections"] = collections };
+        // Le personnage n'est pas dit ici : le jeton le porte. Une photo ne
+        // choisit pas qui elle alimente.
+        var corps = new Dictionary<string, object> { ["collections"] = collections };
         if (portee.Count > 0) corps["portee"] = portee;
 
         using var req = new HttpRequestMessage(HttpMethod.Post, $"{r.Serveur.TrimEnd('/')}/plugin/photo")
         {
             Content = new StringContent(JsonSerializer.Serialize(corps), Encoding.UTF8, "application/json"),
         };
-        req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + r.Jeton);
+        req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + jeton);
 
         HttpResponseMessage rep;
         try
@@ -83,7 +85,8 @@ public static class Envoi
     private static string Expliquer(HttpStatusCode code, string texte) => code switch
     {
         HttpStatusCode.Unauthorized => "jeton refusé. Il a peut-être été révoqué : refais-en un dans la page de compte.",
-        HttpStatusCode.Forbidden => "ce personnage n'est pas vérifié sur ce compte. Vérifie l'identifiant Lodestone.",
+        HttpStatusCode.Forbidden => "le personnage de ce jeton n'est plus vérifié sur ton compte.",
+        HttpStatusCode.Conflict => "ce jeton date d'avant et ne désigne aucun personnage. Révoque-le et refais-en un.",
         HttpStatusCode.TooManyRequests => "trop d'envois d'affilée. Laisse passer un moment.",
         (HttpStatusCode)422 => "photo refusée : " + texte,
         _ => $"le serveur a répondu {(int)code}.",
