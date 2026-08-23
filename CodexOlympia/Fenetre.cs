@@ -125,6 +125,20 @@ public sealed class Fenetre : Window, IDisposable
         Tableau(releves);
         ImGui.Spacing();
 
+        // Une piece rangee a l'armoire est possedee, mais elle ne sert a aucun
+        // glamour tant qu'elle dort la-bas. Le dire ici evite d'aller chercher
+        // l'information ailleurs, et n'a rien a faire dans la photo : c'est un
+        // conseil, pas un fait de collection.
+        var aDeposer = releves.FirstOrDefault(r => r.Cle == "adeposer");
+        if (aDeposer is not null && aDeposer.Trouves.Count > 0)
+        {
+            ImGui.TextColored(Or, aDeposer.Trouves.Count == 1
+                ? "Une pièce de tenue dort dans ton armoire."
+                : $"{aDeposer.Trouves.Count} pièces de tenue dorment dans ton armoire.");
+            ImGui.TextColored(Gris, "Dépose-les dans la coiffeuse pour pouvoir t'en servir.");
+            ImGui.Spacing();
+        }
+
         // Une ligne empêchée est une lecture qu'on refuse de faire, pas une
         // erreur : elle mérite d'être dite avant le bouton, jamais après.
         var bloquees = releves.Count(r => r.Empeche is not null);
@@ -309,7 +323,10 @@ public sealed class Fenetre : Window, IDisposable
         if (!ImGui.CollapsingHeader("Diagnostic de la coiffeuse")) return;
 
         ImGui.TextColored(Gris,
-            $"coiffeuse : {coffre.Coiffeuse.Count} emplacements, armoire : {coffre.Armoire.Count} pièces");
+            $"coiffeuse : {coffre.Occupes} emplacements occupés, dont {coffre.Ensembles} ensembles ; " +
+            $"{coffre.Reconnus} tombent sur un objet connu du jeu");
+        ImGui.TextColored(Gris,
+            $"pièces retenues : {coffre.Coiffeuse.Count} depuis la coiffeuse, {coffre.Armoire.Count} depuis l'armoire");
         ImGui.Spacing();
         if (coffre.Echantillon.Count == 0)
         {

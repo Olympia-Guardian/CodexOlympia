@@ -28,6 +28,10 @@ public static class Envoi
         foreach (var x in releves)
         {
             if (x.Empeche is not null) continue;
+            // « adeposer » est un conseil pour le joueur, pas une collection :
+            // le serveur n'en a jamais entendu parler et n'a pas a en entendre
+            // parler.
+            if (x.Cle == "adeposer") continue;
             collections[x.Cle] = x.Trouves;
             if (x.Portee is not null) portee[x.Cle] = x.Portee;
         }

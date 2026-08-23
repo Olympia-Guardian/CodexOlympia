@@ -134,7 +134,10 @@ public sealed class Greffon : IDalamudPlugin
         try
         {
             var lecture = Photo.Prendre(
-                cat, donnees.GetExcelSheet<AozAction>(), donnees.GetExcelSheet<Item>());
+                cat,
+                donnees.GetExcelSheet<AozAction>(),
+                donnees.GetExcelSheet<Item>(),
+                donnees.GetExcelSheet<MirageStoreSetItem>());
             Releves = lecture.Releves;
             Coffre = lecture.Coffre;
         }
