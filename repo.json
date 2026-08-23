@@ -1,0 +1,19 @@
+[
+  {
+    "Author": "Olympia-Guardian",
+    "Name": "Codex Olympia",
+    "InternalName": "CodexOlympia",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Lit ce que ton personnage a debloque dans le jeu et l'envoie a Codex Olympia, a la demande. Rien n'est envoye sans que tu le demandes, et rien n'est jamais decoche a ta place : les ecarts te sont rapportes dans l'application, et c'est toi qui tranches.",
+    "Punchline": "Envoie tes deblocages vers Codex Olympia.",
+    "RepoUrl": "https://github.com/Olympia-Guardian/codex-olympia-dalamud",
+    "ApplicableVersion": "any",
+    "Tags": ["collection", "sync", "codex", "olympia"],
+    "CategoryTags": ["utility"],
+    "DalamudApiLevel": 15,
+    "IconUrl": "https://olympia-guardian.github.io/favicon.png",
+    "DownloadLinkInstall": "https://github.com/Olympia-Guardian/codex-olympia-dalamud/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Olympia-Guardian/codex-olympia-dalamud/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Olympia-Guardian/codex-olympia-dalamud/releases/latest/download/latest.zip"
+  }
+]

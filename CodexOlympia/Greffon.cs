@@ -1,0 +1,170 @@
+using System.Net.Http;
+using Dalamud.Game.Command;
+using Dalamud.Interface.Windowing;
+using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
+
+namespace CodexOlympia;
+
+/// <summary>
+/// Le greffon.
+///
+/// Il ne surveille rien et n'envoie rien de lui-même. Il attend qu'on le lui
+/// demande, lit le jeu, montre ce qu'il a lu, et n'envoie que si on le lui dit.
+/// C'est volontaire : une synchronisation qui part toute seule est une
+/// synchronisation qu'on ne relit jamais.
+/// </summary>
+public sealed class Greffon : IDalamudPlugin
+{
+    private const string Commande = "/codex";
+
+    private readonly IDalamudPluginInterface pi;
+    private readonly ICommandManager commandes;
+    private readonly IClientState etat;
+    private readonly IPlayerState perso;
+    private readonly IDataManager donnees;
+    private readonly IPluginLog journal;
+    private readonly IChatGui discussion;
+
+    private readonly WindowSystem fenetres = new("CodexOlympia");
+    private readonly Fenetre fenetre;
+    private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    public Reglages Reglages { get; }
+    public Catalogue? Catalogue { get; private set; }
+    public List<Releve> Releves { get; private set; } = [];
+    public Retour? Dernier { get; private set; }
+    public bool EnvoiEnCours { get; private set; }
+
+    /// <summary>Zero tant qu'aucun personnage n'est connecte.</summary>
+    public ulong ContentId => etat.IsLoggedIn ? perso.ContentId : 0;
+
+    public Greffon(
+        IDalamudPluginInterface pi,
+        ICommandManager commandes,
+        IClientState etat,
+        IPlayerState perso,
+        IDataManager donnees,
+        IPluginLog journal,
+        IChatGui discussion)
+    {
+        this.pi = pi;
+        this.commandes = commandes;
+        this.etat = etat;
+        this.perso = perso;
+        this.donnees = donnees;
+        this.journal = journal;
+        this.discussion = discussion;
+
+        Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
+
+        fenetre = new Fenetre(this);
+        fenetres.AddWindow(fenetre);
+
+        pi.UiBuilder.Draw += fenetres.Draw;
+        pi.UiBuilder.OpenMainUi += Ouvrir;
+        pi.UiBuilder.OpenConfigUi += Ouvrir;
+
+        commandes.AddHandler(Commande, new CommandInfo((_, _) => Ouvrir())
+        {
+            HelpMessage = "Ouvre la fenetre de synchronisation Codex Olympia.",
+        });
+
+        RechargerCatalogue();
+    }
+
+    public void Dispose()
+    {
+        commandes.RemoveHandler(Commande);
+        pi.UiBuilder.Draw -= fenetres.Draw;
+        pi.UiBuilder.OpenMainUi -= Ouvrir;
+        pi.UiBuilder.OpenConfigUi -= Ouvrir;
+        fenetres.RemoveAllWindows();
+        fenetre.Dispose();
+        http.Dispose();
+    }
+
+    private void Ouvrir()
+    {
+        RetenirLeNom();
+        fenetre.IsOpen = true;
+    }
+
+    public void Enregistrer() => pi.SavePluginConfig(Reglages);
+
+    /// <summary>Le nom du personnage sert d'étiquette, rien de plus : c'est
+    /// l'identifiant Lodestone que le serveur reconnaît.</summary>
+    private void RetenirLeNom()
+    {
+        var id = ContentId;
+        if (id == 0) return;
+        var monde = perso.HomeWorld.ValueNullable?.Name.ExtractText() ?? "?";
+        var nom = $"{perso.CharacterName} ({monde})";
+        if (Reglages.Noms.TryGetValue(id, out var vieux) && vieux == nom) return;
+        Reglages.Noms[id] = nom;
+        Enregistrer();
+    }
+
+    public void RechargerCatalogue()
+    {
+        var cache = Path.Combine(pi.GetPluginConfigDirectory(), "catalogue");
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                Catalogue = await Catalogue.Charger(http, Reglages.Catalogue.TrimEnd('/'), cache);
+                journal.Information("catalogue charge ({0})", Catalogue.Date);
+            }
+            catch (Exception e)
+            {
+                journal.Error(e, "catalogue illisible");
+            }
+        });
+    }
+
+    /// <summary>Lit le jeu. Rien ne part : on montre d'abord.</summary>
+    public void Regarder()
+    {
+        var cat = Catalogue;
+        if (cat is null || !cat.Pret) return;
+        Dernier = null;
+        try
+        {
+            var sorts = donnees.GetExcelSheet<AozAction>();
+            Releves = Photo.Prendre(cat, sorts);
+        }
+        catch (Exception e)
+        {
+            journal.Error(e, "lecture du jeu impossible");
+            Releves = [];
+            Dernier = new Retour(false, "la lecture du jeu a echoue : " + e.Message, [], []);
+        }
+    }
+
+    public void Envoyer()
+    {
+        if (EnvoiEnCours || Releves.Count == 0) return;
+        if (!Reglages.Personnages.TryGetValue(ContentId, out var charId) || charId == 0) return;
+
+        EnvoiEnCours = true;
+        var aEnvoyer = Releves;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                Dernier = await Envoi.Deposer(http, Reglages, charId, aEnvoyer);
+                if (Dernier.Ok) discussion.Print("[Codex Olympia] " + Dernier.Message);
+            }
+            catch (Exception e)
+            {
+                journal.Error(e, "envoi impossible");
+                Dernier = new Retour(false, "envoi impossible : " + e.Message, [], []);
+            }
+            finally
+            {
+                EnvoiEnCours = false;
+            }
+        });
+    }
+}

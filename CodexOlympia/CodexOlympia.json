@@ -1,0 +1,10 @@
+{
+  "Name": "Codex Olympia",
+  "Author": "Olympia-Guardian",
+  "Punchline": "Envoie tes deblocages vers Codex Olympia.",
+  "Description": "Lit ce que ton personnage a debloque dans le jeu et l'envoie a Codex Olympia, a la demande. Rien n'est envoye sans que tu le demandes, et rien n'est jamais decoche a ta place : les ecarts te sont rapportes dans l'application, et c'est toi qui tranches.",
+  "RepoUrl": "https://github.com/Olympia-Guardian/codex-olympia-dalamud",
+  "Tags": ["collection", "sync", "codex", "olympia"],
+  "CategoryTags": ["utility"],
+  "IconUrl": "https://olympia-guardian.github.io/favicon.png"
+}
