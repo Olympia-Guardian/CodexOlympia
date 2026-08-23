@@ -13,6 +13,9 @@ Tu cliques, il regarde, il te montre, tu envoies. C'est tout.
 - **Il te montre avant d'envoyer.** Le tableau donne, collection par collection,
   ce qu'il a trouvé et sur combien. Si un chiffre te paraît faux, tu n'envoies
   pas.
+- **Il n'écrit rien dans le jeu.** Il lit, il envoie, c'est tout. Ce qui n'est
+  pas encore chargé, il te demande de l'ouvrir : il ne le demande pas au client
+  à ta place.
 - **Il ne décoche rien.** Ce que l'application a en plus de ce qu'il a trouvé
   devient un écart, rapporté dans les notifications de Codex Olympia. C'est toi
   qui tranches, là-bas, à tête reposée.

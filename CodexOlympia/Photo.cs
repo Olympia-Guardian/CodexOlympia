@@ -37,6 +37,12 @@ public sealed record Lecture(List<Releve> Releves, Coffre Coffre);
 /// <summary>
 /// La lecture du jeu, à un instant donné.
 ///
+/// <b>Rien n'est écrit dans la mémoire du jeu, jamais.</b> Une première version
+/// posait un drapeau pour demander au client de charger la coiffeuse : le jeu
+/// croyait alors sa demande déjà partie et n'affichait plus rien tant qu'on ne
+/// changeait pas de zone. Un greffon qui lit n'a aucune raison d'écrire, et ce
+/// qui n'a pas encore été chargé se demande au joueur, pas au client.
+///
 /// Chaque collection est lue en posant au jeu la même question pour chaque entrée
 /// du catalogue : « celle-ci, tu l'as ? ». Rien n'est deviné, rien n'est déduit
 /// d'un succès ou d'un objet trouvé ailleurs.
@@ -74,9 +80,8 @@ public static class Photo
         var succes = FFXIVClientStructs.FFXIV.Client.Game.UI.Achievement.Instance();
         if (!succes->IsLoaded())
         {
-            succes->RequestCompletedAchievements();
             releves.Add(new Releve("achievements", [], null, Total(cat, "achievements"),
-                "la liste des succès n'est pas encore arrivée ; réessaie dans un instant"));
+                "ouvre ton carnet de succès une fois, puis regarde à nouveau"));
         }
         else
         {
@@ -121,7 +126,6 @@ public static class Photo
         foreach (var v in mirage->PrismBoxItemIds)
             if (v != 0)
                 brut.Add(v);
-        if (brut.Count == 0) mirage->PrismBoxRequested = true;
 
         var coiffeuse = new HashSet<uint>();
         foreach (var v in brut) coiffeuse.Add(v >= SeuilHq ? v - SeuilHq : v);
