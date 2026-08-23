@@ -454,6 +454,15 @@ public sealed class Fenetre : Window, IDisposable
         var armoire = apercu.Count(t => t.Moyen == Moyen.Armoire);
         ImGui.TextColored(Or, Mots.RangeurApercu(entamees, neuves, armoire));
         ImGui.TextColored(Gris, Mots.RangeurPartiel);
+
+        // Chaque pièce déposée consomme un prisme de mirage. Sans réserve, le
+        // jeu refuse et n'explique rien : on le dit avant de partir.
+        var besoin = apercu.Sum(t => t.Pieces);
+        if (besoin > 0)
+        {
+            var reste = r.Prismes();
+            ImGui.TextColored(reste >= besoin ? Gris : Ambre, Mots.RangeurPrismes(reste, besoin));
+        }
         ImGui.Spacing();
 
         if (ImGui.Button(Mots.RangeurLancer)) r.Demarrer(apercu);

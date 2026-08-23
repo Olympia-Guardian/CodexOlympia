@@ -135,6 +135,10 @@ Quatre garde-fous :
 - une tenue se dépose **même incomplète** : elle occupe un emplacement, qu'on la
   remplisse en une fois ou en cinq, et ce qui manque s'y ajoutera plus tard.
 
+**Il faut des prismes de mirage** : chaque pièce déposée dans la coiffeuse en
+consomme un. Le plugin compte ta réserve et te dit avant de partir s'il en
+manque, plutôt que de s'arrêter en route sans expliquer pourquoi.
+
 Reste devant ta coiffeuse ou ton armoire, ouverte, pendant que ça travaille. Le
 rangement ne prend que ce qui est **sous la main**, tes sacs et ton armurerie :
 ce qui dort chez un servant, va le chercher d'abord.

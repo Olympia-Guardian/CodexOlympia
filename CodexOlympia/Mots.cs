@@ -245,6 +245,14 @@ public static class Mots
     public static string RangeurRefus(string quoi) =>
         D($"le jeu a refusé « {quoi} ».", $"the game refused \"{quoi}\".");
     public static string RangeurSansCatalogue => D("le catalogue a disparu.", "the catalogue is gone.");
+    public static string RangeurSansPrisme => D(
+        "il te manque des prismes de mirage. Chaque pièce déposée en consomme un.",
+        "you are out of glamour prisms. Each piece deposited uses one.");
+    public static string RangeurPrismes(int reste, int besoin) => reste >= besoin
+        ? D($"{reste} prismes de mirage en réserve, {besoin} nécessaires.",
+            $"{reste} glamour prisms in stock, {besoin} needed.")
+        : D($"{reste} prismes de mirage seulement, il en faudrait {besoin} : ça s’arrêtera en route.",
+            $"only {reste} glamour prisms, {besoin} needed: it will stop partway.");
     public static string RangeurErreur => D("quelque chose a mal tourné.", "something went wrong.");
 
     // ---------------------------------------------------------- a ranger

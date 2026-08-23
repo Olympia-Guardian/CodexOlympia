@@ -26,8 +26,11 @@ public enum Moyen
     TenueEntamee,
 }
 
-/// <summary>Une operation, decrite par ce qu'elle vise et jamais par des cases.</summary>
-public sealed record Tache(Moyen Moyen, uint Cible, string Nom, uint Emplacement = 0);
+/// <summary>Une operation, decrite par ce qu'elle vise et jamais par des cases.
+///
+/// <para><c>Pieces</c> est le nombre d'objets qu'elle deposera : c'est aussi le
+/// nombre de prismes de mirage qu'elle consommera, un par piece.</para></summary>
+public sealed record Tache(Moyen Moyen, uint Cible, string Nom, uint Emplacement = 0, int Pieces = 0);
 
 /// <summary>
 /// Le rangement automatique. FONCTION EXPERIMENTALE.
@@ -96,6 +99,27 @@ public sealed class Rangeur
     ];
 
     private const uint SeuilHq = 1_000_000;
+
+    /// <summary>Le prisme de mirage. Deposer une piece dans la coiffeuse en
+    /// consomme un : sans reserve, le jeu refuse et rien n'explique pourquoi.</summary>
+    private const uint Prisme = 21800;
+
+    /// <summary>Combien de prismes le personnage a sous la main.</summary>
+    public int Prismes()
+    {
+        var n = 0;
+        foreach (var (vue, _) in Puisables)
+        {
+            var items = sacs.GetInventoryItems(vue);
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (items[i].IsEmpty) continue;
+                var id = items[i].ItemId >= SeuilHq ? items[i].ItemId - SeuilHq : items[i].ItemId;
+                if (id == Prisme) n += items[i].Quantity;
+            }
+        }
+        return n;
+    }
 
     /// <summary>Ou se trouve cet objet, maintenant. Nul s'il n'y est plus.</summary>
     private (InventoryType Contenant, ushort Case)? Trouver(uint objet)
@@ -166,8 +190,9 @@ public sealed class Rangeur
 
                 var entamee = deposees.TryGetValue(t.Id, out var place);
                 if (entamee == deuxieme) continue;
-                if (entamee) taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place));
-                else taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom));
+                if (entamee)
+                    taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place, enMain.Count));
+                else taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom, 0, enMain.Count));
                 foreach (var p in enMain) prises.Add(p.Objet);
             }
         }
@@ -306,7 +331,8 @@ public sealed class Rangeur
             : mirage->StoreExistingOutfit(tache.Emplacement, contenants, cases);
         if (!ok)
         {
-            Arreter(Mots.RangeurRefus(tache.Nom));
+            // La cause la plus frequente, et la seule qui ne se devine pas.
+            Arreter(Prismes() < tache.Pieces ? Mots.RangeurSansPrisme : Mots.RangeurRefus(tache.Nom));
             return false;
         }
         return true;
