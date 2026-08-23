@@ -10,14 +10,14 @@ using Lumina.Excel.Sheets;
 namespace CodexOlympia;
 
 /// <summary>
-/// Le greffon.
+/// Le plugin.
 ///
 /// Il ne surveille rien et n'envoie rien de lui-même. Il attend qu'on le lui
 /// demande, lit le jeu, montre ce qu'il a lu, et n'envoie que si on le lui dit.
 /// C'est volontaire : une synchronisation qui part toute seule est une
 /// synchronisation qu'on ne relit jamais.
 /// </summary>
-public sealed class Greffon : IDalamudPlugin
+public sealed class Plugin : IDalamudPlugin
 {
     private const string Commande = "/codex";
 
@@ -30,6 +30,7 @@ public sealed class Greffon : IDalamudPlugin
     private readonly IChatGui discussion;
     private readonly IGameInventory sacs;
     private readonly IFramework cadence;
+    private readonly IGameGui interfaceJeu;
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
     private readonly Fenetre fenetre;
@@ -164,6 +165,42 @@ public sealed class Greffon : IDalamudPlugin
         }
     }
 
+    /// <summary>
+    /// Les pastilles sur les objets qui restent a deposer.
+    ///
+    /// Dessinees a chaque image, meme fenetre fermee : c'est en ouvrant son sac
+    /// qu'on veut les voir, pas en ouvrant ce plugin. Rien ne se dessine tant
+    /// qu'aucune lecture n'a eu lieu : sans depots connus, tout serait marque.
+    /// </summary>
+    private void Marquer()
+    {
+        if (!Reglages.Pastilles || Coffre is null) return;
+        try
+        {
+            Badges.Dessiner(interfaceJeu, sacs, donnees.GetExcelSheet<Item>(), ARangerIds());
+        }
+        catch (Exception e)
+        {
+            journal.Error(e, "pastilles impossibles");
+            Reglages.Pastilles = false;
+        }
+    }
+
+    private HashSet<uint> cibles = [];
+    private double prochainesCibles;
+
+    /// <summary>Les objets a marquer, recalcules deux fois par seconde.</summary>
+    private HashSet<uint> ARangerIds()
+    {
+        var maintenant = Environment.TickCount64 / 1000.0;
+        if (maintenant >= prochainesCibles)
+        {
+            prochainesCibles = maintenant + 0.5;
+            cibles = [.. ARanger().Select(e => e.Objet)];
+        }
+        return cibles;
+    }
+
     /// <summary>Range le jeton du personnage connecte. Vide = on l'oublie.</summary>
     public void PoserJeton(string valeur)
     {
@@ -174,7 +211,7 @@ public sealed class Greffon : IDalamudPlugin
         Enregistrer();
     }
 
-    public Greffon(
+    public Plugin(
         IDalamudPluginInterface pi,
         ICommandManager commandes,
         IClientState etat,
@@ -183,7 +220,8 @@ public sealed class Greffon : IDalamudPlugin
         IPluginLog journal,
         IChatGui discussion,
         IGameInventory sacs,
-        IFramework cadence)
+        IFramework cadence,
+        IGameGui interfaceJeu)
     {
         this.pi = pi;
         this.commandes = commandes;
@@ -194,6 +232,7 @@ public sealed class Greffon : IDalamudPlugin
         this.discussion = discussion;
         this.sacs = sacs;
         this.cadence = cadence;
+        this.interfaceJeu = interfaceJeu;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
@@ -202,6 +241,7 @@ public sealed class Greffon : IDalamudPlugin
         fenetres.AddWindow(fenetre);
 
         pi.UiBuilder.Draw += fenetres.Draw;
+        pi.UiBuilder.Draw += Marquer;
         pi.UiBuilder.OpenMainUi += Ouvrir;
         pi.UiBuilder.OpenConfigUi += Ouvrir;
 
@@ -222,6 +262,7 @@ public sealed class Greffon : IDalamudPlugin
         cadence.Update -= Veiller;
         commandes.RemoveHandler(Commande);
         pi.UiBuilder.Draw -= fenetres.Draw;
+        pi.UiBuilder.Draw -= Marquer;
         pi.UiBuilder.OpenMainUi -= Ouvrir;
         pi.UiBuilder.OpenConfigUi -= Ouvrir;
         fenetres.RemoveAllWindows();

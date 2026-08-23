@@ -1,4 +1,4 @@
-# Codex Olympia — greffon Dalamud
+# Codex Olympia — plugin Dalamud
 
 Lit ce que ton personnage a débloqué dans FINAL FANTASY XIV et l'envoie à
 [Codex Olympia](https://olympia-guardian.github.io/), à la demande.
@@ -49,7 +49,7 @@ français, anglais sinon. Tu peux forcer l'une ou l'autre dans l'onglet
 Un jeton de synchronisation ne sait faire qu'une chose : **déposer une photo**,
 et pour **un seul personnage**. Il ne peut ni lire ton compte, ni le modifier,
 ni l'effacer, ni voir tes groupes ou tes contacts, ni toucher à tes autres
-personnages. Il est écrit en clair dans le fichier de configuration du greffon,
+personnages. Il est écrit en clair dans le fichier de configuration du plugin,
 comme n'importe quel réglage : c'est précisément pour ça qu'il ne donne aucun
 autre droit.
 
@@ -90,7 +90,7 @@ ou ton armoire, parce qu'un objet qui traîne peut se vendre ou se jeter.
 Les tenues qu'un seul rangement achève passent en tête : c'est là que l'effort
 rapporte le plus.
 
-Le sac d'un servant n'est lisible **que pendant qu'on lui parle**. Le greffon
+Le sac d'un servant n'est lisible **que pendant qu'on lui parle**. Le plugin
 retient donc ce qu'il a vu la dernière fois. Un servant à qui tu n'as jamais
 parlé depuis l'installation ne compte pas.
 
@@ -98,13 +98,18 @@ Et quand une pièce de tenue arrive dans tes sacs, un mot dans le journal te dit
 à quelle tenue elle appartient et où la mettre. Ça se coupe dans la
 configuration.
 
+Dans ton sac, une **pastille** marque les objets qu'il reste à déposer. Le jeu
+ne dit pas quel sac une grille affiche : le plugin le reconnaît en comparant les
+icônes affichées à celles de chaque sac. Quand rien ne correspond, il ne dessine
+rien plutôt que de dessiner faux.
+
 ## Ce qu'il ne lit pas
 
 - **Les reliques.** Le jeu ne tient pas l'état d'avancement d'une relique. Le
   déduire d'un succès serait deviner, et deviner faux se paie en travail perdu.
 - **L'équipement de raid.** Même raison.
 - **Ce qui vit dans un inventaire.** Une pièce d'équipement se vend, se jette,
-  dort chez un servant. Le greffon ne constate que les **dépôts définitifs** :
+  dort chez un servant. Le plugin ne constate que les **dépôts définitifs** :
   la coiffeuse et l'armoire. Un dépôt prouve la possession, il ne prouve jamais
   l'absence, et c'est pour ça que l'application dit « non trouvée » et jamais
   « tu ne l'as pas ».
@@ -124,5 +129,5 @@ Le paquet se trouve dans `CodexOlympia/bin/Release/CodexOlympia/latest.zip`.
 Le comportement attendu est écrit dans la spécification de l'application,
 module 13 (`spec/13-plugin.md` du dépôt
 [olympia-guardian.github.io](https://github.com/Olympia-Guardian/olympia-guardian.github.io)).
-Le contrat porte sur la photo reçue, pas sur ce greffon : une autre source
+Le contrat porte sur la photo reçue, pas sur ce plugin : une autre source
 pourrait l'envoyer demain sans que rien ne change côté serveur.

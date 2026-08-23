@@ -12,7 +12,7 @@ public enum Langue
 }
 
 /// <summary>
-/// Tous les textes du greffon, en deux langues.
+/// Tous les textes du plugin, en deux langues.
 ///
 /// Des propriétés plutôt qu'un dictionnaire de clés : le compilateur refuse
 /// alors un texte oublié, là où une clé manquante ne se voit qu'à l'exécution,
@@ -54,7 +54,7 @@ public static class Mots
     public static string Regarder => D("Regarder ce que j'ai", "See what I have");
     public static string RienNePart => D("rien n'est envoyé à cette étape", "nothing is sent at this step");
     public static string Presentation => D(
-        "Le greffon lit ce que le jeu tient pour débloqué, te le montre, et n'envoie que si tu " +
+        "Le plugin lit ce que le jeu tient pour débloqué, te le montre, et n'envoie que si tu " +
         "le lui dis. Rien n'est jamais décoché à ta place.",
         "The plugin reads what the game holds as unlocked, shows it to you, and only sends if " +
         "you say so. Nothing is ever unchecked on your behalf.");
@@ -186,7 +186,7 @@ public static class Mots
 
     public static string Soutien => D("Offrir un café", "Buy a coffee");
     public static string SoutienAide => D(
-        "Le greffon et l'application sont gratuits, et le resteront.",
+        "Le plugin et l'application sont gratuits, et le resteront.",
         "The plugin and the app are free, and will stay that way.");
 
     // ---------------------------------------------------------- a ranger
@@ -228,6 +228,9 @@ public static class Mots
         $"« {piece} » fait partie de la tenue « {tenue} ». Dépose-la dans ta coiffeuse pour qu'elle compte.",
         $"\"{piece}\" belongs to the \"{tenue}\" outfit. Put it in your glamour dresser so it counts.");
     public static string AvisTitre => D("Prévenir en jeu", "Notify in game");
+    public static string PastillesExplique => D(
+        "Une pastille sur les objets de ton sac qu'il reste à déposer.",
+        "A dot on the items in your bag that are still waiting to be deposited.");
     public static string AvisExplique => D(
         "Un mot dans le journal quand tu obtiens une pièce de tenue que tu n'as pas encore déposée.",
         "A line in the chat log when you get an outfit piece you have not deposited yet.");

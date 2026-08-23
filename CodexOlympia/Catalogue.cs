@@ -19,14 +19,14 @@ public sealed record Tenue(uint Id, string Fr, string En, IReadOnlyList<Piece> P
 /// <summary>
 /// Le catalogue de l'application, tel qu'elle le publie.
 ///
-/// Le greffon ne tient aucune liste à lui. Il demande à l'application ce qu'elle
+/// Le plugin ne tient aucune liste à lui. Il demande à l'application ce qu'elle
 /// connaît, puis interroge le jeu sur chacune de ces entrées. Un objet ajouté au
-/// catalogue est donc pris en compte sans qu'on retouche au greffon, et un
+/// catalogue est donc pris en compte sans qu'on retouche au plugin, et un
 /// identifiant que l'application ignore n'est jamais envoyé.
 /// </summary>
 public sealed class Catalogue
 {
-    /// <summary>Les collections que le greffon sait lire, et leur fichier.</summary>
+    /// <summary>Les collections que le plugin sait lire, et leur fichier.</summary>
     public static readonly string[] Cles =
     [
         "mounts", "minions", "orchestrions", "emotes", "fashions", "facewear",

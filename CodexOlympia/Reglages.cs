@@ -3,7 +3,7 @@ using Dalamud.Configuration;
 namespace CodexOlympia;
 
 /// <summary>
-/// Ce que le greffon retient d'une session à l'autre.
+/// Ce que le plugin retient d'une session à l'autre.
 ///
 /// Le jeton est écrit en clair dans ce fichier, comme n'importe quel réglage.
 /// C'est pour cette raison que le serveur ne lui accorde qu'une chose : déposer
@@ -24,7 +24,7 @@ public sealed class Reglages : IPluginConfiguration
     /// Un jeton par personnage, retenu par identifiant de sauvegarde.
     ///
     /// Le jeton désigne lui-même le personnage qu'il alimente : c'est décidé
-    /// dans l'application, à sa création. Le greffon n'a donc rien à savoir du
+    /// dans l'application, à sa création. Le plugin n'a donc rien à savoir du
     /// Lodestone, et il ne reste qu'un champ à remplir au lieu de deux.
     /// </summary>
     public Dictionary<ulong, string> Jetons { get; set; } = new();
@@ -38,6 +38,9 @@ public sealed class Reglages : IPluginConfiguration
     /// <summary>Prévenir dans le journal quand une pièce de tenue arrive.</summary>
     public bool AvisEnJeu { get; set; } = true;
 
+    /// <summary>Marquer d'une pastille, dans le sac, ce qui reste à déposer.</summary>
+    public bool Pastilles { get; set; } = true;
+
     /// <summary>
     /// Ce que chaque servant portait la dernière fois qu'on lui a parlé, par
     /// personnage puis par nom de servant.
@@ -45,7 +48,7 @@ public sealed class Reglages : IPluginConfiguration
     /// Le jeu ne charge le sac d'un servant que pendant qu'on lui parle. Sans
     /// cette mémoire, la page « à ranger » oublierait tout dès qu'on referme la
     /// fenêtre, et ne dirait plus jamais rien des servants. Seules les pièces de
-    /// tenue y sont gardées : le reste ne regarde pas ce greffon.
+    /// tenue y sont gardées : le reste ne regarde pas ce plugin.
     /// </summary>
     public Dictionary<ulong, Dictionary<string, uint[]>> Servants { get; set; } = new();
 }

@@ -5,7 +5,7 @@ using Dalamud.Interface.Windowing;
 namespace CodexOlympia;
 
 /// <summary>
-/// La fenêtre du greffon, en deux pages.
+/// La fenêtre du plugin, en deux pages.
 ///
 /// <b>Synchronisation</b> est celle qu'on ouvre tous les jours : un bouton, un
 /// tableau, un envoi. <b>Configuration</b> est celle qu'on ouvre une fois.
@@ -19,7 +19,7 @@ namespace CodexOlympia;
 /// </summary>
 public sealed class Fenetre : Window, IDisposable
 {
-    private readonly Greffon greffon;
+    private readonly Plugin plugin;
 
     // Les teintes : discrètes, et jamais seules à porter l'information. Chaque
     // couleur double un mot, elle ne le remplace pas.
@@ -28,9 +28,9 @@ public sealed class Fenetre : Window, IDisposable
     private static readonly Vector4 Ambre = new(0.98f, 0.70f, 0.10f, 1f);
     private static readonly Vector4 Gris = new(0.54f, 0.53f, 0.51f, 1f);
 
-    public Fenetre(Greffon greffon) : base("Codex Olympia###codex-olympia")
+    public Fenetre(Plugin plugin) : base("Codex Olympia###codex-olympia")
     {
-        this.greffon = greffon;
+        this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(560, 420),
@@ -44,7 +44,7 @@ public sealed class Fenetre : Window, IDisposable
     {
         // La lecture se fait ici, une collection par image : c'est le fil du jeu,
         // le seul d'ou sa mémoire se lit sans risque.
-        greffon.Avancer(ImGui.GetTime());
+        plugin.Avancer(ImGui.GetTime());
 
         if (!ImGui.BeginTabBar("pages")) return;
         if (ImGui.BeginTabItem(Mots.PageSync))
@@ -83,28 +83,28 @@ public sealed class Fenetre : Window, IDisposable
             return;
         }
 
-        var nom = greffon.Reglages.Noms.TryGetValue(greffon.ContentId, out var n) ? n : "ce personnage";
+        var nom = plugin.Reglages.Noms.TryGetValue(plugin.ContentId, out var n) ? n : "ce personnage";
         ImGui.TextColored(Or, nom);
 
-        if (greffon.Catalogue?.Pret != true)
+        if (plugin.Catalogue?.Pret != true)
         {
             ImGui.Spacing();
             ImGui.TextColored(Ambre, Mots.CataloguePasPret);
-            if (ImGui.Button(Mots.Reessayer)) greffon.RechargerCatalogue();
+            if (ImGui.Button(Mots.Reessayer)) plugin.RechargerCatalogue();
             return;
         }
 
-        var lecture = greffon.LectureEnCours;
+        var lecture = plugin.LectureEnCours;
 
         ImGui.Spacing();
         ImGui.BeginDisabled(lecture);
-        if (ImGui.Button(Mots.Regarder, new Vector2(180, 28))) greffon.Regarder();
+        if (ImGui.Button(Mots.Regarder, new Vector2(180, 28))) plugin.Regarder();
         ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.AlignTextToFramePadding();
         ImGui.TextColored(Gris, Mots.RienNePart);
 
-        var releves = greffon.Releves;
+        var releves = plugin.Releves;
         if (releves.Count == 0 && !lecture)
         {
             ImGui.Spacing();
@@ -120,7 +120,7 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.TextColored(Or, Mots.OnRecupere + Points());
             ImGui.PushStyleColor(ImGuiCol.PlotHistogram, Or);
             ImGui.ProgressBar(
-                greffon.AFaire == 0 ? 0f : (float)greffon.Faites / greffon.AFaire,
+                plugin.AFaire == 0 ? 0f : (float)plugin.Faites / plugin.AFaire,
                 new Vector2(-1, 6),
                 string.Empty);
             ImGui.PopStyleColor();
@@ -153,13 +153,13 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.Spacing();
         }
 
-        if (greffon.EnvoiEnCours)
+        if (plugin.EnvoiEnCours)
         {
             ImGui.TextColored(Gris, Mots.EnvoiEnCours);
         }
         else if (ImGui.Button(Mots.Envoyer, new Vector2(220, 30)))
         {
-            greffon.Envoyer();
+            plugin.Envoyer();
         }
 
         Retour();
@@ -177,14 +177,14 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableHeadersRow();
 
-        var attendu = greffon.EnCours;
+        var attendu = plugin.EnCours;
         foreach (var (cle, nom) in Mots.Collections)
         {
             var x = releves.FirstOrDefault(v => v.Cle == cle);
             // Pendant la lecture, les lignes pas encore faites restent visibles :
             // le tableau garde sa hauteur, et on voit ce qu'il reste a venir.
             var aVenir = x is null;
-            if (aVenir && !greffon.LectureEnCours) continue;
+            if (aVenir && !plugin.LectureEnCours) continue;
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
@@ -266,7 +266,7 @@ public sealed class Fenetre : Window, IDisposable
 
     private void Retour()
     {
-        if (greffon.Dernier is not { } retour) return;
+        if (plugin.Dernier is not { } retour) return;
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -302,7 +302,7 @@ public sealed class Fenetre : Window, IDisposable
     {
         ImGui.Spacing();
 
-        if (greffon.Coffre is null)
+        if (plugin.Coffre is null)
         {
             ImGui.TextWrapped(Mots.ARangerQuoi);
             ImGui.Spacing();
@@ -310,18 +310,18 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.Spacing();
             if (ImGui.Button(Mots.Regarder))
             {
-                greffon.Regarder();
+                plugin.Regarder();
                 ongletVoulu = 0;
             }
             return;
         }
 
-        var egarees = greffon.ARanger();
+        var egarees = plugin.ARanger();
         if (egarees.Count == 0)
         {
             ImGui.TextColored(Vert, Mots.ARangerRien);
             ImGui.Spacing();
-            ImGui.TextColored(Gris, Mots.ServantsVus(greffon.ServantsDuPerso().Count));
+            ImGui.TextColored(Gris, Mots.ServantsVus(plugin.ServantsDuPerso().Count));
             return;
         }
 
@@ -331,7 +331,7 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.TextColored(Or, Mots.ARangerCompte(egarees.Count, achevent));
         ImGui.SameLine();
         ImGui.TextDisabled("(?)");
-        Survol(Mots.ARangerQuoi + "\n\n" + Mots.ServantsVus(greffon.ServantsDuPerso().Count));
+        Survol(Mots.ARangerQuoi + "\n\n" + Mots.ServantsVus(plugin.ServantsDuPerso().Count));
         ImGui.Spacing();
 
         if (!ImGui.BeginChild("aranger", new Vector2(0, 0), false)) return;
@@ -388,10 +388,10 @@ public sealed class Fenetre : Window, IDisposable
 
     private void PageConfiguration()
     {
-        var r = greffon.Reglages;
+        var r = plugin.Reglages;
         ImGui.Spacing();
 
-        var contentId = greffon.ContentId;
+        var contentId = plugin.ContentId;
         if (contentId == 0)
         {
             ImGui.TextColored(Ambre, Mots.PasDePerso);
@@ -406,14 +406,14 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.TextWrapped(Mots.JetonExplique);
         ImGui.Spacing();
         ImGui.SetNextItemWidth(-1);
-        var jeton = greffon.Jeton;
+        var jeton = plugin.Jeton;
         if (ImGui.InputTextWithHint("##jeton", Mots.ColleJeton, ref jeton, 200,
                 ImGuiInputTextFlags.Password))
         {
-            greffon.PoserJeton(jeton);
+            plugin.PoserJeton(jeton);
         }
-        ImGui.TextColored(greffon.Jeton.Length > 0 ? Vert : Ambre,
-            greffon.Jeton.Length > 0 ? Mots.JetonRange : Mots.PasDeJeton);
+        ImGui.TextColored(plugin.Jeton.Length > 0 ? Vert : Ambre,
+            plugin.Jeton.Length > 0 ? Mots.JetonRange : Mots.PasDeJeton);
 
         // La langue suit le client de jeu, sauf demande contraire : quelqu'un qui
         // joue en anglais depuis dix ans lit son jeu en anglais.
@@ -425,10 +425,20 @@ public sealed class Fenetre : Window, IDisposable
         if (ImGui.Checkbox("##avis", ref avis))
         {
             r.AvisEnJeu = avis;
-            greffon.Enregistrer();
+            plugin.Enregistrer();
         }
         ImGui.SameLine();
         ImGui.TextWrapped(Mots.AvisExplique);
+
+        ImGui.Spacing();
+        var pastilles = r.Pastilles;
+        if (ImGui.Checkbox("##pastilles", ref pastilles))
+        {
+            r.Pastilles = pastilles;
+            plugin.Enregistrer();
+        }
+        ImGui.SameLine();
+        ImGui.TextWrapped(Mots.PastillesExplique);
 
         ImGui.Spacing();
         ImGui.Separator();
@@ -439,10 +449,10 @@ public sealed class Fenetre : Window, IDisposable
         var choix = (int)r.Langue;
         if (ImGui.Combo("##langue", ref choix, $"{Mots.LangueAuto}\0Français\0English\0"))
         {
-            greffon.ChoisirLangue((Langue)choix);
+            plugin.ChoisirLangue((Langue)choix);
         }
 
-        // En bas, discret : ce greffon est gratuit et le restera.
+        // En bas, discret : ce plugin est gratuit et le restera.
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -459,8 +469,8 @@ public sealed class Fenetre : Window, IDisposable
     /// <summary>Ce qui empêche encore d'envoyer, dit en une phrase.</summary>
     private string? Manque()
     {
-        if (greffon.ContentId == 0) return Mots.ManquePerso;
-        if (greffon.Jeton.Length == 0) return Mots.ManqueJeton;
+        if (plugin.ContentId == 0) return Mots.ManquePerso;
+        if (plugin.Jeton.Length == 0) return Mots.ManqueJeton;
         return null;
     }
 

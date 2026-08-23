@@ -51,7 +51,7 @@ public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire);
 /// <b>Rien n'est écrit dans la mémoire du jeu, jamais.</b> Une première version
 /// posait un drapeau pour demander au client de charger la coiffeuse : le jeu
 /// croyait alors sa demande déjà partie et n'affichait plus rien tant qu'on ne
-/// changeait pas de zone. Un greffon qui lit n'a aucune raison d'écrire, et ce
+/// changeait pas de zone. Un plugin qui lit n'a aucune raison d'écrire, et ce
 /// qui n'a pas encore été chargé se demande au joueur, pas au client.
 ///
 /// Chaque collection est lue en posant au jeu la même question pour chaque entrée

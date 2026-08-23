@@ -15,7 +15,7 @@ public sealed record Retour(
 /// <summary>
 /// L'envoi de la photo.
 ///
-/// Une seule route, un seul verbe. Le greffon ne sait rien lire du compte : il
+/// Une seule route, un seul verbe. Le plugin ne sait rien lire du compte : il
 /// dépose, et l'application se charge du reste.
 /// </summary>
 public static class Envoi
