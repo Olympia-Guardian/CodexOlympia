@@ -326,7 +326,10 @@ public sealed class Fenetre : Window, IDisposable
             $"coiffeuse : {coffre.Occupes} emplacements occupés, dont {coffre.Ensembles} ensembles ; " +
             $"{coffre.Reconnus} tombent sur un objet connu du jeu");
         ImGui.TextColored(Gris,
-            $"pièces retenues : {coffre.Coiffeuse.Count} depuis la coiffeuse, {coffre.Armoire.Count} depuis l'armoire");
+            $"emplacements vides portant tout de même un ensemble : {coffre.VidesHabites}");
+        ImGui.TextColored(Gris,
+            $"objets retenus : {coffre.Coiffeuse.Count} depuis la coiffeuse, dont {coffre.Touchees} " +
+            $"connus du catalogue ; {coffre.Armoire.Count} pièces depuis l'armoire");
         ImGui.Spacing();
         if (coffre.Echantillon.Count == 0)
         {

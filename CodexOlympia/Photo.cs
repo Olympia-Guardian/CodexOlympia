@@ -35,7 +35,11 @@ public sealed record Coffre(
     /// <summary>Ceux qui tombent sur un objet connu du jeu.</summary>
     int Reconnus = 0,
     /// <summary>Ceux qui sont des ensembles rangés d'un bloc.</summary>
-    int Ensembles = 0);
+    int Ensembles = 0,
+    /// <summary>Emplacements a zero qui portent pourtant un ensemble.</summary>
+    int VidesHabites = 0,
+    /// <summary>Ce que la coiffeuse rend et que le catalogue connait.</summary>
+    int Touchees = 0);
 
 /// <summary>Une lecture complète : les relevés, et ce qu'on a vu dans les dépôts.</summary>
 public sealed record Lecture(List<Releve> Releves, Coffre Coffre);
@@ -137,12 +141,20 @@ public static class Photo
 
         var coiffeuse = new HashSet<uint>();
         var echantillon = new List<string>();
-        int occupes = 0, vusEnsembles = 0, reconnus = 0;
+        int occupes = 0, vusEnsembles = 0, reconnus = 0, videsHabites = 0;
 
         for (var i = 0; i < emplacements.Length; i++)
         {
             var v = emplacements[i];
-            if (v == 0) continue;
+            if (v == 0)
+            {
+                // Un emplacement a zero peut malgre tout porter un ensemble :
+                // si c'etait le cas, chercher les ensembles dans les numeros
+                // d'objet ne les trouverait jamais. On compte pour le savoir.
+                for (var k = 0; k < 11; k++)
+                    if (mirage->IsSetSlotUnlocked((uint)i, k)) { videsHabites++; break; }
+                continue;
+            }
             occupes++;
             var net = v >= SeuilHq ? v - SeuilHq : v;
 
@@ -182,7 +194,20 @@ public static class Photo
                     if (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1))
                         cases.Add(p.Objet);
 
-        return new Coffre(coiffeuse, cases, echantillon, occupes, reconnus, vusEnsembles);
+        // Combien d'emplacements de la coiffeuse tombent sur une piece ou une
+        // tenue du catalogue : le chiffre qui dit si la lecture sert a quelque
+        // chose, ou si elle regarde ailleurs.
+        var connuesPieces = new HashSet<uint>();
+        var connuesTenues = new HashSet<uint>();
+        foreach (var t in cat.Tenues)
+        {
+            connuesTenues.Add(t.Id);
+            foreach (var p in t.Pieces) connuesPieces.Add(p.Objet);
+        }
+        var touchees = coiffeuse.Count(x => connuesPieces.Contains(x) || connuesTenues.Contains(x));
+
+        return new Coffre(
+            coiffeuse, cases, echantillon, occupes, reconnus, vusEnsembles, videsHabites, touchees);
     }
 
     /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille :
