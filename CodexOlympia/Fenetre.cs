@@ -294,60 +294,6 @@ public sealed class Fenetre : Window, IDisposable
             }
         }
 
-        ImGui.Spacing();
-        ImGui.Separator();
-        ImGui.Spacing();
-
-        ImGui.TextColored(Or, "Le catalogue");
-        var cat = greffon.Catalogue;
-        ImGui.TextColored(Gris, cat?.Pret == true
-            ? $"chargé, mis à jour le {Date(cat.Date)}"
-            : "pas encore chargé");
-        if (ImGui.Button("Recharger le catalogue")) greffon.RechargerCatalogue();
-
-        Diagnostic();
-    }
-
-    /// <summary>
-    /// Ce que le greffon a lu dans la coiffeuse, sans interprétation.
-    ///
-    /// Replié par défaut : personne n'en a besoin tant que les chiffres sont
-    /// justes. Le jour où ils ne le sont pas, c'est la seule chose qui permette
-    /// de dire si le greffon lit des objets ou tout autre chose.
-    /// </summary>
-    private void Diagnostic()
-    {
-        var coffre = greffon.Coffre;
-        if (coffre is null) return;
-        ImGui.Spacing();
-        if (!ImGui.CollapsingHeader("Diagnostic de la coiffeuse")) return;
-
-        ImGui.TextColored(Gris,
-            $"coiffeuse : {coffre.Occupes} emplacements occupés, dont {coffre.Ensembles} ensembles ; " +
-            $"{coffre.Reconnus} tombent sur un objet connu du jeu");
-        ImGui.TextColored(Gris,
-            $"emplacements vides portant tout de même un ensemble : {coffre.VidesHabites}");
-        ImGui.TextColored(Gris,
-            $"objets retenus : {coffre.Coiffeuse.Count} depuis la coiffeuse, dont {coffre.Touchees} " +
-            $"connus du catalogue ; {coffre.Armoire.Count} pièces depuis l'armoire");
-        ImGui.Spacing();
-        if (coffre.Echantillon.Count == 0)
-        {
-            ImGui.TextWrapped("Rien à montrer : la coiffeuse n'a pas encore été lue.");
-            return;
-        }
-        ImGui.TextWrapped("Les douze premiers emplacements, tels que le jeu les donne :");
-        foreach (var ligne in coffre.Echantillon) ImGui.TextColored(Gris, ligne);
-
-        // Un ensemble rangé peut être entamé. Le compte affiché ici se compare
-        // à ce que dit l'infobulle du jeu : c'est la seule façon de s'assurer
-        // qu'une tenue incomplète n'est pas lue comme entière.
-        if (coffre.Detail is { Count: > 0 })
-        {
-            ImGui.Spacing();
-            ImGui.TextWrapped("Les ensembles trouvés, et les pièces qui s'y trouvent :");
-            foreach (var ligne in coffre.Detail) ImGui.TextColored(Gris, ligne);
-        }
     }
 
     // ------------------------------------------------------------------ menu
@@ -365,7 +311,4 @@ public sealed class Fenetre : Window, IDisposable
     private static string Lisible(string cle) =>
         Noms.FirstOrDefault(n => n.Cle == cle).Nom?.ToLowerInvariant() ?? cle;
 
-    /// <summary>« 2026-08-22T04:47:46Z » ne se lit pas. « 22/08/2026 » si.</summary>
-    private static string Date(string brut) =>
-        DateTime.TryParse(brut, out var d) ? d.ToLocalTime().ToString("dd/MM/yyyy") : "date inconnue";
 }

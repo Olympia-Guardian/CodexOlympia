@@ -26,22 +26,7 @@ public sealed record Releve(
     string? Note = null);
 
 /// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
-public sealed record Coffre(
-    HashSet<uint> Coiffeuse,
-    HashSet<uint> Armoire,
-    List<string> Echantillon,
-    /// <summary>Emplacements occupés dans la coiffeuse.</summary>
-    int Occupes = 0,
-    /// <summary>Ceux qui tombent sur un objet connu du jeu.</summary>
-    int Reconnus = 0,
-    /// <summary>Ceux qui sont des ensembles rangés d'un bloc.</summary>
-    int Ensembles = 0,
-    /// <summary>Emplacements a zero qui portent pourtant un ensemble.</summary>
-    int VidesHabites = 0,
-    /// <summary>Ce que la coiffeuse rend et que le catalogue connait.</summary>
-    int Touchees = 0,
-    /// <summary>Les ensembles trouves, et combien de leurs pieces y sont.</summary>
-    List<string>? Detail = null);
+public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire);
 
 /// <summary>Une lecture complète : les relevés, et ce qu'on a vu dans les dépôts.</summary>
 public sealed record Lecture(List<Releve> Releves, Coffre Coffre);
@@ -67,7 +52,6 @@ public static class Photo
     public static unsafe Lecture Prendre(
         Catalogue cat,
         Lumina.Excel.ExcelSheet<AozAction> sorts,
-        Lumina.Excel.ExcelSheet<Item> objets,
         Lumina.Excel.ExcelSheet<MirageStoreSetItem> ensembles)
     {
         var releves = new List<Releve>();
@@ -106,48 +90,31 @@ public static class Photo
 
         // --- Les dépôts ------------------------------------------------------
         var armoireLue = ui->Cabinet.IsCabinetLoaded();
-        var coffre = Coffre(cat, ui, armoireLue, objets, ensembles);
+        var coffre = Coffre(cat, ui, armoireLue, ensembles);
         releves.Add(Armoire(cat, ui, armoireLue, coffre));
         releves.AddRange(Tenues(cat, armoireLue, coffre));
 
         return new Lecture(releves, coffre);
     }
 
-    /// <summary>
-    /// Ce que les deux dépôts contiennent, tel quel.
-    ///
-    /// L'échantillon n'est pas décoratif : quand une lecture ne trouve rien, il
-    /// dit si le greffon lit des identifiants d'objet ou tout autre chose. Sans
-    /// lui, on en serait réduit à supposer.
-    /// </summary>
+    /// <summary>Ce que les deux dépôts contiennent.</summary>
     private static unsafe Coffre Coffre(
         Catalogue cat,
         UIState* ui,
         bool armoireLue,
-        Lumina.Excel.ExcelSheet<Item> objets,
         Lumina.Excel.ExcelSheet<MirageStoreSetItem> ensembles)
     {
         var mirage = MirageManager.Instance();
         var emplacements = mirage->PrismBoxItemIds;
 
         var coiffeuse = new HashSet<uint>();
-        var echantillon = new List<string>();
-        var detail = new List<string>();
-        int occupes = 0, vusEnsembles = 0, reconnus = 0, videsHabites = 0;
 
         for (var i = 0; i < emplacements.Length; i++)
         {
             var v = emplacements[i];
-            if (v == 0)
-            {
-                // Un emplacement a zero peut malgre tout porter un ensemble :
-                // si c'etait le cas, chercher les ensembles dans les numeros
-                // d'objet ne les trouverait jamais. On compte pour le savoir.
-                for (var k = 0; k < 11; k++)
-                    if (mirage->IsSetSlotUnlocked((uint)i, k)) { videsHabites++; break; }
-                continue;
-            }
-            occupes++;
+            // Un emplacement vide répond n'importe quoi à IsSetSlotUnlocked :
+            // on ne l'interroge pas.
+            if (v == 0) continue;
             var net = v >= SeuilHq ? v - SeuilHq : v;
 
             // Un emplacement qui porte une ligne de MirageStoreSetItem n'est pas
@@ -158,39 +125,20 @@ public static class Photo
             var estEnsemble = set is not null && Slots(set.Value).Any(x => x != 0);
             if (estEnsemble)
             {
-                vusEnsembles++;
                 var dedans = Slots(set!.Value);
-                var definis = 0;
-                var presents = new List<string>();
                 for (var k = 0; k < dedans.Length; k++)
                 {
-                    if (dedans[k] == 0) continue;
-                    definis++;
-                    // Un ensemble range n'est pas forcement complet : on ne
-                    // retient QUE les emplacements que le jeu declare remplis.
-                    // L'identifiant de l'ensemble lui-meme n'entre jamais ici,
-                    // sans quoi une tenue entamee vaudrait une tenue entiere.
-                    if (!mirage->IsSetSlotUnlocked((uint)i, k)) continue;
-                    coiffeuse.Add(dedans[k]);
-                    presents.Add(objets.GetRowOrDefault(dedans[k])?.Name.ExtractText() ?? $"#{dedans[k]}");
-                }
-                if (detail.Count < 12)
-                {
-                    var nomSet = objets.GetRowOrDefault(net)?.Name.ExtractText() ?? $"#{net}";
-                    detail.Add($"{nomSet} : {presents.Count}/{definis} — {string.Join(", ", presents)}");
+                    // Un ensemble rangé n'est pas forcément complet : on ne
+                    // retient QUE les emplacements que le jeu déclare remplis.
+                    // L'identifiant de l'ensemble lui-même n'entre jamais ici,
+                    // sans quoi une tenue entamée vaudrait une tenue entière.
+                    if (dedans[k] != 0 && mirage->IsSetSlotUnlocked((uint)i, k))
+                        coiffeuse.Add(dedans[k]);
                 }
             }
             else
             {
                 coiffeuse.Add(net);
-            }
-
-            var nom = objets.GetRowOrDefault(net)?.Name.ExtractText();
-            if (!string.IsNullOrEmpty(nom)) reconnus++;
-            if (echantillon.Count < 12)
-            {
-                var quoi = estEnsemble ? "ensemble" : string.IsNullOrEmpty(nom) ? "INCONNU" : "objet";
-                echantillon.Add($"{v} [{quoi}] {(string.IsNullOrEmpty(nom) ? "aucun objet de ce numéro" : nom)}");
             }
         }
 
@@ -201,21 +149,7 @@ public static class Photo
                     if (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1))
                         cases.Add(p.Objet);
 
-        // Combien d'emplacements de la coiffeuse tombent sur une piece ou une
-        // tenue du catalogue : le chiffre qui dit si la lecture sert a quelque
-        // chose, ou si elle regarde ailleurs.
-        var connuesPieces = new HashSet<uint>();
-        var connuesTenues = new HashSet<uint>();
-        foreach (var t in cat.Tenues)
-        {
-            connuesTenues.Add(t.Id);
-            foreach (var p in t.Pieces) connuesPieces.Add(p.Objet);
-        }
-        var touchees = coiffeuse.Count(x => connuesPieces.Contains(x) || connuesTenues.Contains(x));
-
-        return new Coffre(
-            coiffeuse, cases, echantillon, occupes, reconnus, vusEnsembles, videsHabites, touchees,
-            detail);
+        return new Coffre(coiffeuse, cases);
     }
 
     /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille :
