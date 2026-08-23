@@ -45,9 +45,6 @@ public sealed record Releve(
 /// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
 public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire);
 
-/// <summary>Une lecture complète : les relevés, et ce qu'on a vu dans les dépôts.</summary>
-public sealed record Lecture(List<Releve> Releves, Coffre Coffre);
-
 /// <summary>
 /// La lecture du jeu, à un instant donné.
 ///
@@ -66,52 +63,95 @@ public static class Photo
     /// <summary>Les objets marchands portent un décalage qu'on retire.</summary>
     private const uint SeuilHq = 1_000_000;
 
-    public static unsafe Lecture Prendre(
+    /// <summary>
+    /// L'ordre dans lequel les collections se lisent.
+    ///
+    /// C'est aussi l'ordre dans lequel elles s'affichent : une lecture qui
+    /// remplit le tableau de haut en bas se suit des yeux, une lecture qui saute
+    /// d'une ligne à l'autre donne l'impression d'un désordre.
+    /// </summary>
+    public static readonly string[] Ordre =
+    [
+        "mounts", "minions", "orchestrions", "emotes", "hairstyles", "fashions",
+        "facewear", "bardings", "cards", "frames", "spells", "achievements",
+        "armoires", "outfitpieces",
+    ];
+
+    /// <summary>Fait UNE étape de la lecture et rend ce qu'elle a produit.
+    ///
+    /// <para>Rien n'est simulé : chaque étape interroge vraiment le jeu. Elle est
+    /// seulement séparée des autres, pour que le joueur voie le tableau se
+    /// remplir au lieu de le voir apparaître tout fait.</para>
+    ///
+    /// <para>Les pointeurs du jeu sont repris à chaque étape et jamais gardés
+    /// d'une image sur l'autre : ce qui est valide maintenant ne l'est pas
+    /// forcément dans deux secondes.</para>
+    /// </summary>
+    public static unsafe List<Releve> Etape(
+        string cle,
         Catalogue cat,
         Lumina.Excel.ExcelSheet<AozAction> sorts,
-        Lumina.Excel.ExcelSheet<MirageStoreSetItem> ensembles)
+        Lumina.Excel.ExcelSheet<MirageStoreSetItem> ensembles,
+        ref Coffre? coffre)
     {
-        var releves = new List<Releve>();
         var ps = PlayerState.Instance();
         var ui = UIState.Instance();
 
-        // --- Les déverrouillages que le jeu tient collection par collection ---
-        releves.Add(Simple(cat, "mounts", id => ps->IsMountUnlocked(id)));
-        releves.Add(Simple(cat, "minions", id => ui->IsCompanionUnlocked(id)));
-        releves.Add(Simple(cat, "orchestrions", id => ps->IsOrchestrionRollUnlocked(id)));
-        releves.Add(Simple(cat, "emotes", id => id <= ushort.MaxValue && ui->IsEmoteUnlocked((ushort)id)));
-        releves.Add(Simple(cat, "fashions", id => ps->IsOrnamentUnlocked(id)));
-        releves.Add(Simple(cat, "cards", id => id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)id)));
-
-        // --- Ce qui se lit par l'objet qui déverrouille -----------------------
-        // Le catalogue ne donne pas d'objet à toutes les entrées. Celles qui n'en
-        // ont pas ne sont pas interrogeables : elles sortent de la portée, et
-        // l'application ne conclura rien à leur sujet.
-        foreach (var cle in new[] { "facewear", "hairstyles", "bardings", "frames" })
-            releves.Add(ParObjet(cat, cle));
-
-        // --- Les succès ------------------------------------------------------
-        var succes = FFXIVClientStructs.FFXIV.Client.Game.UI.Achievement.Instance();
-        if (!succes->IsLoaded())
+        switch (cle)
         {
-            releves.Add(new Releve("achievements", [], null, Total(cat, "achievements"),
-                "ouvre ton carnet de succès une fois, puis regarde à nouveau"));
+            case "mounts":
+                return [Simple(cat, cle, id => ps->IsMountUnlocked(id))];
+            case "minions":
+                return [Simple(cat, cle, id => ui->IsCompanionUnlocked(id))];
+            case "orchestrions":
+                return [Simple(cat, cle, id => ps->IsOrchestrionRollUnlocked(id))];
+            case "emotes":
+                return [Simple(cat, cle, id => id <= ushort.MaxValue && ui->IsEmoteUnlocked((ushort)id))];
+            case "fashions":
+                return [Simple(cat, cle, id => ps->IsOrnamentUnlocked(id))];
+            case "cards":
+                return [Simple(cat, cle, id => id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)id))];
+
+            // Le catalogue ne donne pas d'objet déverrouillant à toutes les
+            // entrées. Celles qui n'en ont pas ne sont pas interrogeables : elles
+            // sortent de la portée, et l'application ne conclut rien à leur sujet.
+            case "hairstyles":
+            case "facewear":
+            case "bardings":
+            case "frames":
+                return [ParObjet(cat, cle)];
+
+            case "spells":
+                return [Sorts(cat, sorts, ui)];
+
+            case "achievements":
+            {
+                var succes = FFXIVClientStructs.FFXIV.Client.Game.UI.Achievement.Instance();
+                if (!succes->IsLoaded())
+                {
+                    return
+                    [
+                        new Releve(cle, [], null, Total(cat, cle),
+                            "ouvre ton carnet de succès une fois, puis regarde à nouveau"),
+                    ];
+                }
+                return [Simple(cat, cle, id => id <= int.MaxValue && succes->IsComplete((int)id))];
+            }
+
+            case "armoires":
+            {
+                var lue = ui->Cabinet.IsCabinetLoaded();
+                coffre = Coffre(cat, ui, lue, ensembles);
+                return [Armoire(cat, ui, lue, coffre)];
+            }
+
+            case "outfitpieces":
+                // Les tenues se déduisent des pièces : elles arrivent ensemble.
+                return Tenues(cat, ui->Cabinet.IsCabinetLoaded(), coffre ?? new Coffre([], []));
+
+            default:
+                return [];
         }
-        else
-        {
-            releves.Add(Simple(cat, "achievements", id => id <= int.MaxValue && succes->IsComplete((int)id)));
-        }
-
-        // --- Les sorts bleus -------------------------------------------------
-        releves.Add(Sorts(cat, sorts, ui));
-
-        // --- Les dépôts ------------------------------------------------------
-        var armoireLue = ui->Cabinet.IsCabinetLoaded();
-        var coffre = Coffre(cat, ui, armoireLue, ensembles);
-        releves.Add(Armoire(cat, ui, armoireLue, coffre));
-        releves.AddRange(Tenues(cat, armoireLue, coffre));
-
-        return new Lecture(releves, coffre);
     }
 
     /// <summary>Ce que les deux dépôts contiennent.</summary>

@@ -62,6 +62,10 @@ public sealed class Fenetre : Window, IDisposable
 
     public override void Draw()
     {
+        // La lecture se fait ici, une collection par image : c'est le fil du jeu,
+        // le seul d'ou sa mémoire se lit sans risque.
+        greffon.Avancer(ImGui.GetTime());
+
         if (!ImGui.BeginTabBar("pages")) return;
         if (ImGui.BeginTabItem("Synchronisation"))
         {
@@ -105,14 +109,18 @@ public sealed class Fenetre : Window, IDisposable
             return;
         }
 
+        var lecture = greffon.LectureEnCours;
+
         ImGui.Spacing();
+        ImGui.BeginDisabled(lecture);
         if (ImGui.Button("Regarder ce que j'ai", new Vector2(180, 28))) greffon.Regarder();
+        ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.AlignTextToFramePadding();
         ImGui.TextColored(Gris, "rien n'est envoyé à cette étape");
 
         var releves = greffon.Releves;
-        if (releves.Count == 0)
+        if (releves.Count == 0 && !lecture)
         {
             ImGui.Spacing();
             ImGui.TextWrapped(
@@ -122,8 +130,24 @@ public sealed class Fenetre : Window, IDisposable
         }
 
         ImGui.Spacing();
+        if (lecture)
+        {
+            // Le tableau se remplit de haut en bas : on voit ce qui est fait, ce
+            // qui est en train de se faire, et ce qui attend.
+            ImGui.TextColored(Or, "On récupère tes déblocages" + Points());
+            ImGui.PushStyleColor(ImGuiCol.PlotHistogram, Or);
+            ImGui.ProgressBar(
+                greffon.AFaire == 0 ? 0f : (float)greffon.Faites / greffon.AFaire,
+                new Vector2(-1, 6),
+                string.Empty);
+            ImGui.PopStyleColor();
+            ImGui.Spacing();
+        }
+
         Tableau(releves);
         ImGui.Spacing();
+
+        if (lecture) return;
 
         // Une piece rangee a l'armoire est possedee, mais elle ne sert a aucun
         // glamour tant qu'elle dort la-bas. Le dire ici evite d'aller chercher
@@ -174,26 +198,38 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableHeadersRow();
 
+        var attendu = greffon.EnCours;
         foreach (var (cle, nom) in Noms)
         {
             var x = releves.FirstOrDefault(v => v.Cle == cle);
-            if (x is null) continue;
+            // Pendant la lecture, les lignes pas encore faites restent visibles :
+            // le tableau garde sa hauteur, et on voit ce qu'il reste a venir.
+            var aVenir = x is null;
+            if (aVenir && !greffon.LectureEnCours) continue;
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
             ImGui.AlignTextToFramePadding();
-            if (x.Empeche is not null) ImGui.TextColored(Gris, nom);
+            if (aVenir || x!.Empeche is not null) ImGui.TextColored(Gris, nom);
             else ImGui.Text(nom);
 
             ImGui.TableNextColumn();
             ImGui.AlignTextToFramePadding();
-            if (x.Empeche is not null) ImGui.TextColored(Ambre, "non lu");
+            if (aVenir)
+            {
+                if (cle == attendu) ImGui.TextColored(Or, "lecture" + Points());
+                else ImGui.TextColored(Gris, "en attente");
+                ImGui.TableNextColumn();
+                ImGui.TableNextColumn();
+                continue;
+            }
+            if (x!.Empeche is not null) ImGui.TextColored(Ambre, "non lu");
             else ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
 
             // La barre ne dit rien de neuf : elle rend la colonne lisible d'un
             // coup d'oeil, ce qu'une colonne de fractions ne fait pas.
             ImGui.TableNextColumn();
-            if (x.Empeche is null && x.Total > 0)
+            if (x!.Empeche is null && x.Total > 0)
             {
                 var part = Math.Clamp((float)x.Trouves.Count / x.Total, 0f, 1f);
                 ImGui.PushStyleColor(ImGuiCol.PlotHistogram, x.Trouves.Count > 0 ? Vert : Gris);
@@ -203,7 +239,7 @@ public sealed class Fenetre : Window, IDisposable
 
             ImGui.TableNextColumn();
             ImGui.AlignTextToFramePadding();
-            if (x.Empeche is not null) ImGui.TextWrapped(x.Empeche);
+            if (x!.Empeche is not null) ImGui.TextWrapped(x.Empeche);
             else Limitation(x);
         }
         ImGui.EndTable();
@@ -244,6 +280,10 @@ public sealed class Fenetre : Window, IDisposable
                 break;
         }
     }
+
+    /// <summary>« . », « .. », « ... » : une attente qui se voit, sans exiger du
+    /// jeu un glyphe qu'il n'a peut-être pas.</summary>
+    private static string Points() => new('.', 1 + (int)(ImGui.GetTime() * 3) % 3);
 
     private static void Survol(string texte)
     {

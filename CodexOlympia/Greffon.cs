@@ -36,6 +36,14 @@ public sealed class Greffon : IDalamudPlugin
     public List<Releve> Releves { get; private set; } = [];
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
     public Coffre? Coffre { get; private set; }
+
+    /// <summary>Combien d'etapes la lecture en cours a franchies, et sur combien.
+    /// Zero sur zero quand rien n'est en cours.</summary>
+    public int Faites { get; private set; }
+    public int AFaire { get; private set; }
+    public bool LectureEnCours => AFaire > 0 && Faites < AFaire;
+    /// <summary>La collection en train d'etre lue, ou rien.</summary>
+    public string? EnCours => LectureEnCours ? Photo.Ordre[Faites] : null;
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 
@@ -139,25 +147,64 @@ public sealed class Greffon : IDalamudPlugin
         });
     }
 
-    /// <summary>Lit le jeu. Rien ne part : on montre d'abord.</summary>
+    /// <summary>Ouvre une lecture. Rien ne part : on montre d'abord.</summary>
     public void Regarder()
     {
         var cat = Catalogue;
         if (cat is null || !cat.Pret) return;
         Dernier = null;
+        Releves = [];
+        Coffre = null;
+        Faites = 0;
+        AFaire = Photo.Ordre.Length;
+        prochaine = 0;
+    }
+
+    /// <summary>Quand la prochaine etape a le droit de partir, en secondes.</summary>
+    private double prochaine;
+
+    /// <summary>Le temps qu'on laisse a chaque collection.
+    ///
+    ///  La lecture est bien plus rapide que ca : quatorze collections seraient
+    ///  lues en un battement de cil, et le tableau apparaitrait tout fait sans
+    ///  qu'on ait rien vu se passer. Une cadence lisible vaut mieux qu'une
+    ///  vitesse dont personne ne profite. </summary>
+    private const double Cadence = 0.11;
+
+    /// <summary>Avance la lecture d'au plus une etape. Appelee a chaque image,
+    /// depuis le fil du jeu : c'est le seul endroit d'ou la memoire du jeu se
+    /// lit sans risque.</summary>
+    public void Avancer(double maintenant)
+    {
+        if (!LectureEnCours) return;
+        if (maintenant < prochaine) return;
+        prochaine = maintenant + Cadence;
+
+        var cat = Catalogue;
+        if (cat is null || !cat.Pret)
+        {
+            AFaire = 0;
+            return;
+        }
+        var cle = Photo.Ordre[Faites];
         try
         {
-            var lecture = Photo.Prendre(
-                cat,
-                donnees.GetExcelSheet<AozAction>(),
-                donnees.GetExcelSheet<MirageStoreSetItem>());
-            Releves = lecture.Releves;
-            Coffre = lecture.Coffre;
+            var coffre = Coffre;
+            Releves.AddRange(
+                Photo.Etape(
+                    cle,
+                    cat,
+                    donnees.GetExcelSheet<AozAction>(),
+                    donnees.GetExcelSheet<MirageStoreSetItem>(),
+                    ref coffre));
+            Coffre = coffre;
+            Faites++;
         }
         catch (Exception e)
         {
-            journal.Error(e, "lecture du jeu impossible");
+            journal.Error(e, "lecture du jeu impossible ({0})", cle);
             Releves = [];
+            AFaire = 0;
             Dernier = new Retour(false, "la lecture du jeu a echoue : " + e.Message, [], []);
         }
     }
