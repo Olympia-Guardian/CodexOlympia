@@ -355,6 +355,36 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.TextColored(Gris, Mots.ARangerReste);
             Groupe(reste, false);
         }
+
+        // Ce qu'on tient alors que c'est deja depose : le plugin n'y touche
+        // jamais, il le nomme pour qu'on sache que ca ne sert plus a rien.
+        var doubles = plugin.Doubles;
+        if (doubles.Count > 0)
+        {
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+            ImGui.SetNextItemOpen(false, ImGuiCond.FirstUseEver);
+            if (ImGui.CollapsingHeader($"{Mots.DoublesTitre(doubles.Count)}###doubles"))
+            {
+                ImGui.TextColored(Gris, Mots.DoublesAide);
+                ImGui.Spacing();
+                if (ImGui.BeginTable("dbl", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+                {
+                    ImGui.TableSetupColumn("##p", ImGuiTableColumnFlags.WidthStretch, 1f);
+                    ImGui.TableSetupColumn("##t", ImGuiTableColumnFlags.WidthStretch, 1f);
+                    foreach (var d in doubles.OrderBy(x => x.Tenue, StringComparer.CurrentCultureIgnoreCase))
+                    {
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn();
+                        ImGui.Text(d.Nom);
+                        ImGui.TableNextColumn();
+                        ImGui.TextColored(Gris, d.Tenue);
+                    }
+                    ImGui.EndTable();
+                }
+            }
+        }
         ImGui.EndChild();
     }
 

@@ -113,7 +113,13 @@ un emplacement de plus.
 
 **La coiffeuse d'abord, toujours.** Un objet rangé à l'armoire quitte
 l'inventaire, donc la coiffeuse ne l'aura plus. Une case à cocher, décochée par
-défaut, ajoute l'armoire pour ce qu'aucune tenue ne prendra.
+défaut, ajoute l'armoire pour ce qu'aucune tenue ne prendra. Une pièce déjà dans
+la coiffeuse n'y va jamais : celle qu'on tient est un double, et un double se
+vend.
+
+La page liste d'ailleurs ces doubles à part, sans jamais y toucher. Seuls les
+sacs comptent : une pièce à l'armurerie est un glamour monté sur un job, et la
+dire en trop pousserait à vendre ce qu'on porte tous les jours.
 
 **C'est la seule chose que ce plugin fasse agir dans le jeu.** Tout le reste se
 contente de lire la mémoire du client, ce qui ne produit aucun paquet et

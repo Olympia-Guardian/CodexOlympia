@@ -250,6 +250,13 @@ public static class Mots
     public static string ARangerAchevent =>
         D("Celles-ci achèvent une tenue", "These complete an outfit");
     public static string ARangerReste => D("Le reste", "The rest");
+    public static string DoublesTitre(int n) => D(
+        $"{n} pièces en double dans tes sacs", $"{n} duplicate pieces in your bags");
+    public static string DoublesAide => D(
+        "Elles sont déjà dans ta coiffeuse : celles-ci ne servent plus à rien. Vends-les au "
+        + "PNJ ou à ta grande compagnie. Le plugin n’y touche pas.",
+        "They are already in your glamour dresser: these are useless now. Sell them to a vendor "
+        + "or your Grand Company. The plugin never touches them.");
     public static string ServantsVus(int n) => n == 0
         ? D("Aucun servant consulté : parle-leur une fois pour qu'ils comptent.",
             "No retainer seen yet: talk to them once so they count.")

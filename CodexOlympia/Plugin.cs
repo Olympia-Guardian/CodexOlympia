@@ -62,7 +62,11 @@ public sealed class Plugin : IDalamudPlugin
         ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
 
     private List<Egaree> aRanger = [];
+    private List<Egaree> doubles = [];
     private double prochainARanger;
+
+    /// <summary>Les pieces qu'on tient alors qu'elles sont deja deposees.</summary>
+    public List<Egaree> Doubles => doubles;
 
     /// <summary>
     /// Ce que le personnage a sous la main et n'a pas depose.
@@ -82,7 +86,9 @@ public sealed class Plugin : IDalamudPlugin
         prochainARanger = maintenant + 0.5;
         try
         {
-            aRanger = CodexOlympia.ARanger.Calculer(cat, coffre, Sacs.Miennes(sacs), ServantsDuPerso());
+            var main = Sacs.Miennes(sacs);
+            aRanger = CodexOlympia.ARanger.Calculer(cat, coffre, main, ServantsDuPerso());
+            doubles = CodexOlympia.ARanger.Doubles(cat, coffre, main);
         }
         catch (Exception e)
         {

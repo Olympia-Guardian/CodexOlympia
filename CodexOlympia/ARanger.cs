@@ -20,6 +20,31 @@ public sealed record Egaree(uint Objet, string Nom, string Ou, string Tenue, boo
 /// </summary>
 public static class ARanger
 {
+    /// <summary>
+    /// Ce qu'on tient en double : la pièce est dans un sac, et elle est DÉJÀ
+    /// déposée. Elle ne sert plus à rien pour la garde-robe.
+    ///
+    /// Seuls les sacs comptent, jamais l'armurerie ni ce qui est porté : une
+    /// pièce à l'armurerie est un glamour monté sur un job, et la dire en trop
+    /// pousserait à vendre ce qu'on porte tous les jours.
+    /// </summary>
+    public static List<Egaree> Doubles(
+        Catalogue cat, Coffre coffre, IReadOnlyList<Trouvaille> sousLaMain)
+    {
+        var dansLesSacs = new HashSet<uint>(
+            sousLaMain.Where(t => t.Ou == Mots.OuSac).Select(t => t.Objet));
+        if (dansLesSacs.Count == 0) return [];
+
+        var sortie = new List<Egaree>();
+        var vues = new HashSet<uint>();
+        foreach (var t in cat.Tenues)
+            foreach (var p in t.Pieces)
+                if (dansLesSacs.Contains(p.Objet) && coffre.Coiffeuse.Contains(p.Objet)
+                    && vues.Add(p.Objet))
+                    sortie.Add(new Egaree(p.Objet, p.Nom, Mots.OuSac, t.Nom, false));
+        return sortie;
+    }
+
     public static List<Egaree> Calculer(
         Catalogue cat,
         Coffre coffre,

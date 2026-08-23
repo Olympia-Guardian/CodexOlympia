@@ -178,6 +178,10 @@ public sealed class Rangeur
             foreach (var p in t.Pieces)
             {
                 if (p.Armoire == 0 || prises.Contains(p.Objet) || !vus.Add(p.Armoire)) continue;
+                // Deja dans la coiffeuse : la piece qu'on tient est un double.
+                // L'armoire n'en veut pas, elle ne sert qu'a garder ce qui n'a
+                // pas d'autre place. Ce double-la se vend.
+                if (coffre.Coiffeuse.Contains(p.Objet)) continue;
                 if (ui->Cabinet.IsItemInCabinet(p.Armoire - 1)) continue;
                 if (Trouver(p.Objet) is null) continue;
                 taches.Add(new Tache(Moyen.Armoire, p.Armoire, p.Nom));
