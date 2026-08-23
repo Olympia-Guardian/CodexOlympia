@@ -150,6 +150,7 @@ public sealed class Fenetre : Window, IDisposable
                 ImGui.TableNextColumn();
                 if (x.Empeche is not null) ImGui.TextWrapped(x.Empeche);
                 else if (x.Portee is not null) ImGui.TextDisabled($"{x.Portee.Count} entrées interrogeables");
+                else if (x.Note is not null) ImGui.TextDisabled(x.Note);
             }
             ImGui.EndTable();
         }

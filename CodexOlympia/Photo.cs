@@ -22,7 +22,8 @@ public sealed record Releve(
     List<uint> Trouves,
     List<uint>? Portee,
     int Total,
-    string? Empeche = null);
+    string? Empeche = null,
+    string? Note = null);
 
 /// <summary>
 /// La lecture du jeu, à un instant donné.
@@ -165,34 +166,46 @@ public static class Photo
     private static unsafe List<Releve> Tenues(Catalogue cat, UIState* ui, bool armoireLue)
     {
         var totalPieces = cat.Tenues.Sum(t => t.Pieces.Count);
-        var mirage = MirageManager.Instance();
-        if (!mirage->PrismBoxLoaded)
-        {
-            mirage->PrismBoxRequested = true;
-            return
-            [
-                new Releve("outfitpieces", [], null, totalPieces,
-                    "ouvre une fois ta coiffeuse mirage pour que le jeu la charge"),
-                new Releve("outfits", [], null, cat.Tenues.Count,
-                    "les tenues se déduisent des pièces"),
-            ];
-        }
-        if (!armoireLue)
-        {
-            return
-            [
-                new Releve("outfitpieces", [], null, totalPieces,
-                    "l'armoire doit être chargée elle aussi : une pièce rangée là passerait pour perdue"),
-                new Releve("outfits", [], null, cat.Tenues.Count,
-                    "les tenues se déduisent des pièces"),
-            ];
-        }
 
+        // Ce que la coiffeuse contient vraiment. Le drapeau « chargée » du jeu ne
+        // suffit pas : il est vrai avant même que la liste soit remplie, et une
+        // liste vide se lirait alors comme une garde-robe vide. On compte donc ce
+        // qu'on a sous les yeux, pas ce que le jeu prétend avoir chargé.
+        var mirage = MirageManager.Instance();
         var coiffeuse = new HashSet<uint>();
         foreach (var brut in mirage->PrismBoxItemIds)
         {
             var objet = brut >= SeuilHq ? brut - SeuilHq : brut;
             if (objet != 0) coiffeuse.Add(objet);
+        }
+        if (coiffeuse.Count == 0) mirage->PrismBoxRequested = true;
+
+        // Ce que l'armoire apporte, compté pour le dire au joueur : c'est le
+        // chiffre qui lui permet de reconnaître une lecture juste d'une lecture
+        // vide, et donc de refuser d'envoyer.
+        var cases = 0;
+        if (armoireLue)
+            foreach (var t in cat.Tenues)
+                foreach (var p in t.Pieces)
+                    if (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1))
+                        cases++;
+
+        var vu = $"coiffeuse : {coiffeuse.Count} objets, armoire : " +
+                 (armoireLue ? $"{cases} pièces" : "non chargée");
+
+        // La coiffeuse est le depot principal : tant qu'on ne l'a pas vue, on
+        // n'envoie rien. L'armoire seule est un echantillon trop etroit, et ce
+        // qu'elle ne contient pas passerait pour perdu.
+        if (coiffeuse.Count == 0)
+        {
+            var quoi = armoireLue
+                ? "ouvre ta coiffeuse mirage une fois, puis regarde à nouveau : le jeu ne charge son contenu qu'à ce moment-là"
+                : "ouvre ta coiffeuse mirage et ton armoire chez un rassembleur, puis regarde à nouveau";
+            return
+            [
+                new Releve("outfitpieces", [], null, totalPieces, quoi, vu),
+                new Releve("outfits", [], null, cat.Tenues.Count, "elles se déduisent des pièces"),
+            ];
         }
 
         var pieces = new List<uint>();
@@ -203,7 +216,7 @@ public static class Photo
             foreach (var p in tenue.Pieces)
             {
                 var la = coiffeuse.Contains(p.Objet)
-                    || (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1));
+                    || (armoireLue && p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1));
                 if (la) pieces.Add(p.Objet);
                 else complete = false;
             }
@@ -212,7 +225,7 @@ public static class Photo
 
         return
         [
-            new Releve("outfitpieces", [.. pieces.Distinct()], null, totalPieces),
+            new Releve("outfitpieces", [.. pieces.Distinct()], null, totalPieces, null, vu),
             new Releve("outfits", entieres, null, cat.Tenues.Count),
         ];
     }
