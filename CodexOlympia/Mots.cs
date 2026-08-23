@@ -205,6 +205,13 @@ public static class Mots
     public static string RangeurRien => D("Rien à ranger d'ici.", "Nothing to store from here.");
     public static string RangeurAMain => D("tu as appuyé sur Arrêter.", "you pressed Stop.");
     public static string RangeurLancer => D("Ranger", "Store");
+    public static string RangeurAussiArmoire => D(
+        "Ranger aussi dans l’armoire ce qu’aucune tenue ne prendra. Sans cette case, seules les "
+        + "tenues sont servies : un objet rangé à l’armoire quitte l’inventaire, et la coiffeuse ne "
+        + "l’aura plus.",
+        "Also store in the armoire whatever no outfit will take. Without this box, only outfits "
+        + "are served: an item stored in the armoire leaves your inventory, and the dresser will "
+        + "not get it.");
     public static string RangeurStop => D("Arrêter", "Stop");
     public static string RangeurAvance(int fait, int total, string quoi) =>
         D($"{fait}/{total} · {quoi}", $"{fait}/{total} · {quoi}");

@@ -42,6 +42,14 @@ public sealed class Reglages : IPluginConfiguration
     public bool Pastilles { get; set; } = true;
 
     /// <summary>
+    /// Ranger aussi dans l'armoire ce qu'aucune tenue ne prendra.
+    ///
+    /// Faux par défaut : ce qu'on veut d'abord, ce sont les tenues, et un objet
+    /// rangé à l'armoire quitte l'inventaire, donc la coiffeuse ne l'aura plus.
+    /// </summary>
+    public bool RangerArmoire { get; set; }
+
+    /// <summary>
     /// Ce que chaque servant portait la dernière fois qu'on lui a parlé, par
     /// personnage puis par nom de servant.
     ///

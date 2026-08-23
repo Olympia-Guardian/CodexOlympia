@@ -106,9 +106,14 @@ rien plutôt que de dessiner faux.
 ## Ranger tout seul (expérimental)
 
 Sur la page « À ranger », replié, un bouton dépose pour toi ce que tu as sous la
-main : les objets d'armoire, les tenues complètes, et les pièces manquantes des
-tenues déjà déposées. Une tenue déjà dans la coiffeuse est **complétée**, jamais
-dupliquée.
+main : les tenues complètes, et les pièces manquantes des tenues déjà déposées.
+Une tenue déjà dans la coiffeuse est **complétée**, jamais dupliquée, et les
+tenues entamées passent avant les neuves parce que les compléter ne consomme pas
+un emplacement de plus.
+
+**La coiffeuse d'abord, toujours.** Un objet rangé à l'armoire quitte
+l'inventaire, donc la coiffeuse ne l'aura plus. Une case à cocher, décochée par
+défaut, ajoute l'armoire pour ce qu'aucune tenue ne prendra.
 
 **C'est la seule chose que ce plugin fasse agir dans le jeu.** Tout le reste se
 contente de lire la mémoire du client, ce qui ne produit aucun paquet et

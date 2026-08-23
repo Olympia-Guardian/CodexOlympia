@@ -400,10 +400,19 @@ public sealed class Fenetre : Window, IDisposable
 
         // La liste se bâtit au moment où on la demande : un inventaire d'il y a
         // trente secondes ne vaut rien pour décider de déplacer des objets.
+        var aussi = plugin.Reglages.RangerArmoire;
+        if (ImGui.Checkbox("##armoire", ref aussi))
+        {
+            plugin.Reglages.RangerArmoire = aussi;
+            plugin.Enregistrer();
+        }
+        ImGui.SameLine();
+        ImGui.TextWrapped(Mots.RangeurAussiArmoire);
+        ImGui.Spacing();
+
         if (ImGui.Button(Mots.RangeurLancer))
         {
-            var taches = r.Preparer(cat, coffre);
-            r.Demarrer(taches);
+            r.Demarrer(r.Preparer(cat, coffre, plugin.Reglages.RangerArmoire));
         }
         if (r.Etat == EtatRangement.Fini && r.Total > 0)
         {

@@ -121,24 +121,11 @@ public sealed class Rangeur
     /// isolee qui ne rentre dans aucune des trois est laissee ou elle est : le
     /// jeu n'offre pas de moyen propre de la deposer seule.
     /// </summary>
-    public unsafe List<Tache> Preparer(Catalogue cat, Coffre coffre)
+    public unsafe List<Tache> Preparer(Catalogue cat, Coffre coffre, bool aussiArmoire)
     {
         var taches = new List<Tache>();
         var ui = UIState.Instance();
         var mirage = MirageManager.Instance();
-
-        // L'armoire, objet par objet.
-        var vus = new HashSet<uint>();
-        foreach (var t in cat.Tenues)
-        {
-            foreach (var p in t.Pieces)
-            {
-                if (p.Armoire == 0 || !vus.Add(p.Armoire)) continue;
-                if (ui->Cabinet.IsItemInCabinet(p.Armoire - 1)) continue;
-                if (Trouver(p.Objet) is null) continue;
-                taches.Add(new Tache(Moyen.Armoire, p.Armoire, p.Nom));
-            }
-        }
 
         // Les emplacements de la coiffeuse : c'est la qu'on voit si une tenue y
         // est deja, et donc s'il faut la completer plutot que d'en creer une
@@ -152,18 +139,49 @@ public sealed class Rangeur
             deposees.TryAdd(v >= SeuilHq ? v - SeuilHq : v, (uint)i);
         }
 
+        // LA COIFFEUSE D'ABORD, et l'ordre n'est pas un detail : un objet range
+        // a l'armoire quitte l'inventaire, donc la coiffeuse ne l'aura plus. Une
+        // premiere version rangeait l'armoire en tete et vidait les sacs avant
+        // que les tenues aient eu leur chance.
+        //
+        // Les tenues entamees passent avant les neuves : completer un emplacement
+        // deja pris n'en consomme pas un second.
+        var prises = new HashSet<uint>();
+        foreach (var deuxieme in new[] { false, true })
+        {
+            foreach (var t in cat.Tenues)
+            {
+                var manquantes = t.Pieces.Where(p => !coffre.Coiffeuse.Contains(p.Objet)).ToList();
+                if (manquantes.Count == 0) continue;
+                // On ne depose que ce qu'on a EN ENTIER : le jeu range une tenue
+                // d'un bloc, et un depot partiel gaspillerait un emplacement.
+                if (manquantes.Any(p => Trouver(p.Objet) is null)) continue;
+
+                var entamee = deposees.TryGetValue(t.Id, out var place);
+                if (entamee == deuxieme) continue;
+                if (entamee) taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place));
+                else if (manquantes.Count == t.Pieces.Count)
+                    taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom));
+                else continue;
+                foreach (var p in manquantes) prises.Add(p.Objet);
+            }
+        }
+
+        // L'armoire ensuite, et seulement si on l'a demande : elle range ce
+        // qu'aucune tenue ne prendra. Par defaut on n'y touche pas, parce que ce
+        // qu'on veut d'abord, ce sont les tenues.
+        if (!aussiArmoire) return taches;
+
+        var vus = new HashSet<uint>();
         foreach (var t in cat.Tenues)
         {
-            var manquantes = t.Pieces.Where(p => !coffre.Coiffeuse.Contains(p.Objet)).ToList();
-            if (manquantes.Count == 0) continue;
-            // On ne depose que ce qu'on a EN ENTIER : le jeu range une tenue d'un
-            // bloc, et un depot partiel gaspillerait un emplacement.
-            if (manquantes.Any(p => Trouver(p.Objet) is null)) continue;
-
-            if (deposees.TryGetValue(t.Id, out var place))
-                taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place));
-            else if (manquantes.Count == t.Pieces.Count)
-                taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom));
+            foreach (var p in t.Pieces)
+            {
+                if (p.Armoire == 0 || prises.Contains(p.Objet) || !vus.Add(p.Armoire)) continue;
+                if (ui->Cabinet.IsItemInCabinet(p.Armoire - 1)) continue;
+                if (Trouver(p.Objet) is null) continue;
+                taches.Add(new Tache(Moyen.Armoire, p.Armoire, p.Nom));
+            }
         }
 
         return taches;
