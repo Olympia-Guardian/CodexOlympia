@@ -68,6 +68,34 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Les pieces qu'on tient alors qu'elles sont deja deposees.</summary>
     public List<Egaree> Doubles => doubles;
 
+    private List<Tache> apercu = [];
+    private double prochainApercu;
+
+    /// <summary>
+    /// Ce que le rangement ferait, s'il partait maintenant.
+    ///
+    /// Montre avant d'agir : un bouton qui ne dit pas ce qu'il va faire passe
+    /// pour casse quand il ne trouve rien a faire.
+    /// </summary>
+    public List<Tache> Apercu()
+    {
+        var cat = Catalogue;
+        var coffre = Coffre;
+        if (cat is null || !cat.Pret || coffre is null) return [];
+        var maintenant = Environment.TickCount64 / 1000.0;
+        if (maintenant < prochainApercu) return apercu;
+        prochainApercu = maintenant + 1.5;
+        try
+        {
+            apercu = Rangeur.Preparer(cat, coffre, Reglages.RangerArmoire);
+        }
+        catch (Exception e)
+        {
+            journal.Error(e, "apercu du rangement impossible");
+        }
+        return apercu;
+    }
+
     /// <summary>
     /// Ce que le personnage a sous la main et n'a pas depose.
     ///

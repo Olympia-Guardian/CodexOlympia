@@ -116,10 +116,10 @@ public sealed class Rangeur
     /// <summary>
     /// Batit la liste des operations.
     ///
-    /// Trois familles, et rien d'autre : l'armoire, les tenues qu'on peut
-    /// deposer entieres, et celles deja entamees qu'on peut completer. Une piece
-    /// isolee qui ne rentre dans aucune des trois est laissee ou elle est : le
-    /// jeu n'offre pas de moyen propre de la deposer seule.
+    /// Toute piece de tenue qu'on a sous la main part vers la coiffeuse, seule
+    /// ou accompagnee : le set occupe un emplacement, qu'on le remplisse en une
+    /// fois ou en cinq. Si la tenue y est deja, on la complete ; sinon on la
+    /// cree. L'armoire ne prend que le reste, et seulement si on le demande.
     /// </summary>
     public unsafe List<Tache> Preparer(Catalogue cat, Coffre coffre, bool aussiArmoire)
     {
@@ -153,17 +153,22 @@ public sealed class Rangeur
             {
                 var manquantes = t.Pieces.Where(p => !coffre.Coiffeuse.Contains(p.Objet)).ToList();
                 if (manquantes.Count == 0) continue;
-                // On ne depose que ce qu'on a EN ENTIER : le jeu range une tenue
-                // d'un bloc, et un depot partiel gaspillerait un emplacement.
-                if (manquantes.Any(p => Trouver(p.Objet) is null)) continue;
+
+                // Ce qu'on a sous la main de cette tenue, meme une seule piece.
+                //
+                // Une premiere version exigeait la tenue ENTIERE, en croyant
+                // qu'un depot partiel gaspillait un emplacement. C'etait faux :
+                // le set en occupe UN, qu'on le remplisse en une fois ou en cinq,
+                // et le jeu accepte explicitement les emplacements vides. La
+                // regle ne faisait que laisser les pieces pourrir dans les sacs.
+                var enMain = manquantes.Where(p => Trouver(p.Objet) is not null).ToList();
+                if (enMain.Count == 0) continue;
 
                 var entamee = deposees.TryGetValue(t.Id, out var place);
                 if (entamee == deuxieme) continue;
                 if (entamee) taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place));
-                else if (manquantes.Count == t.Pieces.Count)
-                    taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom));
-                else continue;
-                foreach (var p in manquantes) prises.Add(p.Objet);
+                else taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom));
+                foreach (var p in enMain) prises.Add(p.Objet);
             }
         }
 

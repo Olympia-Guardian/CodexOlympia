@@ -205,6 +205,26 @@ public static class Mots
     public static string RangeurRien => D("Rien à ranger d'ici.", "Nothing to store from here.");
     public static string RangeurAMain => D("tu as appuyé sur Arrêter.", "you pressed Stop.");
     public static string RangeurLancer => D("Ranger", "Store");
+    public static string RangeurRienAFaire => D(
+        "Rien à ranger d’ici. Le rangement ne prend que ce qui est SOUS LA MAIN : tes sacs et "
+        + "ton armurerie. Ce qui dort chez un servant ne compte pas, va le chercher d’abord.",
+        "Nothing to store from here. Storing only takes what is AT HAND: your bags and your "
+        + "armoury. What sits with a retainer does not count: fetch it first.");
+    public static string RangeurPartiel => D(
+        "Une tenue se dépose même incomplète : elle occupe un emplacement, qu’on la remplisse en "
+        + "une fois ou en cinq. Ce qui manque s’y ajoutera plus tard.",
+        "An outfit can be stored even incomplete: it takes one slot whether you fill it in one go "
+        + "or in five. What is missing joins it later.");
+    public static string RangeurApercu(int entamees, int neuves, int armoire)
+    {
+        var bouts = new List<string>();
+        if (entamees > 0)
+            bouts.Add(D($"{entamees} tenues à compléter", $"{entamees} outfits to complete"));
+        if (neuves > 0) bouts.Add(D($"{neuves} tenues à créer", $"{neuves} outfits to create"));
+        if (armoire > 0)
+            bouts.Add(D($"{armoire} objets pour l’armoire", $"{armoire} items for the armoire"));
+        return string.Join(D(", ", ", "), bouts) + ".";
+    }
     public static string RangeurAussiArmoire => D(
         "Ranger aussi dans l’armoire ce qu’aucune tenue ne prendra. Sans cette case, seules les "
         + "tenues sont servies : un objet rangé à l’armoire quitte l’inventaire, et la coiffeuse ne "

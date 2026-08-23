@@ -132,13 +132,16 @@ Quatre garde-fous :
 - aucune case n'est mémorisée : chaque tâche vise un objet, et sa position est
   retrouvée juste avant d'agir, parce qu'une case change dès qu'un objet en sort ;
 - arrêt au premier imprévu, avec la raison affichée ;
-- rien de partiel : le jeu range une tenue d'un bloc, donc on ne dépose que ce
-  qu'on a en entier.
+- une tenue se dépose **même incomplète** : elle occupe un emplacement, qu'on la
+  remplisse en une fois ou en cinq, et ce qui manque s'y ajoutera plus tard.
 
-Reste devant ta coiffeuse ou ton armoire, ouverte, pendant que ça travaille. Une
-pièce isolée qui n'appartient à aucune tenue complétable et n'a pas de case
-d'armoire reste où elle est : le jeu n'offre pas d'appel propre pour déposer une
-pièce seule dans la coiffeuse.
+Reste devant ta coiffeuse ou ton armoire, ouverte, pendant que ça travaille. Le
+rangement ne prend que ce qui est **sous la main**, tes sacs et ton armurerie :
+ce qui dort chez un servant, va le chercher d'abord.
+
+Une pièce qui n'appartient à aucune tenue et n'a pas de case d'armoire reste où
+elle est : le jeu n'offre pas d'appel propre pour déposer une pièce seule dans la
+coiffeuse.
 
 ## Ce qu'il ne lit pas
 

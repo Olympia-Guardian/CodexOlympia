@@ -440,10 +440,23 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.TextWrapped(Mots.RangeurAussiArmoire);
         ImGui.Spacing();
 
-        if (ImGui.Button(Mots.RangeurLancer))
+        // Ce que le bouton ferait, avant qu'on l'appuie. Sans ça, un rangement
+        // qui n'a rien à ranger ressemble à un bouton cassé.
+        var apercu = plugin.Apercu();
+        if (apercu.Count == 0)
         {
-            r.Demarrer(r.Preparer(cat, coffre, plugin.Reglages.RangerArmoire));
+            ImGui.TextColored(Gris, Mots.RangeurRienAFaire);
+            return;
         }
+
+        var entamees = apercu.Count(t => t.Moyen == Moyen.TenueEntamee);
+        var neuves = apercu.Count(t => t.Moyen == Moyen.TenueNeuve);
+        var armoire = apercu.Count(t => t.Moyen == Moyen.Armoire);
+        ImGui.TextColored(Or, Mots.RangeurApercu(entamees, neuves, armoire));
+        ImGui.TextColored(Gris, Mots.RangeurPartiel);
+        ImGui.Spacing();
+
+        if (ImGui.Button(Mots.RangeurLancer)) r.Demarrer(apercu);
         if (r.Etat == EtatRangement.Fini && r.Total > 0)
         {
             ImGui.SameLine();
