@@ -54,7 +54,13 @@ public enum Temps
 ///
 /// <para><c>Pieces</c> est le nombre d'objets qu'elle deposera : c'est aussi le
 /// nombre de prismes de mirage qu'elle consommera, un par piece.</para></summary>
-public sealed record Tache(Moyen Moyen, uint Cible, string Nom, uint Emplacement = 0, int Pieces = 0);
+public sealed record Tache(
+    Moyen Moyen,
+    uint Cible,
+    string Nom,
+    uint Emplacement = 0,
+    int Pieces = 0,
+    bool Acheve = false);
 
 /// <summary>
 /// Le rangement automatique. FONCTION EXPERIMENTALE.
@@ -92,6 +98,15 @@ public sealed class Rangeur
 
     /// <summary>Les pieces encore a tendre a la fenetre, pour la tache en cours.</summary>
     private readonly List<uint> aTendre = [];
+
+    /// <summary>Combien de taches on a passees faute de mieux, et combien de
+    /// suite : une seule qui coince ne doit pas emporter tout le reste, mais
+    /// trois d'affilee veulent dire que quelque chose ne va pas.</summary>
+    private int sautes;
+    private int sautesDeSuite;
+
+    /// <summary>Combien de taches ont ete passees.</summary>
+    public int Sautes => sautes;
 
     /// <summary>Combien d'emplacements la coiffeuse occupait avant la conversion :
     /// c'est ce qui permet de distinguer un depot d'un oui poli.</summary>
@@ -238,9 +253,12 @@ public sealed class Rangeur
 
                 var entamee = deposees.TryGetValue(t.Id, out var place);
                 if (entamee == deuxieme) continue;
+                // Une tenue qu'on acheve passe devant : c'est la ou l'effort
+                // rapporte, et c'est ce qu'on attend de voir partir en premier.
+                var acheve = enMain.Count == manquantes.Count;
                 if (entamee)
-                    taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place, enMain.Count));
-                else taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom, 0, enMain.Count));
+                    taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place, enMain.Count, acheve));
+                else taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom, 0, enMain.Count, acheve));
                 foreach (var p in enMain) prises.Add(p.Objet);
             }
         }
@@ -266,7 +284,9 @@ public sealed class Rangeur
             }
         }
 
-        return taches;
+        // Ce qui acheve une tenue d'abord, le reste ensuite. L'ordre du
+        // catalogue ne veut rien dire pour qui regarde travailler.
+        return [.. taches.OrderByDescending(t => t.Acheve)];
     }
 
     public void Demarrer(List<Tache> taches)
@@ -274,6 +294,8 @@ public sealed class Rangeur
         file.Clear();
         file.AddRange(taches);
         fait = 0;
+        sautes = 0;
+        sautesDeSuite = 0;
         prochaine = 0;
         temps = Temps.Ouvrir;
         aTendre.Clear();
@@ -500,11 +522,7 @@ public sealed class Rangeur
 
             case Temps.OuiSimple:
             {
-                if (!Repondre())
-                {
-                    Arreter(Mots.RangeurPasDeQuestion);
-                    return false;
-                }
+                if (!Repondre()) return Passer(Mots.RangeurPasDeQuestion);
                 // Piece suivante, s'il en reste.
                 temps = aTendre.Count > 0 ? Temps.Ouvrir : Temps.Fini;
                 return false;
@@ -524,10 +542,8 @@ public sealed class Rangeur
                 // que d'enchainer quinze conversions qui ne font rien.
                 temps = Temps.Ouvrir;
                 if (tache.Moyen == Moyen.TenueNeuve && Occupees() == avantConversion)
-                {
-                    Arreter(Mots.RangeurSansEffet);
-                    return false;
-                }
+                    return Passer(Mots.RangeurSansEffet);
+                sautesDeSuite = 0;
                 return true;
             }
 
@@ -535,6 +551,29 @@ public sealed class Rangeur
                 temps = Temps.Ouvrir;
                 return true;
         }
+    }
+
+    /// <summary>
+    /// Passe la tache en cours au lieu d'arreter tout.
+    ///
+    /// « Peu importe l'ordre, tant que tout est mis a la fin » : un accroc sur
+    /// une tenue ne doit pas emporter les quinze suivantes. Mais trois de suite
+    /// veulent dire que le probleme n'est pas la tenue, et la on s'arrete.
+    /// </summary>
+    private bool Passer(string pourquoi)
+    {
+        temps = Temps.Ouvrir;
+        aTendre.Clear();
+        sautes++;
+        sautesDeSuite++;
+        journal.Warning("tache passee : {0}", pourquoi);
+        if (sautesDeSuite >= 3)
+        {
+            Arreter(pourquoi);
+            return false;
+        }
+        // Comptee comme faite : elle est derriere nous, c'est ce qui compte.
+        return true;
     }
 
     /// <summary>
@@ -549,8 +588,36 @@ public sealed class Rangeur
     {
         var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
         if (oui is null || !oui->IsVisible) return false;
+
+        // Certaines questions ont une case « Confirmer », et « Oui » reste grise
+        // tant qu'elle n'est pas cochee. On la coche donc, quand il y en a une.
+        Cocher(oui->RootNode);
         oui->FireCallbackInt(0);
         return true;
+    }
+
+    /// <summary>Coche la premiere case a cocher trouvee dans une fenetre.</summary>
+    private static unsafe void Cocher(AtkResNode* n)
+    {
+        while (n is not null)
+        {
+            if ((ushort)n->Type >= 1000)
+            {
+                var c = ((AtkComponentNode*)n)->Component;
+                if (c is not null)
+                {
+                    if (c->GetComponentType() == ComponentType.CheckBox)
+                    {
+                        var boite = (AtkComponentCheckBox*)c;
+                        if (!boite->IsChecked) boite->IsChecked = true;
+                        return;
+                    }
+                    Cocher(c->UldManager.RootNode);
+                }
+            }
+            Cocher(n->ChildNode);
+            n = n->PrevSiblingNode;
+        }
     }
 
     /// <summary>Combien d'emplacements la coiffeuse occupe.</summary>

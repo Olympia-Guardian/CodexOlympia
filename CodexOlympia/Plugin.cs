@@ -153,7 +153,7 @@ public sealed class Plugin : IDalamudPlugin
         if (Rangeur.Etat == EtatRangement.Fini && !ditFini)
         {
             ditFini = true;
-            discussion.Print("[Codex Olympia] " + Mots.RangeurFini(Rangeur.Faits));
+            discussion.Print("[Codex Olympia] " + Mots.RangeurFini(Rangeur.Faits, Rangeur.Sautes));
             // Ce qui vient d'etre depose n'est plus a ranger : la prochaine
             // lecture le dira, et en attendant on ne promet rien.
             Regarder();

@@ -490,7 +490,7 @@ public sealed class Fenetre : Window, IDisposable
         if (r.Etat == EtatRangement.Fini && r.Total > 0)
         {
             ImGui.SameLine();
-            ImGui.TextColored(Vert, Mots.RangeurFini(r.Faits));
+            ImGui.TextColored(Vert, Mots.RangeurFini(r.Faits, r.Sautes));
         }
         ImGui.Spacing();
         ImGui.Separator();

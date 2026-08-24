@@ -254,7 +254,10 @@ public static class Mots
     public static string RangeurStop => D("Arrêter", "Stop");
     public static string RangeurAvance(int fait, int total, string quoi) =>
         D($"{fait}/{total} · {quoi}", $"{fait}/{total} · {quoi}");
-    public static string RangeurFini(int n) => D($"Rangé : {n} opérations.", $"Stored: {n} operations.");
+    public static string RangeurFini(int n, int sautes) => sautes == 0
+        ? D($"Rangé : {n} opérations.", $"Stored: {n} operations.")
+        : D($"Rangé : {n} opérations, dont {sautes} passées.",
+            $"Stored: {n} operations, {sautes} skipped.");
     public static string RangeurArrete(string pourquoi) =>
         D("Arrêté : " + pourquoi, "Stopped: " + pourquoi);
     public static string RangeurArmoireFermee =>
