@@ -2,7 +2,6 @@ using Dalamud.Game.Inventory;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
@@ -30,26 +29,29 @@ public enum Moyen
 }
 
 /// <summary>
-/// Les temps d'un depot en coiffeuse.
-///
-/// Le jeu ne sait pas deposer une piece d'un seul appel : il faut ouvrir la
-/// fenetre de conversion, lui tendre les pieces, valider, transformer, puis
-/// confirmer. C'est la procedure exacte du joueur, et rien ne la raccourcit :
-/// « Transformer » appele sans sa fenetre repond oui et ne fait rien.
+/// Les temps d'un depot en coiffeuse. C'est la procedure du joueur, et rien ne
+/// la raccourcit : une version precedente appelait les fonctions internes du
+/// jeu sans passer par ses fenetres, et creait des ensembles vides.
 /// </summary>
 public enum Temps
 {
+    /// <summary>Ouvrir la conversion d'ensemble sur une piece qu'on possede.</summary>
     Ouvrir,
+
+    /// <summary>Attendre de voir ce que le jeu ouvre : la fenetre de
+    /// conversion, ou une simple question.</summary>
+    Guichet,
+
+    /// <summary>Remplir les cases de la fenetre, une par tour, en deux clics
+    /// comme a la main.</summary>
     Tendre,
-    Valider,
+
+    /// <summary>Le bouton « Transformer » de la fenetre.</summary>
     Transformer,
+
+    /// <summary>Repondre a la confirmation.</summary>
     Confirmer,
 
-    /// <summary>La question posee juste apres l'ouverture, quand la piece
-    /// appartient a un ensemble deja depose : « Ranger et ajouter au mirage
-    /// d'ensemble ? ». Elle precede la fenetre de conversion, elle ne la
-    /// remplace pas.</summary>
-    Question,
     Fini,
 }
 
@@ -70,26 +72,24 @@ public sealed record Tache(
 ///
 /// <para><b>Ce module agit sur le jeu.</b> Tout le reste du plugin lit la
 /// memoire du client, ce qui ne produit aucun paquet. Ici, chaque operation est
-/// un ordre envoye au serveur. C'est la seule partie du plugin dont le serveur
-/// voit passer quelque chose, et c'est la raison de tout ce qui suit.</para>
+/// un ordre envoye au serveur.</para>
 ///
-/// <para><b>Une operation a la fois, a cadence humaine.</b> Une salve a vitesse
-/// machine ne ressemble a rien de ce qu'un joueur produit.</para>
+/// <para><b>Tout passe par les fenetres du jeu</b>, jamais par ses fonctions
+/// internes. La mecanique vient de la source de YesAlready et d'ECommons, qui
+/// automatisent ces memes fenetres depuis des annees : remplir les cases par le
+/// menu contextuel, cliquer « Transformer », repondre a la confirmation par le
+/// rappel de la fenetre. Une version precedente court-circuitait tout cela et
+/// creait des ensembles vides sans rien demander.</para>
 ///
-/// <para><b>Rien n'est memorise par sa case.</b> Une case change des qu'un objet
-/// en sort. Chaque tache designe un OBJET, et sa position est retrouvee juste
-/// avant d'agir. Ranger le mauvais objet parce qu'on visait une case perimee est
-/// exactement l'accident qu'on ne peut pas defaire.</para>
-///
-/// <para><b>On s'arrete au premier imprevu.</b> Fenetre fermee, depot plein,
-/// objet disparu, retour negatif : on cesse et on dit pourquoi.</para>
+/// <para><b>Une operation a la fois, a cadence reglable</b>, et un accroc fait
+/// passer la tache, pas tout arreter ; trois d'affilee veulent dire autre
+/// chose, et la on s'arrete en disant pourquoi.</para>
 /// </summary>
 public sealed class Rangeur
 {
     private readonly IGameInventory sacs;
     private readonly IPluginLog journal;
     private readonly IGameGui gui;
-    private readonly Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.MirageStoreSetItem> ensembles;
     private readonly Random hasard = new();
 
     private readonly List<Tache> file = [];
@@ -99,24 +99,19 @@ public sealed class Rangeur
     /// <summary>Ou en est la conversion en cours.</summary>
     private Temps temps = Temps.Ouvrir;
 
-    /// <summary>Tours passes a attendre que la question paraisse.</summary>
-    private int attenteQuestion;
+    /// <summary>Tours passes a attendre qu'une fenetre paraisse.</summary>
+    private int attente;
 
-    /// <summary>Les pieces encore a tendre a la fenetre, pour la tache en cours.</summary>
-    private readonly List<uint> aTendre = [];
+    /// <summary>Les pieces de la tache en cours qu'on possede et qui ne sont
+    /// pas deposees. Sert a ouvrir, et a boucler quand le jeu procede piece par
+    /// piece.</summary>
+    private readonly List<uint> aOuvrir = [];
 
-    /// <summary>Combien de taches on a passees faute de mieux, et combien de
-    /// suite : une seule qui coince ne doit pas emporter tout le reste, mais
-    /// trois d'affilee veulent dire que quelque chose ne va pas.</summary>
+    /// <summary>Combien de taches on a passees, et combien de suite.</summary>
     private int sautes;
     private int sautesDeSuite;
 
-    /// <summary>Combien de taches ont ete passees.</summary>
     public int Sautes => sautes;
-
-    /// <summary>Combien d'emplacements la coiffeuse occupait avant la conversion :
-    /// c'est ce qui permet de distinguer un depot d'un oui poli.</summary>
-    private int avantConversion;
 
     /// <summary>Le temps entre deux gestes, en secondes. Regle par le joueur :
     /// large, on voit ce qui se passe ; serre, ca va vite.</summary>
@@ -128,26 +123,15 @@ public sealed class Rangeur
     public int Total => file.Count;
     public Tache? EnCours => Etat == EtatRangement.EnMarche && fait < file.Count ? file[fait] : null;
 
-    public Rangeur(
-        IGameInventory sacs,
-        IPluginLog journal,
-        IGameGui gui,
-        Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.MirageStoreSetItem> ensembles)
+    public Rangeur(IGameInventory sacs, IPluginLog journal, IGameGui gui)
     {
         this.sacs = sacs;
         this.journal = journal;
         this.gui = gui;
-        this.ensembles = ensembles;
     }
 
-    /// <summary>
-    /// Les contenants ou le jeu accepte de puiser.
-    ///
-    /// L'arsenal en fait partie : la fenetre « Ranger » du jeu a un selecteur de
-    /// categorie, et l'arsenal y figure. Une version precedente l'avait exclu
-    /// apres avoir lu cette fenetre alors qu'elle affichait l'inventaire, et
-    /// avoir pris ce qu'elle montrait pour ce qu'elle savait montrer.
-    /// </summary>
+    /// <summary>Les contenants ou le jeu accepte de puiser : les sacs et
+    /// l'arsenal, comme le selecteur de la fenetre « Ranger ».</summary>
     private static readonly (GameInventoryType Vue, InventoryType Jeu)[] Puisables =
     [
         (GameInventoryType.Inventory1, InventoryType.Inventory1),
@@ -169,8 +153,7 @@ public sealed class Rangeur
 
     private const uint SeuilHq = 1_000_000;
 
-    /// <summary>Le prisme de mirage. Deposer une piece dans la coiffeuse en
-    /// consomme un : sans reserve, le jeu refuse et rien n'explique pourquoi.</summary>
+    /// <summary>Le prisme de mirage. Deposer une piece en consomme un.</summary>
     private const uint Prisme = 21800;
 
     /// <summary>Combien de prismes le personnage a sous la main.</summary>
@@ -232,13 +215,10 @@ public sealed class Rangeur
             deposees.TryAdd(v >= SeuilHq ? v - SeuilHq : v, (uint)i);
         }
 
-        // LA COIFFEUSE D'ABORD, et l'ordre n'est pas un detail : un objet range
-        // a l'armoire quitte l'inventaire, donc la coiffeuse ne l'aura plus. Une
-        // premiere version rangeait l'armoire en tete et vidait les sacs avant
-        // que les tenues aient eu leur chance.
-        //
-        // Les tenues entamees passent avant les neuves : completer un emplacement
-        // deja pris n'en consomme pas un second.
+        // LA COIFFEUSE D'ABORD : un objet range a l'armoire quitte l'inventaire,
+        // donc la coiffeuse ne l'aurait plus. Les tenues entamees passent avant
+        // les neuves : completer un emplacement deja pris n'en consomme pas un
+        // second.
         var prises = new HashSet<uint>();
         foreach (var deuxieme in new[] { false, true })
         {
@@ -247,29 +227,18 @@ public sealed class Rangeur
                 var manquantes = t.Pieces.Where(p => !coffre.Coiffeuse.Contains(p.Objet)).ToList();
                 if (manquantes.Count == 0) continue;
 
-                // Ce qu'on a sous la main de cette tenue, meme une seule piece.
-                //
-                // Une premiere version exigeait la tenue ENTIERE, en croyant
-                // qu'un depot partiel gaspillait un emplacement. C'etait faux :
-                // le set en occupe UN, qu'on le remplisse en une fois ou en cinq,
-                // et le jeu accepte explicitement les emplacements vides. La
-                // regle ne faisait que laisser les pieces pourrir dans les sacs.
                 // `prises` : une piece deja revendiquee par une tenue de cette
                 // passe ne peut pas l'etre par une autre. Deux ensembles
-                // partagent parfois une piece — les accessoires Praemagitek de
-                // pisteur et d'eclaireur sont les memes objets — mais on n'en
-                // possede qu'un exemplaire. Le premier le prend, le second s'en
-                // passe et sera cree quand meme, avec ce qui lui reste.
+                // partagent parfois une piece, mais on n'en possede qu'un
+                // exemplaire : le premier le prend, le second s'en passe.
                 var enMain = manquantes
                     .Where(p => !prises.Contains(p.Objet) && Trouver(p.Objet) is not null)
                     .ToList();
                 if (enMain.Count == 0) continue;
 
+                var acheve = enMain.Count == manquantes.Count;
                 var entamee = deposees.TryGetValue(t.Id, out var place);
                 if (entamee == deuxieme) continue;
-                // Une tenue qu'on acheve passe devant : c'est la ou l'effort
-                // rapporte, et c'est ce qu'on attend de voir partir en premier.
-                var acheve = enMain.Count == manquantes.Count;
                 if (entamee)
                     taches.Add(new Tache(Moyen.TenueEntamee, t.Id, t.Nom, place, enMain.Count, acheve));
                 else taches.Add(new Tache(Moyen.TenueNeuve, t.Id, t.Nom, 0, enMain.Count, acheve));
@@ -277,9 +246,9 @@ public sealed class Rangeur
             }
         }
 
-        // L'armoire ensuite, et seulement si on l'a demande : elle range ce
-        // qu'aucune tenue ne prendra. Par defaut on n'y touche pas, parce que ce
-        // qu'on veut d'abord, ce sont les tenues.
+        // L'armoire ensuite, et seulement si on le demande. Une piece deja dans
+        // la coiffeuse n'y va jamais : celle qu'on tient est un double, et un
+        // double se vend.
         if (!aussiArmoire) return taches;
 
         var vus = new HashSet<uint>();
@@ -288,9 +257,6 @@ public sealed class Rangeur
             foreach (var p in t.Pieces)
             {
                 if (p.Armoire == 0 || prises.Contains(p.Objet) || !vus.Add(p.Armoire)) continue;
-                // Deja dans la coiffeuse : la piece qu'on tient est un double.
-                // L'armoire n'en veut pas, elle ne sert qu'a garder ce qui n'a
-                // pas d'autre place. Ce double-la se vend.
                 if (coffre.Coiffeuse.Contains(p.Objet)) continue;
                 if (ui->Cabinet.IsItemInCabinet(p.Armoire - 1)) continue;
                 if (Trouver(p.Objet) is null) continue;
@@ -298,9 +264,7 @@ public sealed class Rangeur
             }
         }
 
-        // Ce qui acheve une tenue d'abord, le reste ensuite. L'ordre du
-        // catalogue ne veut rien dire pour qui regarde travailler.
-        return [.. taches.OrderByDescending(t => t.Acheve)];
+        return taches;
     }
 
     public void Demarrer(List<Tache> taches)
@@ -312,7 +276,8 @@ public sealed class Rangeur
         sautesDeSuite = 0;
         prochaine = 0;
         temps = Temps.Ouvrir;
-        aTendre.Clear();
+        attente = 0;
+        aOuvrir.Clear();
         Pourquoi = null;
         Etat = file.Count == 0 ? EtatRangement.Fini : EtatRangement.EnMarche;
     }
@@ -322,6 +287,24 @@ public sealed class Rangeur
         if (Etat != EtatRangement.EnMarche) return;
         Pourquoi = pourquoi;
         Etat = pourquoi is null ? EtatRangement.Fini : EtatRangement.Interrompu;
+    }
+
+    /// <summary>Passe la tache en cours au lieu d'arreter tout. Trois de suite
+    /// veulent dire que le probleme n'est pas la tenue, et la on s'arrete.</summary>
+    private bool Passer(string pourquoi)
+    {
+        temps = Temps.Ouvrir;
+        attente = 0;
+        aOuvrir.Clear();
+        sautes++;
+        sautesDeSuite++;
+        journal.Warning("tache passee : {0}", pourquoi);
+        if (sautesDeSuite >= 3)
+        {
+            Arreter(pourquoi);
+            return false;
+        }
+        return true;
     }
 
     /// <summary>Une operation au plus par appel, et seulement quand l'heure est
@@ -335,10 +318,6 @@ public sealed class Rangeur
             return;
         }
         if (maintenant < prochaine) return;
-        // Une demi-seconde et des poussieres, et la poussiere varie : une cadence
-        // reguliere au millieme ne ressemble a personne.
-        // La meme attente partout : on regarde une machine travailler, et une
-        // cadence qui varie selon l'etape se lit mal.
         prochaine = maintenant + Cadence + hasard.NextDouble() * 0.3;
 
         if (cat is null)
@@ -360,11 +339,11 @@ public sealed class Rangeur
         fait++;
     }
 
-    /// <summary>Fait une operation. Rend faux et arrete si quelque chose cloche.</summary>
+    /// <summary>Fait un temps d'une operation. Rend vrai quand la tache est
+    /// terminee.</summary>
     private unsafe bool Faire(Catalogue cat, Tache tache)
     {
         var ui = UIState.Instance();
-        var mirage = MirageManager.Instance();
 
         if (tache.Moyen == Moyen.Armoire)
         {
@@ -373,7 +352,6 @@ public sealed class Rangeur
                 Arreter(Mots.RangeurArmoireFermee);
                 return false;
             }
-            // Deja range entre-temps : ce n'est pas une erreur, c'est fait.
             if (ui->Cabinet.IsItemInCabinet(tache.Cible - 1)) return true;
             if (!ui->Cabinet.StoreCabinetItem(tache.Cible - 1))
             {
@@ -383,165 +361,185 @@ public sealed class Rangeur
             return true;
         }
 
-        if (!mirage->PrismBoxLoaded)
-        {
-            Arreter(Mots.RangeurCoiffeuseFermee);
-            return false;
-        }
-
-        var tenue = cat.Tenues.FirstOrDefault(x => x.Id == tache.Cible);
-        if (tenue is null) return true;
-
-        return Convertir(tache, tenue);
+        return Convertir(cat, tache);
     }
 
-    /// <summary>
-    /// Une conversion, un temps par appel.
-    ///
-    /// C'est la procedure du joueur, dans son ordre : ouvrir la fenetre sur une
-    /// premiere piece, lui tendre les suivantes, valider, transformer, confirmer.
-    /// Chaque temps rend faux tant qu'il n'a pas abouti, et la tache ne se compte
-    /// pour faite qu'au dernier.
-    /// </summary>
-    private unsafe bool Convertir(Tache tache, Tenue tenue)
+    /// <summary>Une conversion d'ensemble, un temps par appel, par les fenetres
+    /// du jeu et par elles seules.</summary>
+    private unsafe bool Convertir(Catalogue cat, Tache tache)
     {
-        var mirage = MirageManager.Instance();
-        var agent = AgentMiragePrismPrismSetConvert.Instance();
-        var rangs = Photo.SlotsDe(ensembles, tenue.Id);
-
         switch (temps)
         {
             case Temps.Ouvrir:
             {
-
-                // Ce qu'on va tendre : les pieces de la tenue qu'on a sous la
-                // main et qui ne sont pas deja dans la coiffeuse.
-                aTendre.Clear();
-                for (var k = 0; k < 11 && k < rangs.Length; k++)
-                {
-                    var objet = rangs[k];
-                    if (objet == 0) continue;
-                    if (tache.Moyen == Moyen.TenueEntamee
-                        && mirage->IsSetSlotUnlocked(tache.Emplacement, k)) continue;
-                    if (Trouver(objet) is null) continue;
-                    aTendre.Add(objet);
-                }
-                if (aTendre.Count == 0)
-                {
-                    temps = Temps.Ouvrir;
-                    return true;
-                }
-
-                var premiere = aTendre[0];
-                var ou = Trouver(premiere)!.Value;
-                // Les identifiants des deux fenetres du jeu : l'agent en a
-                // besoin pour se rattacher a ce qui est ouvert.
-                var idCoiffeuse = IdFenetre("MiragePrismPrismBox");
-                if (idCoiffeuse == 0)
+                if (Fenetre("MiragePrismPrismBox") is null)
                 {
                     Arreter(Mots.RangeurCoiffeuseFermee);
                     return false;
                 }
-                // Le geste manuel part de la fenetre « Ranger », jamais
-                // d'ailleurs : sans elle, l'agent accepte tout et ne
-                // selectionne rien.
-                var idCrystallize = IdFenetre("MiragePrismPrismBoxCrystallize");
-                if (idCrystallize == 0)
+                // Le geste manuel part de la fenetre « Ranger » : sans elle,
+                // l'agent accepte tout et ne selectionne rien.
+                if (Fenetre("MiragePrismPrismBoxCrystallize") is null)
                 {
                     AgentMiragePrismPrismBox.Instance()->PopulateCrystallizeAndFireRefresh();
-                    if (++attenteQuestion < 4) return false;
-                    attenteQuestion = 0;
+                    if (++attente < 4) return false;
+                    attente = 0;
                     return Passer(Mots.RangeurRangerFermee);
                 }
-                attenteQuestion = 0;
-                if (!agent->Open(premiere, ou.Contenant, ou.Case, idCrystallize, idCoiffeuse, true))
+                attente = 0;
+
+                if (aOuvrir.Count == 0)
                 {
-                    Arreter(Mots.RangeurRefus(tache.Nom));
+                    var tenue = cat.Tenues.FirstOrDefault(x => x.Id == tache.Cible);
+                    if (tenue is null) return true;
+                    var mirage = MirageManager.Instance();
+                    foreach (var p in tenue.Pieces)
+                    {
+                        var dedans = false;
+                        foreach (var v in mirage->PrismBoxItemIds)
+                        {
+                            if (v == 0) continue;
+                            if ((v >= SeuilHq ? v - SeuilHq : v) == p.Objet)
+                            {
+                                dedans = true;
+                                break;
+                            }
+                        }
+                        if (!dedans && Trouver(p.Objet) is not null) aOuvrir.Add(p.Objet);
+                    }
+                    if (aOuvrir.Count == 0) return true;
+                }
+
+                var piece = aOuvrir[0];
+                var ou = Trouver(piece);
+                if (ou is null)
+                {
+                    aOuvrir.RemoveAt(0);
                     return false;
                 }
-                aTendre.RemoveAt(0);
-                avantConversion = Occupees();
-                temps = Temps.Question;
+                var idRanger = Fenetre("MiragePrismPrismBoxCrystallize")->Id;
+                var idCoiffeuse = Fenetre("MiragePrismPrismBox")->Id;
+                AgentMiragePrismPrismSetConvert.Instance()->Open(
+                    piece, ou.Value.Contenant, ou.Value.Case, idRanger, idCoiffeuse, true);
+                temps = Temps.Guichet;
                 return false;
+            }
+
+            case Temps.Guichet:
+            {
+                // Ce que le jeu a ouvert decide de la suite : sa fenetre de
+                // conversion, ou une simple question quand la piece rejoint un
+                // ensemble deja complet.
+                if (Fenetre("MiragePrismPrismSetConvert") is not null)
+                {
+                    attente = 0;
+                    aOuvrir.Clear();
+                    temps = Temps.Tendre;
+                    return false;
+                }
+                if (Confirmation() is not null)
+                {
+                    attente = 0;
+                    RepondreOui();
+                    aOuvrir.RemoveAt(0);
+                    // Piece suivante par le meme chemin, ou tache finie.
+                    temps = aOuvrir.Count > 0 ? Temps.Ouvrir : Temps.Fini;
+                    return false;
+                }
+                if (++attente < 4) return false;
+                attente = 0;
+                return Passer(Mots.RangeurPasDeQuestion);
             }
 
             case Temps.Tendre:
             {
-                if (aTendre.Count == 0)
+                var convert = Fenetre("MiragePrismPrismSetConvert");
+                if (convert is null) return Passer(Mots.RangeurPasDeQuestion);
+
+                // Le noeud 12 : « cet ensemble est deja dans la coiffeuse ».
+                // C'est le jeu qui le dit, et on le croit : pas de doublon.
+                var deja = convert->GetNodeById(12);
+                if (deja is not null && deja->IsVisible())
                 {
-                    temps = Temps.Valider;
+                    Fermer(convert);
+                    return Passer(Mots.RangeurDoublon(tache.Nom));
+                }
+
+                var compte = (int)Valeur(convert, 20);
+                var cible = -1;
+                for (var i = 0; i < compte; i++)
+                {
+                    // L'etat de chaque case : 0 piece manquante, 2 a remplir,
+                    // 3 remplie, 6 deja dans l'ensemble.
+                    if (Valeur(convert, 21 + i * 7 + 6) == 2)
+                    {
+                        cible = i;
+                        break;
+                    }
+                }
+
+                if (cible < 0)
+                {
+                    var remplies = 0;
+                    for (var i = 0; i < compte; i++)
+                        if (Valeur(convert, 21 + i * 7 + 6) == 3)
+                            remplies++;
+                    if (remplies == 0)
+                    {
+                        Fermer(convert);
+                        return Passer(Mots.RangeurSelectionVide);
+                    }
+                    temps = Temps.Transformer;
                     return false;
                 }
-                var objet = aTendre[0];
-                var ou = Trouver(objet);
-                // Disparue entre-temps : on passe, plutot que de s'arreter pour
-                // une piece que le joueur vient de bouger lui-meme.
-                if (ou is not null) agent->PopulateHandInItem(ou.Value.Contenant, objet, true);
-                aTendre.RemoveAt(0);
+
+                // Les deux clics du geste manuel : le premier ouvre le menu de
+                // la case, le second y choisit la piece.
+                var menu = Fenetre("ContextIconMenu");
+                if (menu is null)
+                {
+                    Rappeler(convert, 13, cible);
+                }
+                else
+                {
+                    var icone = Valeur(convert, 21 + cible * 7 + 1);
+                    RappelerChoix(menu, icone);
+                }
                 return false;
             }
-
-            case Temps.Valider:
-                agent->ValidateItems();
-                temps = Temps.Transformer;
-                return false;
 
             case Temps.Transformer:
             {
-                // « Transformer ». La fenetre est ouverte et pointee : l'appel a
-                // enfin le contexte qui lui manquait.
-                //
-                // Les tableaux restent fournis : la signature les attend, et
-                // passer un pointeur nul a du code natif ne se rattrape pas.
-                var contenants = stackalloc InventoryType[11];
-                var cases = stackalloc ushort[11];
-                for (var k = 0; k < 11; k++)
+                var convert = Fenetre("MiragePrismPrismSetConvert");
+                if (convert is null) return Passer(Mots.RangeurPasDeQuestion);
+                // « Transformer » est le composant 27 de la fenetre, « Fermer »
+                // le 26. C'est la source de YesAlready qui les nomme.
+                var bouton = convert->GetComponentButtonById(27);
+                if (bouton is null || !bouton->IsEnabled)
                 {
-                    contenants[k] = InventoryType.Invalid;
-                    cases[k] = 0;
-                    var objet = k < rangs.Length ? rangs[k] : 0;
-                    if (objet == 0) continue;
-                    if (tache.Moyen == Moyen.TenueEntamee
-                        && mirage->IsSetSlotUnlocked(tache.Emplacement, k)) continue;
-                    var ou = Trouver(objet);
-                    if (ou is null) continue;
-                    contenants[k] = ou.Value.Contenant;
-                    cases[k] = ou.Value.Case;
+                    Fermer(convert);
+                    return Passer(Prismes() == 0 ? Mots.RangeurSansPrisme : Mots.RangeurSelectionVide);
                 }
-
-                var ok = tache.Moyen == Moyen.TenueNeuve
-                    ? mirage->StoreNewOutfit(tenue.Id, contenants, cases)
-                    : mirage->StoreExistingOutfit(tache.Emplacement, contenants, cases);
-                if (!ok)
-                {
-                    Arreter(Prismes() < tache.Pieces
-                        ? Mots.RangeurSansPrisme
-                        : Mots.RangeurRefus(tache.Nom));
-                    return false;
-                }
+                CliquerBouton(convert, bouton);
                 temps = Temps.Confirmer;
-                return false;
-            }
-
-            case Temps.Question:
-            {
-                // « Cet objet appartient a un ensemble complet existant. Ranger
-                // et ajouter au mirage d'ensemble ? » Elle ne parait pas
-                // toujours : son absence n'est pas une erreur.
-                Repondre();
-                temps = Temps.Tendre;
                 return false;
             }
 
             case Temps.Confirmer:
             {
-                // Avant de repondre, LIRE. Une confirmation qui annonce zero
-                // prisme est une conversion vide : la selection a echoue, et un
-                // Oui la-dessus ne range rien, ou pire. On repond Non et on
-                // passe, plutot que de confirmer a l'aveugle.
-                var verdict = LireConfirmation();
-                if (verdict == Verdict.Vide
-                    || (verdict == Verdict.Doublon && tache.Moyen == Moyen.TenueNeuve))
+                var fenetre = Confirmation();
+                if (fenetre is null)
+                {
+                    if (++attente < 5) return false;
+                    attente = 0;
+                    return Passer(Mots.RangeurPasDeQuestion);
+                }
+                attente = 0;
+
+                // Avant de repondre, LIRE. Zero prisme veut dire conversion
+                // vide, et « vous possedez deja un ensemble » un doublon.
+                var verdict = LireConfirmation(fenetre);
+                if (verdict != Verdict.Normale)
                 {
                     RepondreNon();
                     return Passer(verdict == Verdict.Vide
@@ -549,69 +547,21 @@ public sealed class Rangeur
                         : Mots.RangeurDoublon(tache.Nom));
                 }
 
-                // La question peut mettre un instant a paraitre apres
-                // « Transformer » : on retente quelques tours avant de conclure.
-                if (!Repondre())
-                {
-                    // Cinq tours : la fenetre peut tarder, et le geste de la case en
-                    // consomme un a lui seul.
-                    if (++attenteQuestion < 5) return false;
-                    attenteQuestion = 0;
-                    return Passer(Mots.RangeurPasDeQuestion);
-                }
-                attenteQuestion = 0;
+                RepondreOui();
                 temps = Temps.Fini;
                 return false;
             }
 
-            case Temps.Fini:
-            {
-                // Un oui sans effet est un non qui se tait. Une tenue neuve doit
-                // avoir pris un emplacement de plus ; sans ca on s'arrete, plutot
-                // que d'enchainer quinze conversions qui ne font rien.
-                temps = Temps.Ouvrir;
-                if (tache.Moyen == Moyen.TenueNeuve && Occupees() == avantConversion)
-                    return Passer(Mots.RangeurSansEffet);
-                sautesDeSuite = 0;
-                return true;
-            }
-
             default:
                 temps = Temps.Ouvrir;
+                sautesDeSuite = 0;
                 return true;
         }
     }
 
-    /// <summary>
-    /// Passe la tache en cours au lieu d'arreter tout.
-    ///
-    /// « Peu importe l'ordre, tant que tout est mis a la fin » : un accroc sur
-    /// une tenue ne doit pas emporter les quinze suivantes. Mais trois de suite
-    /// veulent dire que le probleme n'est pas la tenue, et la on s'arrete.
-    /// </summary>
-    private bool Passer(string pourquoi)
-    {
-        temps = Temps.Ouvrir;
-        aTendre.Clear();
-        sautes++;
-        sautesDeSuite++;
-        journal.Warning("tache passee : {0}", pourquoi);
-        if (sautesDeSuite >= 3)
-        {
-            Arreter(pourquoi);
-            return false;
-        }
-        // Comptee comme faite : elle est derriere nous, c'est ce qui compte.
-        return true;
-    }
+    // ---------------------------------------------------------- les fenetres
 
-    /// <summary>
-    /// Les fenetres de confirmation possibles, dans l'ordre ou on les cherche.
-    ///
-    /// La confirmation du mirage n'est PAS SelectYesno : le jeu a ses propres
-    /// dialogues pour la coiffeuse, et c'est pour ca que repondre a SelectYesno
-    /// ne faisait rien — la fenetre visee n'existait pas.
-    /// </summary>
+    /// <summary>Les confirmations possibles, dans l'ordre ou on les cherche.</summary>
     private static readonly string[] Confirmations =
     [
         "MiragePrismPrismSetConvertC",
@@ -619,96 +569,33 @@ public sealed class Rangeur
         "SelectYesno",
     ];
 
-    /// <summary>Ou en est la reponse : la case d'abord, le bouton ensuite.</summary>
-    private bool caseFaite;
-
-    /// <summary>
-    /// Repond a la confirmation, en deux gestes comme a la main : cocher la
-    /// case « Confirmer » si la fenetre en a une, puis cliquer « Oui ».
-    ///
-    /// Les deux gestes sont les recettes d'ECommons, la bibliotheque
-    /// d'AutoRetainer, reprises de sa source : rejouer l'evenement que le noeud
-    /// a lui-meme enregistre. Un tampon de donnees pour la case, rien pour le
-    /// bouton, et c'est leur code qui le dit, pas une supposition.
-    /// </summary>
-    private unsafe bool Repondre()
+    private unsafe AtkUnitBase* Fenetre(string nom)
     {
-        AtkUnitBase* fenetre = null;
+        var f = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
+        return f is not null && f->IsVisible ? f : null;
+    }
+
+    private unsafe AtkUnitBase* Confirmation()
+    {
         foreach (var nom in Confirmations)
         {
-            var f = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
-            if (f is not null && f->IsVisible)
-            {
-                fenetre = f;
-                break;
-            }
+            var f = Fenetre(nom);
+            if (f is not null) return f;
         }
-        if (fenetre is null) return false;
-
-        // Premier geste : la case, si elle existe et n'est pas cochee.
-        if (!caseFaite)
-        {
-            caseFaite = true;
-            var boite = TrouverComposant(fenetre->RootNode, ComponentType.CheckBox);
-            if (boite is not null)
-            {
-                var c = (AtkComponentCheckBox*)boite->Component;
-                if (c is not null && !c->IsChecked)
-                {
-                    var evt = boite->AtkResNode.AtkEventManager.Event;
-                    if (evt is not null)
-                    {
-                        var donnees = stackalloc AtkEventData[1];
-                        fenetre->ReceiveEvent(evt->State.EventType, (int)evt->Param, evt, donnees);
-                        c->SetChecked(true);
-                    }
-                    // Le bouton au prochain tour : deux gestes, comme a la main.
-                    return false;
-                }
-            }
-        }
-        caseFaite = false;
-
-        // Second geste : le bouton dont le clic porte le parametre zero.
-        var bouton = TrouverBouton(fenetre->RootNode, 0, out var clic);
-        if (bouton is not null && clic is not null)
-        {
-            var composant = (AtkComponentButton*)bouton->Component;
-            if (composant is not null && !composant->IsEnabled)
-            {
-                var drapeaux = (ushort*)&bouton->AtkResNode.NodeFlags;
-                *drapeaux ^= 1 << 5;
-            }
-            fenetre->ReceiveEvent(clic->State.EventType, (int)clic->Param, clic);
-            return true;
-        }
-
-        fenetre->FireCallbackInt(0);
-        return true;
+        return null;
     }
 
     private enum Verdict
     {
-        Rien,
         Normale,
         Vide,
         Doublon,
     }
 
-    /// <summary>
-    /// Ce que la confirmation annonce, lu dans ses propres textes.
-    ///
-    /// « Utiliser 0 prismes » veut dire qu'aucun objet n'est selectionne, et
-    /// « vous possedez deja un ensemble du meme type » qu'un Oui creerait un
-    /// doublon. Les deux se lisent, ils ne se devinent pas.
-    /// </summary>
-    private unsafe Verdict LireConfirmation()
+    /// <summary>Ce que la confirmation annonce, lu dans ses propres textes.
+    /// Zero prisme et doublon se lisent, ils ne se devinent pas.</summary>
+    private static unsafe Verdict LireConfirmation(AtkUnitBase* fenetre)
     {
-        var fenetre = Confirmation();
-        if (fenetre is null) return Verdict.Rien;
-
-        var vide = false;
-        var doublon = false;
         for (var i = 0; i < fenetre->AtkValuesCount; i++)
         {
             var v = fenetre->AtkValues[i];
@@ -717,36 +604,108 @@ public sealed class Rangeur
             if (string.IsNullOrEmpty(texte)) continue;
             if (texte.Contains("0 prisme", StringComparison.OrdinalIgnoreCase)
                 || texte.Contains("0 glamour prism", StringComparison.OrdinalIgnoreCase))
-                vide = true;
+                return Verdict.Vide;
             if (texte.Contains("possédez déjà un ensemble", StringComparison.OrdinalIgnoreCase)
                 || texte.Contains("already own", StringComparison.OrdinalIgnoreCase))
-                doublon = true;
+                return Verdict.Doublon;
         }
-        if (vide) return Verdict.Vide;
-        if (doublon) return Verdict.Doublon;
         return Verdict.Normale;
     }
 
-    /// <summary>La fenetre de confirmation ouverte, ou rien.</summary>
-    private unsafe AtkUnitBase* Confirmation()
+    /// <summary>
+    /// Repond a la confirmation ouverte.
+    ///
+    /// Les dialogues du mirage se repondent par le rappel de la fenetre, zero
+    /// pour oui, un pour non, avec l'etat mis a jour : c'est mot pour mot ce
+    /// que fait YesAlready sur ces memes fenetres. SelectYesno garde sa recette
+    /// a elle, le clic du bouton.
+    /// </summary>
+    private unsafe void RepondreOui() => Repondre(0);
+
+    private unsafe void RepondreNon() => Repondre(1);
+
+    private unsafe void Repondre(int reponse)
     {
-        foreach (var nom in Confirmations)
+        var yesno = Fenetre("SelectYesno");
+        if (yesno is not null)
         {
-            var f = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
-            if (f is not null && f->IsVisible) return f;
+            var bouton = TrouverBouton(yesno->RootNode, (uint)reponse, out var clic);
+            if (bouton is not null && clic is not null)
+            {
+                var composant = (AtkComponentButton*)bouton->Component;
+                if (composant is not null && !composant->IsEnabled)
+                {
+                    var drapeaux = (ushort*)&bouton->AtkResNode.NodeFlags;
+                    *drapeaux ^= 1 << 5;
+                }
+                yesno->ReceiveEvent(clic->State.EventType, (int)clic->Param, clic);
+                return;
+            }
         }
-        return null;
+
+        var fenetre = Confirmation();
+        if (fenetre is null) return;
+        Rappeler(fenetre, reponse);
     }
 
-    /// <summary>Clique « Non » : le bouton dont l'evenement porte le un.</summary>
-    private unsafe void RepondreNon()
+    /// <summary>Le rappel d'une fenetre, valeurs entieres, etat mis a jour.</summary>
+    private static unsafe void Rappeler(AtkUnitBase* fenetre, params int[] valeurs)
     {
-        var f = Confirmation();
-        if (f is null) return;
-        var bouton = TrouverBouton(f->RootNode, 1, out var clic);
-        if (bouton is not null && clic is not null)
-            f->ReceiveEvent(clic->State.EventType, (int)clic->Param, clic);
-        else f->FireCallbackInt(1);
+        var v = stackalloc AtkValue[valeurs.Length];
+        for (var i = 0; i < valeurs.Length; i++)
+        {
+            v[i].Type = AtkValueType.Int;
+            v[i].Int = valeurs[i];
+        }
+        fenetre->FireCallback((uint)valeurs.Length, v, true);
+    }
+
+    /// <summary>Le choix dans le menu contextuel d'une case : les cinq valeurs
+    /// viennent de la source de YesAlready, l'icone de la case au milieu.</summary>
+    private static unsafe void RappelerChoix(AtkUnitBase* menu, uint icone)
+    {
+        var v = stackalloc AtkValue[5];
+        v[0].Type = AtkValueType.Int;
+        v[0].Int = 0;
+        v[1].Type = AtkValueType.Int;
+        v[1].Int = 0;
+        v[2].Type = AtkValueType.UInt;
+        v[2].UInt = icone;
+        v[3].Type = AtkValueType.UInt;
+        v[3].UInt = 0;
+        v[4].Type = AtkValueType.Int;
+        v[4].Int = 0;
+        menu->FireCallback(5, v, true);
+    }
+
+    /// <summary>Ferme la fenetre de conversion par son bouton, le composant 26.</summary>
+    private unsafe void Fermer(AtkUnitBase* convert)
+    {
+        var bouton = convert->GetComponentButtonById(26);
+        if (bouton is not null && bouton->IsEnabled) CliquerBouton(convert, bouton);
+    }
+
+    /// <summary>Clique un bouton comme le jeu se clique lui-meme : en rejouant
+    /// l'evenement que le bouton a enregistre.</summary>
+    private static unsafe void CliquerBouton(AtkUnitBase* fenetre, AtkComponentButton* bouton)
+    {
+        var noeud = &bouton->AtkComponentBase.OwnerNode->AtkResNode;
+        var evt = noeud->AtkEventManager.Event;
+        if (evt is null) return;
+        fenetre->ReceiveEvent(evt->State.EventType, (int)evt->Param, evt);
+    }
+
+    /// <summary>Une valeur entiere d'une fenetre, ou zero.</summary>
+    private static unsafe uint Valeur(AtkUnitBase* fenetre, int i)
+    {
+        if (i < 0 || i >= fenetre->AtkValuesCount) return 0;
+        var v = fenetre->AtkValues[i];
+        return v.Type switch
+        {
+            AtkValueType.UInt => v.UInt,
+            AtkValueType.Int => (uint)v.Int,
+            _ => 0,
+        };
     }
 
     /// <summary>L'evenement « clic » (type 25) enregistre par un noeud.</summary>
@@ -800,45 +759,5 @@ public sealed class Rangeur
             n = n->PrevSiblingNode;
         }
         return null;
-    }
-
-    /// <summary>Le premier composant d'un type donne, dans l'arbre d'une fenetre.</summary>
-    private static unsafe AtkComponentNode* TrouverComposant(AtkResNode* n, ComponentType type)
-    {
-        while (n is not null)
-        {
-            if ((ushort)n->Type >= 1000)
-            {
-                var noeud = (AtkComponentNode*)n;
-                var c = noeud->Component;
-                if (c is not null)
-                {
-                    if (c->GetComponentType() == type) return noeud;
-                    var dedans = TrouverComposant(c->UldManager.RootNode, type);
-                    if (dedans is not null) return dedans;
-                }
-            }
-            var enfant = TrouverComposant(n->ChildNode, type);
-            if (enfant is not null) return enfant;
-            n = n->PrevSiblingNode;
-        }
-        return null;
-    }
-
-    /// <summary>Combien d'emplacements la coiffeuse occupe.</summary>
-    private unsafe int Occupees()
-    {
-        var n = 0;
-        foreach (var v in MirageManager.Instance()->PrismBoxItemIds)
-            if (v != 0)
-                n++;
-        return n;
-    }
-
-    /// <summary>L'identifiant d'une fenetre ouverte, ou zero.</summary>
-    private unsafe ushort IdFenetre(string nom)
-    {
-        var a = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
-        return a is null || !a->IsVisible ? (ushort)0 : a->Id;
     }
 }

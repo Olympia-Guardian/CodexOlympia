@@ -293,7 +293,7 @@ public sealed class Plugin : IDalamudPlugin
         this.interfaceJeu = interfaceJeu;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
-        Rangeur = new Rangeur(sacs, journal, interfaceJeu, donnees.GetExcelSheet<MirageStoreSetItem>());
+        Rangeur = new Rangeur(sacs, journal, interfaceJeu);
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
 
         fenetre = new Fenetre(this);
