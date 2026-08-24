@@ -527,7 +527,17 @@ public sealed class Fenetre : Window, IDisposable
             var valeurs = Sonde.Lire(plugin.InterfaceJeu, nom, 200);
             if (valeurs is null) continue;
             vu = true;
-            ImGui.TextColored(Or, $"{nom}  ({valeurs.Count})");
+
+            // Les libelles d'abord : c'est la que vit la liste des objets.
+            var textes = Sonde.Textes(plugin.InterfaceJeu, nom, 120);
+            if (textes is { Count: > 0 })
+            {
+                ImGui.TextColored(Or, $"{nom} · textes  ({textes.Count})");
+                foreach (var t in textes) ImGui.TextColored(Gris, $"{t.Type}  #{t.Index}  {t.Contenu}");
+                ImGui.Spacing();
+            }
+
+            ImGui.TextColored(Or, $"{nom} · valeurs  ({valeurs.Count})");
             if (ImGui.BeginTable($"s{nom}", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             {
                 ImGui.TableSetupColumn("##i", ImGuiTableColumnFlags.WidthFixed, 44);

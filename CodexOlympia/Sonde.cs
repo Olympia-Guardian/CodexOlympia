@@ -45,6 +45,42 @@ public static class Sonde
         return sortie;
     }
 
+    /// <summary>Les textes affiches par une fenetre, en parcourant ses noeuds.
+    ///
+    /// La liste des objets rangeables ne vit pas dans les valeurs de la fenetre :
+    /// elle est dessinee. Ses libelles sont donc le seul endroit ou lire ce
+    /// qu'elle propose, et dans quel ordre.</summary>
+    public static unsafe List<Valeur>? Textes(IGameGui gui, string nom, int combien)
+    {
+        var addon = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
+        if (addon is null || !addon->IsVisible) return null;
+
+        var sortie = new List<Valeur>();
+        Parcourir(addon->RootNode, sortie, combien, 0);
+        return sortie;
+    }
+
+    private static unsafe void Parcourir(AtkResNode* n, List<Valeur> dans, int combien, int niveau)
+    {
+        while (n is not null && dans.Count < combien)
+        {
+            if (n->Type == NodeType.Text)
+            {
+                var t = ((AtkTextNode*)n)->NodeText.ToString();
+                if (!string.IsNullOrWhiteSpace(t))
+                    dans.Add(new Valeur((int)n->NodeId, $"n{niveau}", t));
+            }
+            else if ((ushort)n->Type >= 1000)
+            {
+                // Un noeud de composant porte ses propres enfants.
+                var c = ((AtkComponentNode*)n)->Component;
+                if (c is not null) Parcourir(c->UldManager.RootNode, dans, combien, niveau + 1);
+            }
+            Parcourir(n->ChildNode, dans, combien, niveau + 1);
+            n = n->PrevSiblingNode;
+        }
+    }
+
     private static unsafe (string, string) Decrire(AtkValue* v)
     {
         switch (v->Type)

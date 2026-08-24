@@ -326,6 +326,14 @@ public sealed class Rangeur
         }
         if (!quelquechose) return true;
 
+        // Ces deux appels repondent OUI sans rien faire quand le jeu n'en veut
+        // pas : ils ne sont pas le geste manuel, et rien ne le signale. On note
+        // donc le contenu de la coiffeuse avant, pour verifier apres.
+        var avant = 0;
+        foreach (var v in mirage->PrismBoxItemIds)
+            if (v != 0)
+                avant++;
+
         var ok = tache.Moyen == Moyen.TenueNeuve
             ? mirage->StoreNewOutfit(tenue.Id, contenants, cases)
             : mirage->StoreExistingOutfit(tache.Emplacement, contenants, cases);
@@ -333,6 +341,19 @@ public sealed class Rangeur
         {
             // La cause la plus frequente, et la seule qui ne se devine pas.
             Arreter(Prismes() < tache.Pieces ? Mots.RangeurSansPrisme : Mots.RangeurRefus(tache.Nom));
+            return false;
+        }
+
+        // Un oui sans effet est un non qui se tait : on refuse de le compter
+        // comme un rangement, et on s'arrete plutot que d'enchainer quinze
+        // operations qui ne font rien.
+        var apres = 0;
+        foreach (var v in mirage->PrismBoxItemIds)
+            if (v != 0)
+                apres++;
+        if (tache.Moyen == Moyen.TenueNeuve && apres == avant)
+        {
+            Arreter(Mots.RangeurSansEffet);
             return false;
         }
         return true;

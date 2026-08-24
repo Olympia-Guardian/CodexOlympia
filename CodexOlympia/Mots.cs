@@ -230,8 +230,13 @@ public static class Mots
     {
         var bouts = new List<string>();
         if (entamees > 0)
-            bouts.Add(D($"{entamees} tenues à compléter", $"{entamees} outfits to complete"));
-        if (neuves > 0) bouts.Add(D($"{neuves} tenues à créer", $"{neuves} outfits to create"));
+            bouts.Add(entamees == 1
+                ? D("1 tenue à compléter", "1 outfit to complete")
+                : D($"{entamees} tenues à compléter", $"{entamees} outfits to complete"));
+        if (neuves > 0)
+            bouts.Add(neuves == 1
+                ? D("1 tenue à créer", "1 outfit to create")
+                : D($"{neuves} tenues à créer", $"{neuves} outfits to create"));
         if (armoire > 0)
             bouts.Add(D($"{armoire} objets pour l’armoire", $"{armoire} items for the armoire"));
         return string.Join(D(", ", ", "), bouts) + ".";
@@ -265,6 +270,11 @@ public static class Mots
         : D($"{reste} prismes de mirage seulement, il en faudrait {besoin} : ça s’arrêtera en route.",
             $"only {reste} glamour prisms, {besoin} needed: it will stop partway.");
     public static string RangeurErreur => D("quelque chose a mal tourné.", "something went wrong.");
+    public static string RangeurSansEffet => D(
+        "le jeu a dit oui sans rien faire. La coiffeuse puise dans tes SACS : une pièce rangée à "
+        + "l’armurerie ne lui est pas accessible. Sors-la d’abord.",
+        "the game said yes and did nothing. The dresser draws from your BAGS: a piece stored in "
+        + "the armoury is out of its reach. Take it out first.");
 
     // ---------------------------------------------------------- a ranger
 
