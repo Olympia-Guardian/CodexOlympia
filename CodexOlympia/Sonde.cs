@@ -22,6 +22,9 @@ public static class Sonde
     [
         "MiragePrismPrismBoxCrystallize",
         "MiragePrismPrismBox",
+        "MiragePrismPrismSetConvert",
+        "MiragePrismPrismSetConvertC",
+        "MiragePrismExecute",
         "SelectYesno",
     ];
 

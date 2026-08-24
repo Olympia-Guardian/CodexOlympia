@@ -528,7 +528,9 @@ public sealed class Rangeur
                 // « Transformer » : on retente quelques tours avant de conclure.
                 if (!Repondre())
                 {
-                    if (++attenteQuestion < 3) return false;
+                    // Cinq tours : la fenetre peut tarder, et le geste de la case en
+                    // consomme un a lui seul.
+                    if (++attenteQuestion < 5) return false;
                     attenteQuestion = 0;
                     return Passer(Mots.RangeurPasDeQuestion);
                 }
@@ -579,45 +581,161 @@ public sealed class Rangeur
     }
 
     /// <summary>
-    /// Repond « Oui » a la question du jeu, si elle est posee.
+    /// Les fenetres de confirmation possibles, dans l'ordre ou on les cherche.
     ///
-    /// Zero, et zero seulement. Dans cette fenetre, un est « Non » : une version
-    /// precedente l'envoyait en croyant cocher « Confirmer », c'est-a-dire
-    /// qu'elle refusait poliment ce qu'elle venait de demander. La case a cocher
-    /// n'est pas un rappel, c'est un noeud a part.
+    /// La confirmation du mirage n'est PAS SelectYesno : le jeu a ses propres
+    /// dialogues pour la coiffeuse, et c'est pour ca que repondre a SelectYesno
+    /// ne faisait rien — la fenetre visee n'existait pas.
     /// </summary>
+    private static readonly string[] Confirmations =
+    [
+        "MiragePrismPrismSetConvertC",
+        "MiragePrismExecute",
+        "SelectYesno",
+    ];
+
+    /// <summary>Ou en est la reponse : la case d'abord, le bouton ensuite.</summary>
+    private bool caseFaite;
+
     /// <summary>
-    /// Repond « Oui » a la question du jeu, si elle est posee.
+    /// Repond a la confirmation, en deux gestes comme a la main : cocher la
+    /// case « Confirmer » si la fenetre en a une, puis cliquer « Oui ».
     ///
-    /// C'est la recette d'ECommons, la bibliotheque d'AutoRetainer, reprise de
-    /// sa source : si « Oui » est gris parce que « Confirmer » n'est pas cochee,
-    /// on bascule le bit qui le grise, puis on rejoue l'evenement que le bouton
-    /// a lui-meme enregistre. Pas de case a cocher : le bouton allume suffit.
+    /// Les deux gestes sont les recettes d'ECommons, la bibliotheque
+    /// d'AutoRetainer, reprises de sa source : rejouer l'evenement que le noeud
+    /// a lui-meme enregistre. Un tampon de donnees pour la case, rien pour le
+    /// bouton, et c'est leur code qui le dit, pas une supposition.
     /// </summary>
     private unsafe bool Repondre()
     {
-        var oui = (AddonSelectYesno*)gui.GetAddonByName("SelectYesno").Address;
-        if (oui is null || !oui->AtkUnitBase.IsVisible) return false;
-
-        var bouton = oui->YesButton;
-        if (bouton is null)
+        AtkUnitBase* fenetre = null;
+        foreach (var nom in Confirmations)
         {
-            oui->AtkUnitBase.FireCallbackInt(0);
+            var f = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
+            if (f is not null && f->IsVisible)
+            {
+                fenetre = f;
+                break;
+            }
+        }
+        if (fenetre is null) return false;
+
+        // Premier geste : la case, si elle existe et n'est pas cochee.
+        if (!caseFaite)
+        {
+            caseFaite = true;
+            var boite = TrouverComposant(fenetre->RootNode, ComponentType.CheckBox);
+            if (boite is not null)
+            {
+                var c = (AtkComponentCheckBox*)boite->Component;
+                if (c is not null && !c->IsChecked)
+                {
+                    var evt = boite->AtkResNode.AtkEventManager.Event;
+                    if (evt is not null)
+                    {
+                        var donnees = stackalloc AtkEventData[1];
+                        fenetre->ReceiveEvent(evt->State.EventType, (int)evt->Param, evt, donnees);
+                        c->SetChecked(true);
+                    }
+                    // Le bouton au prochain tour : deux gestes, comme a la main.
+                    return false;
+                }
+            }
+        }
+        caseFaite = false;
+
+        // Second geste : le bouton dont le clic porte le parametre zero.
+        var bouton = TrouverBoutonOui(fenetre->RootNode, out var clic);
+        if (bouton is not null && clic is not null)
+        {
+            var composant = (AtkComponentButton*)bouton->Component;
+            if (composant is not null && !composant->IsEnabled)
+            {
+                var drapeaux = (ushort*)&bouton->AtkResNode.NodeFlags;
+                *drapeaux ^= 1 << 5;
+            }
+            fenetre->ReceiveEvent(clic->State.EventType, (int)clic->Param, clic);
             return true;
         }
 
-        if (!bouton->IsEnabled)
-        {
-            var drapeaux = (ushort*)&bouton->AtkComponentBase.OwnerNode->AtkResNode.NodeFlags;
-            *drapeaux ^= 1 << 5;
-        }
-
-        var noeud = &bouton->AtkComponentBase.OwnerNode->AtkResNode;
-        if (!bouton->IsEnabled || !noeud->IsVisible()) return false;
-        var evt = noeud->AtkEventManager.Event;
-        if (evt is null) return false;
-        oui->AtkUnitBase.ReceiveEvent(evt->State.EventType, (int)evt->Param, evt);
+        fenetre->FireCallbackInt(0);
         return true;
+    }
+
+    /// <summary>L'evenement « clic » (type 25) enregistre par un noeud.</summary>
+    private static unsafe AtkEvent* EvenementClic(AtkComponentNode* noeud)
+    {
+        var evt = noeud->AtkResNode.AtkEventManager.Event;
+        while (evt is not null)
+        {
+            if ((ushort)evt->State.EventType == 25) return evt;
+            evt = evt->NextEvent;
+        }
+        return null;
+    }
+
+    /// <summary>Le bouton dont le clic porte le parametre zero : « Oui ». C'est
+    /// le parametre qui nomme un bouton, pas sa place dans la fenetre.</summary>
+    private static unsafe AtkComponentNode* TrouverBoutonOui(AtkResNode* n, out AtkEvent* evenement)
+    {
+        evenement = null;
+        while (n is not null)
+        {
+            if ((ushort)n->Type >= 1000)
+            {
+                var noeud = (AtkComponentNode*)n;
+                var c = noeud->Component;
+                if (c is not null)
+                {
+                    if (c->GetComponentType() == ComponentType.Button)
+                    {
+                        var evt = EvenementClic(noeud);
+                        if (evt is not null && evt->Param == 0)
+                        {
+                            evenement = evt;
+                            return noeud;
+                        }
+                    }
+                    var dedans = TrouverBoutonOui(c->UldManager.RootNode, out var e1);
+                    if (dedans is not null)
+                    {
+                        evenement = e1;
+                        return dedans;
+                    }
+                }
+            }
+            var enfant = TrouverBoutonOui(n->ChildNode, out var e2);
+            if (enfant is not null)
+            {
+                evenement = e2;
+                return enfant;
+            }
+            n = n->PrevSiblingNode;
+        }
+        return null;
+    }
+
+    /// <summary>Le premier composant d'un type donne, dans l'arbre d'une fenetre.</summary>
+    private static unsafe AtkComponentNode* TrouverComposant(AtkResNode* n, ComponentType type)
+    {
+        while (n is not null)
+        {
+            if ((ushort)n->Type >= 1000)
+            {
+                var noeud = (AtkComponentNode*)n;
+                var c = noeud->Component;
+                if (c is not null)
+                {
+                    if (c->GetComponentType() == type) return noeud;
+                    var dedans = TrouverComposant(c->UldManager.RootNode, type);
+                    if (dedans is not null) return dedans;
+                }
+            }
+            var enfant = TrouverComposant(n->ChildNode, type);
+            if (enfant is not null) return enfant;
+            n = n->PrevSiblingNode;
+        }
+        return null;
     }
 
     /// <summary>Combien d'emplacements la coiffeuse occupe.</summary>
