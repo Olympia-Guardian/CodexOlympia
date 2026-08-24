@@ -25,12 +25,8 @@ aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
 
 ## Développement
 
-Il faut le SDK .NET 10 et une installation de Dalamud (XIVLauncher).
-
-```
-dotnet build -c Release CodexOlympia/CodexOlympia.csproj
-```
-
-Le paquet se trouve dans `CodexOlympia/bin/Release/CodexOlympia/latest.zip`.
+Développé avec assistance IA, niveau « Copilot » de la
+[politique de Dalamud](https://dalamud.dev/plugin-publishing/ai-policy/) :
+le comportement, les décisions et les tests en jeu sont humains.
 
 Sous licence [MIT](LICENSE).
