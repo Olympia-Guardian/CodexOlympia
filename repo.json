@@ -15,5 +15,22 @@
     "DownloadLinkInstall": "https://github.com/Olympia-Guardian/CodexOlympia/releases/latest/download/CodexOlympia.zip",
     "DownloadLinkUpdate": "https://github.com/Olympia-Guardian/CodexOlympia/releases/latest/download/CodexOlympia.zip",
     "DownloadLinkTesting": "https://github.com/Olympia-Guardian/CodexOlympia/releases/latest/download/CodexOlympia.zip"
+  },
+  {
+    "Author": "Olympia-Guardian",
+    "Name": "AutoArmory",
+    "InternalName": "AutoArmory",
+    "AssemblyVersion": "0.2.0.0",
+    "Description": "Compare tes sacs, ton arsenal et tes servants a ta coiffeuse, liste ce qui reste a deposer, et le range pour toi en suivant exactement les fenetres du jeu. EXPERIMENTAL, en cours de developpement : rien ne se lance sans un geste de ta part, et tout s'arrete au premier imprevu.",
+    "Punchline": "Range tes tenues dans la coiffeuse tout seul. EXPERIMENTAL. Par Codex Olympia.",
+    "RepoUrl": "https://github.com/Olympia-Guardian/AutoArmory",
+    "ApplicableVersion": "any",
+    "Tags": ["glamour", "dresser", "outfit", "codex", "olympia"],
+    "CategoryTags": ["utility"],
+    "DalamudApiLevel": 15,
+    "IconUrl": "https://raw.githubusercontent.com/Olympia-Guardian/AutoArmory/main/icon.png",
+    "DownloadLinkInstall": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip"
   }
 ]

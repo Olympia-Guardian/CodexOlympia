@@ -8,14 +8,19 @@ FINAL FANTASY XIV, tenues et armoire comprises, et l'envoie à
 aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
 
 **[AutoArmory](https://github.com/Olympia-Guardian/AutoArmory)** (EXPÉRIMENTAL,
-en cours de développement) range tes tenues dans la coiffeuse tout seul. Il vit
-dans son propre dépôt, avec sa propre adresse Dalamud.
+en cours de développement) range tes tenues dans la coiffeuse tout seul. Ses
+sources vivent dans leur propre dépôt.
 
-L'adresse de CE dépôt, à coller dans Dalamud pour la synchronisation :
+Une SEULE adresse Dalamud sert tous les plugins d'Olympia-Guardian, ceux
+d'aujourd'hui comme ceux qui viendront :
 
 ```
 https://raw.githubusercontent.com/Olympia-Guardian/CodexOlympia/main/repo.json
 ```
+
+Le `repo.json` de ce dépôt est le catalogue : chaque plugin y pointe vers les
+versions de son propre dépôt de sources. Publier une version d'un autre plugin
+demande donc de mettre à jour son entrée ici.
 
 ## Ce qu'il fait
 
