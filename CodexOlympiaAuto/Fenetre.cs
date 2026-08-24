@@ -17,7 +17,7 @@ public sealed class Fenetre : Window, IDisposable
     private static readonly Vector4 Ambre = new(0.98f, 0.70f, 0.10f, 1f);
     private static readonly Vector4 Gris = new(0.54f, 0.53f, 0.51f, 1f);
 
-    public Fenetre(Plugin plugin) : base("Codex Olympia Automatisation###codex-olympia-auto")
+    public Fenetre(Plugin plugin) : base("AutoArmory###codex-olympia-auto")
     {
         this.plugin = plugin;
         SizeConstraints = new WindowSizeConstraints

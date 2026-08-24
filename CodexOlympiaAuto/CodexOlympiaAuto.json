@@ -1,7 +1,7 @@
 {
-  "Name": "Codex Olympia Automatisation",
+  "Name": "AutoArmory",
   "Author": "Olympia-Guardian",
-  "Punchline": "Range tes tenues dans la coiffeuse tout seul. EXPERIMENTAL.",
+  "Punchline": "Range tes tenues dans la coiffeuse tout seul. EXPERIMENTAL. Par Codex Olympia.",
   "Description": "Compare tes sacs, ton arsenal et tes servants a ta coiffeuse, liste ce qui reste a deposer, et le range pour toi en suivant exactement les fenetres du jeu. Fonction experimentale, en cours de developpement : rien ne se lance sans un geste de ta part, et tout s'arrete au premier imprevu.",
   "RepoUrl": "https://github.com/Olympia-Guardian/codex-olympia-dalamud",
   "Tags": ["glamour", "dresser", "outfit", "codex", "olympia"],

@@ -7,10 +7,10 @@ FINAL FANTASY XIV, tenues et armoire comprises, et l'envoie à
 [Codex Olympia](https://olympia-guardian.github.io/) à la demande. Il prévient
 aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
 
-**Codex Olympia Automatisation** (EXPÉRIMENTAL, en cours de développement)
+**AutoArmory** (EXPÉRIMENTAL, en cours de développement)
 compare tes sacs, ton arsenal et tes servants à ta coiffeuse, liste ce qui
 reste à déposer, et le range pour toi en suivant exactement les fenêtres du
-jeu. Commande : `/codexauto`.
+jeu. Commande : `/autoarmory`.
 
 L'adresse du dépôt à coller dans Dalamud est la même pour les deux :
 

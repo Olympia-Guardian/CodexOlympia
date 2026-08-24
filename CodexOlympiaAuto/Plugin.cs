@@ -16,7 +16,7 @@ namespace CodexOlympiaAuto;
 /// </summary>
 public sealed class Plugin : IDalamudPlugin
 {
-    private const string Commande = "/codexauto";
+    private const string Commande = "/autoarmory";
 
     private readonly IDalamudPluginInterface pi;
     private readonly ICommandManager commandes;
@@ -77,7 +77,7 @@ public sealed class Plugin : IDalamudPlugin
 
         commandes.AddHandler(Commande, new CommandInfo((_, _) => Ouvrir())
         {
-            HelpMessage = "Ouvre la fenetre d'automatisation Codex Olympia.",
+            HelpMessage = "Ouvre la fenetre d'AutoArmory.",
         });
 
         RechargerCatalogue();
@@ -137,7 +137,7 @@ public sealed class Plugin : IDalamudPlugin
         if (Rangeur.Etat == EtatRangement.Fini && !ditFini)
         {
             ditFini = true;
-            discussion.Print("[Codex Olympia Auto] " + Mots.RangeurFini(Rangeur.Faits, Rangeur.Sautes));
+            discussion.Print("[AutoArmory] " + Mots.RangeurFini(Rangeur.Faits, Rangeur.Sautes));
         }
         else if (Rangeur.Etat == EtatRangement.EnMarche)
         {
