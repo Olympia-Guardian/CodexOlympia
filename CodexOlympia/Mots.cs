@@ -77,6 +77,10 @@ public static class Mots
     public static string ColCollection => D("Collection", "Collection");
     public static string ColTrouve => D("Trouvé", "Found");
     public static string NonLu => D("non lu", "not read");
+    public static string Relire => D("Relire", "Rescan");
+    public static string RelireAide => D(
+        "Ouvre d'abord la fenêtre demandée en jeu, puis relis cette collection seule. Le reste du relevé ne bouge pas.",
+        "Open the required game window first, then rescan just this collection. The rest of the report stays.");
 
     public static string Verifiables(int n, int total) =>
         D($"{n} sur {total} vérifiables", $"{n} of {total} checkable");

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Textures;
 using Dalamud.Interface.Windowing;
 
 namespace CodexOlympia;
@@ -122,7 +123,7 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.Spacing();
         }
 
-        Tableau(releves);
+        Cartes(releves);
         ImGui.Spacing();
 
         if (lecture) return;
@@ -160,63 +161,116 @@ public sealed class Fenetre : Window, IDisposable
         Retour();
     }
 
-    private void Tableau(IReadOnlyList<Releve> releves)
+    /// <summary>L'icone du jeu de chaque collection : les memes que dans
+    /// l'application, pour qu'on se repere d'un ecran a l'autre.</summary>
+    private static readonly Dictionary<string, uint> Icones = new()
     {
-        const ImGuiTableFlags style = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH
-            | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.PadOuterX;
-        if (!ImGui.BeginTable("releves", 4, style)) return;
+        ["mounts"] = 58,
+        ["minions"] = 59,
+        ["orchestrions"] = 67,
+        ["emotes"] = 9,
+        ["hairstyles"] = 26178,
+        ["fashions"] = 86,
+        ["facewear"] = 92,
+        ["bardings"] = 49,
+        ["cards"] = 27661,
+        ["frames"] = 88,
+        ["spells"] = 78,
+        ["achievements"] = 6,
+        ["armoires"] = 52,
+        ["outfitpieces"] = 2,
+        ["outfits"] = 32,
+    };
 
-        ImGui.TableSetupColumn(Mots.ColCollection, ImGuiTableColumnFlags.WidthFixed, 190);
-        ImGui.TableSetupColumn(Mots.ColTrouve, ImGuiTableColumnFlags.WidthFixed, 96);
-        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 110);
-        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableHeadersRow();
+    private void Icone(string cle, float taille)
+    {
+        if (!Icones.TryGetValue(cle, out var id))
+        {
+            ImGui.Dummy(new Vector2(taille, taille));
+            return;
+        }
+        var image = plugin.Textures.GetFromGameIcon(new GameIconLookup(id)).GetWrapOrEmpty();
+        ImGui.Image(image.Handle, new Vector2(taille, taille));
+    }
+
+    /// <summary>
+    /// Le releve en cartes, une par collection : icone, compte, jauge. Une
+    /// collection que le jeu n'avait pas chargee porte son conseil au survol et
+    /// un bouton pour la relire seule, une fois la bonne fenetre ouverte en jeu.
+    /// </summary>
+    private void Cartes(IReadOnlyList<Releve> releves)
+    {
+        const float gap = 8f;
+        const float hauteur = 112f;
+        var large = ImGui.GetContentRegionAvail().X;
+        var parLigne = Math.Max(2, (int)((large + gap) / (196f + gap)));
+        var wCarte = (large - gap * (parLigne - 1)) / parLigne;
 
         var attendu = plugin.EnCours;
+        var lecture = plugin.LectureEnCours;
+        var i = 0;
+        ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 8f);
         foreach (var (cle, nom) in Mots.Collections)
         {
             var x = releves.FirstOrDefault(v => v.Cle == cle);
-            // Pendant la lecture, les lignes pas encore faites restent visibles :
-            // le tableau garde sa hauteur, et on voit ce qu'il reste a venir.
-            var aVenir = x is null;
-            if (aVenir && !plugin.LectureEnCours) continue;
+            // Pendant une lecture, les cartes a venir restent visibles : on voit
+            // ce qui reste. Hors lecture, une collection jamais lue n'a rien a
+            // montrer.
+            if (x is null && !plugin.EnFile(cle)) continue;
 
-            ImGui.TableNextRow();
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            if (aVenir || x!.Empeche is not null) ImGui.TextColored(Gris, nom);
-            else ImGui.Text(nom);
+            if (i % parLigne != 0) ImGui.SameLine(0, gap);
+            i++;
 
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            if (aVenir)
+            ImGui.BeginChild($"carte-{cle}", new Vector2(wCarte, hauteur), true,
+                ImGuiWindowFlags.AlwaysUseWindowPadding | ImGuiWindowFlags.NoScrollbar);
+
+            Icone(cle, 22f);
+            ImGui.SameLine(0, 7);
+            var y = ImGui.GetCursorPosY();
+            ImGui.SetCursorPosY(y + 3f);
+            if (x is null || x.Empeche is not null) ImGui.TextColored(Gris, nom);
+            else ImGui.TextUnformatted(nom);
+            Survol(nom);
+
+            ImGui.Spacing();
+            if (x is null)
             {
-                if (cle == attendu) ImGui.TextColored(Or, Mots.Lecture + Points());
+                ImGui.SetWindowFontScale(1.3f);
+                if (Plugin.EtapeDe(cle) == attendu) ImGui.TextColored(Or, Mots.Lecture + Points());
                 else ImGui.TextColored(Gris, Mots.EnAttente);
-                ImGui.TableNextColumn();
-                ImGui.TableNextColumn();
-                continue;
+                ImGui.SetWindowFontScale(1f);
             }
-            if (x!.Empeche is not null) ImGui.TextColored(Ambre, Mots.NonLu);
-            else ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
-
-            // La barre ne dit rien de neuf : elle rend la colonne lisible d'un
-            // coup d'oeil, ce qu'une colonne de fractions ne fait pas.
-            ImGui.TableNextColumn();
-            if (x!.Empeche is null && x.Total > 0)
+            else if (x.Empeche is not null)
             {
-                var part = Math.Clamp((float)x.Trouves.Count / x.Total, 0f, 1f);
-                ImGui.PushStyleColor(ImGuiCol.PlotHistogram, x.Trouves.Count > 0 ? Vert : Gris);
-                ImGui.ProgressBar(part, new Vector2(100, 6), string.Empty);
-                ImGui.PopStyleColor();
+                ImGui.SetWindowFontScale(1.3f);
+                ImGui.TextColored(Ambre, Mots.NonLu);
+                ImGui.SetWindowFontScale(1f);
+                Survol(x.Empeche);
+                ImGui.Spacing();
+                ImGui.BeginDisabled(lecture);
+                if (ImGui.Button($"{Mots.Relire}##{cle}", new Vector2(-1, 0))) plugin.Relire(cle);
+                ImGui.EndDisabled();
+                Survol(x.Empeche + "\n\n" + Mots.RelireAide);
+            }
+            else
+            {
+                ImGui.SetWindowFontScale(1.3f);
+                ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
+                ImGui.SetWindowFontScale(1f);
+                if (x.Total > 0)
+                {
+                    var part = Math.Clamp((float)x.Trouves.Count / x.Total, 0f, 1f);
+                    ImGui.PushStyleColor(ImGuiCol.PlotHistogram, x.Trouves.Count > 0 ? Vert : Gris);
+                    ImGui.ProgressBar(part, new Vector2(-1, 5), string.Empty);
+                    ImGui.PopStyleColor();
+                }
+                ImGui.Spacing();
+                Limitation(x);
             }
 
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            if (x!.Empeche is not null) ImGui.TextWrapped(x.Empeche);
-            else Limitation(x);
+            ImGui.EndChild();
         }
-        ImGui.EndTable();
+        ImGui.PopStyleVar();
     }
 
     /// <summary>

@@ -30,6 +30,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IPluginLog journal;
     private readonly IChatGui discussion;
     private readonly IGameInventory sacs;
+    public ITextureProvider Textures { get; }
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
     private readonly Fenetre fenetre;
@@ -41,13 +42,30 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
     public Coffre? Coffre { get; private set; }
 
+    /// <summary>Les etapes qui restent a lire. La lecture complete y met tout
+    /// Photo.Ordre ; une relecture ciblee n'y met qu'une collection et ce qui
+    /// depend d'elle.</summary>
+    private readonly Queue<string> file = new();
+
     /// <summary>Combien d'etapes la lecture en cours a franchies, et sur combien.
     /// Zero sur zero quand rien n'est en cours.</summary>
     public int Faites { get; private set; }
     public int AFaire { get; private set; }
-    public bool LectureEnCours => AFaire > 0 && Faites < AFaire;
-    /// <summary>La collection en train d'etre lue, ou rien.</summary>
-    public string? EnCours => LectureEnCours ? Photo.Ordre[Faites] : null;
+    public bool LectureEnCours => file.Count > 0;
+    /// <summary>L'etape en train d'etre lue, ou rien.</summary>
+    public string? EnCours => file.Count > 0 ? file.Peek() : null;
+
+    /// <summary>L'etape qui lira cette collection : les tenues et les pieces
+    /// sortent de l'etape « outfitpieces », tout le reste porte son nom.</summary>
+    public static string EtapeDe(string cle) => cle == "outfits" ? "outfitpieces" : cle;
+
+    /// <summary>Ce qu'une etape produit comme releves : c'est ce qu'il faut
+    /// retirer avant de la rejouer, sans toucher au reste.</summary>
+    private static string[] EmisPar(string etape) =>
+        etape == "outfitpieces" ? ["outfitpieces", "outfits", "adeposer"] : [etape];
+
+    /// <summary>Vrai si cette collection attend son tour dans la file.</summary>
+    public bool EnFile(string cle) => file.Contains(EtapeDe(cle));
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 
@@ -66,8 +84,10 @@ public sealed class Plugin : IDalamudPlugin
         IDataManager donnees,
         IPluginLog journal,
         IChatGui discussion,
-        IGameInventory sacs)
+        IGameInventory sacs,
+        ITextureProvider textures)
     {
+        Textures = textures;
         this.pi = pi;
         this.commandes = commandes;
         this.etat = etat;
@@ -166,16 +186,46 @@ public sealed class Plugin : IDalamudPlugin
 
     // ------------------------------------------------------------- la lecture
 
-    /// <summary>Ouvre une lecture. Rien ne part : on montre d'abord.</summary>
+    /// <summary>Ouvre une lecture complete. Rien ne part : on montre d'abord.</summary>
     public void Regarder()
     {
         var cat = Catalogue;
-        if (cat is null || !cat.Pret) return;
+        if (cat is null || !cat.Pret || LectureEnCours) return;
         Dernier = null;
         Releves = [];
         Coffre = null;
+        file.Clear();
+        foreach (var cle in Photo.Ordre) file.Enqueue(cle);
         Faites = 0;
-        AFaire = Photo.Ordre.Length;
+        AFaire = file.Count;
+        prochaine = 0;
+    }
+
+    /// <summary>
+    /// Relit UNE collection, sans toucher au reste du releve.
+    ///
+    /// C'est la reponse aux collections que le jeu ne charge qu'a la demande :
+    /// le joueur ouvre la fenetre voulue (carnet de succes, coiffeuse chez un
+    /// rassembleur), puis relit juste cette carte. L'armoire, les pieces et les
+    /// tenues se relisent ensemble : les trois sortent du meme coffre.
+    /// </summary>
+    public void Relire(string cle)
+    {
+        var cat = Catalogue;
+        if (cat is null || !cat.Pret || LectureEnCours) return;
+        Dernier = null;
+        var etape = EtapeDe(cle);
+        if (etape is "armoires" or "outfitpieces")
+        {
+            file.Enqueue("armoires");
+            file.Enqueue("outfitpieces");
+        }
+        else
+        {
+            file.Enqueue(etape);
+        }
+        Faites = 0;
+        AFaire = file.Count;
         prochaine = 0;
     }
 
@@ -202,27 +252,34 @@ public sealed class Plugin : IDalamudPlugin
         var cat = Catalogue;
         if (cat is null || !cat.Pret)
         {
+            file.Clear();
             AFaire = 0;
             return;
         }
-        var cle = Photo.Ordre[Faites];
+        var cle = file.Peek();
         try
         {
             var coffre = Coffre;
-            Releves.AddRange(
-                Photo.Etape(
-                    cle,
-                    cat,
-                    donnees.GetExcelSheet<AozAction>(),
-                    donnees.GetExcelSheet<MirageStoreSetItem>(),
-                    ref coffre));
+            var produits = Photo.Etape(
+                cle,
+                cat,
+                donnees.GetExcelSheet<AozAction>(),
+                donnees.GetExcelSheet<MirageStoreSetItem>(),
+                ref coffre);
+            // Une relecture remplace ce que l'etape avait produit la premiere
+            // fois : deux releves de la meme collection seraient un mensonge.
+            var anciens = EmisPar(cle);
+            Releves.RemoveAll(r => anciens.Contains(r.Cle));
+            Releves.AddRange(produits);
             Coffre = coffre;
+            file.Dequeue();
             Faites++;
         }
         catch (Exception e)
         {
             journal.Error(e, "lecture du jeu impossible ({0})", cle);
             Releves = [];
+            file.Clear();
             AFaire = 0;
             Dernier = new Retour(false, Mots.LectureEchouee(e.Message), [], []);
         }
