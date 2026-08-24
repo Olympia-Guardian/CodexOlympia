@@ -44,9 +44,11 @@ public enum Temps
     Transformer,
     Confirmer,
 
-    /// <summary>Le oui d'une tenue deja deposee : le jeu ne demande rien
-    /// d'autre, il n'y a ni fenetre de conversion ni bouton Transformer.</summary>
-    OuiSimple,
+    /// <summary>La question posee juste apres l'ouverture, quand la piece
+    /// appartient a un ensemble deja depose : « Ranger et ajouter au mirage
+    /// d'ensemble ? ». Elle precede la fenetre de conversion, elle ne la
+    /// remplace pas.</summary>
+    Question,
     Fini,
 }
 
@@ -399,25 +401,6 @@ public sealed class Rangeur
         {
             case Temps.Ouvrir:
             {
-                // Une tenue deja deposee se complete piece par piece : on rouvre
-                // pour chacune, et le jeu ne pose qu'une question.
-                if (tache.Moyen == Moyen.TenueEntamee && aTendre.Count > 0)
-                {
-                    var suivante = aTendre[0];
-                    var la = Trouver(suivante);
-                    aTendre.RemoveAt(0);
-                    if (la is null) return false;
-                    if (!agent->Open(
-                            suivante, la.Value.Contenant, la.Value.Case,
-                            IdFenetre("MiragePrismPrismBoxCrystallize"),
-                            IdFenetre("MiragePrismPrismBox"), true))
-                    {
-                        Arreter(Mots.RangeurRefus(tache.Nom));
-                        return false;
-                    }
-                    temps = Temps.OuiSimple;
-                    return false;
-                }
 
                 // Ce qu'on va tendre : les pieces de la tenue qu'on a sous la
                 // main et qui ne sont pas deja dans la coiffeuse.
@@ -455,10 +438,7 @@ public sealed class Rangeur
                 }
                 aTendre.RemoveAt(0);
                 avantConversion = Occupees();
-                // Une tenue deja deposee n'a pas de fenetre de conversion : le
-                // jeu demande « Ranger et ajouter au mirage d'ensemble ? », et
-                // c'est tout.
-                temps = tache.Moyen == Moyen.TenueEntamee ? Temps.OuiSimple : Temps.Tendre;
+                temps = Temps.Question;
                 return false;
             }
 
@@ -520,11 +500,13 @@ public sealed class Rangeur
                 return false;
             }
 
-            case Temps.OuiSimple:
+            case Temps.Question:
             {
-                if (!Repondre()) return Passer(Mots.RangeurPasDeQuestion);
-                // Piece suivante, s'il en reste.
-                temps = aTendre.Count > 0 ? Temps.Ouvrir : Temps.Fini;
+                // « Cet objet appartient a un ensemble complet existant. Ranger
+                // et ajouter au mirage d'ensemble ? » Elle ne parait pas
+                // toujours : son absence n'est pas une erreur.
+                Repondre();
+                temps = Temps.Tendre;
                 return false;
             }
 
