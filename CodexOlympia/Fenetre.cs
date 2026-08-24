@@ -339,7 +339,7 @@ public sealed class Fenetre : Window, IDisposable
         Survol(Mots.ARangerQuoi + "\n\n" + Mots.ServantsVus(plugin.ServantsDuPerso().Count));
         ImGui.Spacing();
 
-        Rangement(egarees);
+        Rangement();
 
         if (!ImGui.BeginChild("aranger", new Vector2(0, 0), false)) return;
 
@@ -399,7 +399,7 @@ public sealed class Fenetre : Window, IDisposable
     /// C'est la seule commande du plugin qui agisse sur le jeu. Elle ne se
     /// déclenche pas par mégarde : il faut déplier, lire, et appuyer.
     /// </summary>
-    private void Rangement(IReadOnlyList<Egaree> egarees)
+    private void Rangement()
     {
         var r = plugin.Rangeur;
 
@@ -448,11 +448,6 @@ public sealed class Fenetre : Window, IDisposable
         // Ce que le bouton ferait, avant qu'on l'appuie. Sans ça, un rangement
         // qui n'a rien à ranger ressemble à un bouton cassé.
         var apercu = plugin.Apercu();
-
-        // Ce qui attend a l'armurerie : la coiffeuse ne le voit pas, et c'est la
-        // premiere chose qu'on se demande devant une liste qui ne bouge pas.
-        var enArmurerie = egarees.Count(e => e.Ou == Mots.OuArmurerie);
-        if (enArmurerie > 0) ImGui.TextColored(Ambre, Mots.RangeurArmurerie(enArmurerie));
 
         if (apercu.Count == 0)
         {

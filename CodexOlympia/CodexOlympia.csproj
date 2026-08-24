@@ -1,7 +1,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
   <PropertyGroup>
-    <Version>0.14.0.0</Version>
+    <Version>0.14.1.0</Version>
     <Description>Synchronise les collections de FFXIV vers Codex Olympia.</Description>
     <PackageProjectUrl>https://github.com/Olympia-Guardian/codex-olympia-dalamud</PackageProjectUrl>
     <Nullable>enable</Nullable>

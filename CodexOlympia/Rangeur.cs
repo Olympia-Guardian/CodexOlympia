@@ -79,13 +79,12 @@ public sealed class Rangeur
     }
 
     /// <summary>
-    /// Les contenants ou le jeu accepte de puiser : les SACS, et eux seuls.
+    /// Les contenants ou le jeu accepte de puiser.
     ///
-    /// L'armurerie n'en fait pas partie, et ce n'est pas une supposition : la
-    /// fenetre « Ranger » du jeu, lue telle quelle, ne proposait que les deux
-    /// pieces qui trainaient dans un sac et aucune des dix rangees a
-    /// l'armurerie. Les y chercher revenait a batir des operations que le jeu
-    /// acceptait poliment sans jamais les executer.
+    /// L'arsenal en fait partie : la fenetre « Ranger » du jeu a un selecteur de
+    /// categorie, et l'arsenal y figure. Une version precedente l'avait exclu
+    /// apres avoir lu cette fenetre alors qu'elle affichait l'inventaire, et
+    /// avoir pris ce qu'elle montrait pour ce qu'elle savait montrer.
     /// </summary>
     private static readonly (GameInventoryType Vue, InventoryType Jeu)[] Puisables =
     [
@@ -93,6 +92,17 @@ public sealed class Rangeur
         (GameInventoryType.Inventory2, InventoryType.Inventory2),
         (GameInventoryType.Inventory3, InventoryType.Inventory3),
         (GameInventoryType.Inventory4, InventoryType.Inventory4),
+        (GameInventoryType.ArmoryMainHand, InventoryType.ArmoryMainHand),
+        (GameInventoryType.ArmoryOffHand, InventoryType.ArmoryOffHand),
+        (GameInventoryType.ArmoryHead, InventoryType.ArmoryHead),
+        (GameInventoryType.ArmoryBody, InventoryType.ArmoryBody),
+        (GameInventoryType.ArmoryHands, InventoryType.ArmoryHands),
+        (GameInventoryType.ArmoryLegs, InventoryType.ArmoryLegs),
+        (GameInventoryType.ArmoryFeets, InventoryType.ArmoryFeets),
+        (GameInventoryType.ArmoryEar, InventoryType.ArmoryEar),
+        (GameInventoryType.ArmoryNeck, InventoryType.ArmoryNeck),
+        (GameInventoryType.ArmoryWrist, InventoryType.ArmoryWrist),
+        (GameInventoryType.ArmoryRings, InventoryType.ArmoryRings),
     ];
 
     private const uint SeuilHq = 1_000_000;
