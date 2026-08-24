@@ -78,24 +78,21 @@ public sealed class Rangeur
         this.ensembles = ensembles;
     }
 
-    /// <summary>Les contenants ou le jeu accepte de puiser pour un depot.</summary>
+    /// <summary>
+    /// Les contenants ou le jeu accepte de puiser : les SACS, et eux seuls.
+    ///
+    /// L'armurerie n'en fait pas partie, et ce n'est pas une supposition : la
+    /// fenetre « Ranger » du jeu, lue telle quelle, ne proposait que les deux
+    /// pieces qui trainaient dans un sac et aucune des dix rangees a
+    /// l'armurerie. Les y chercher revenait a batir des operations que le jeu
+    /// acceptait poliment sans jamais les executer.
+    /// </summary>
     private static readonly (GameInventoryType Vue, InventoryType Jeu)[] Puisables =
     [
         (GameInventoryType.Inventory1, InventoryType.Inventory1),
         (GameInventoryType.Inventory2, InventoryType.Inventory2),
         (GameInventoryType.Inventory3, InventoryType.Inventory3),
         (GameInventoryType.Inventory4, InventoryType.Inventory4),
-        (GameInventoryType.ArmoryMainHand, InventoryType.ArmoryMainHand),
-        (GameInventoryType.ArmoryOffHand, InventoryType.ArmoryOffHand),
-        (GameInventoryType.ArmoryHead, InventoryType.ArmoryHead),
-        (GameInventoryType.ArmoryBody, InventoryType.ArmoryBody),
-        (GameInventoryType.ArmoryHands, InventoryType.ArmoryHands),
-        (GameInventoryType.ArmoryLegs, InventoryType.ArmoryLegs),
-        (GameInventoryType.ArmoryFeets, InventoryType.ArmoryFeets),
-        (GameInventoryType.ArmoryEar, InventoryType.ArmoryEar),
-        (GameInventoryType.ArmoryNeck, InventoryType.ArmoryNeck),
-        (GameInventoryType.ArmoryWrist, InventoryType.ArmoryWrist),
-        (GameInventoryType.ArmoryRings, InventoryType.ArmoryRings),
     ];
 
     private const uint SeuilHq = 1_000_000;

@@ -217,10 +217,10 @@ public static class Mots
     public static string RangeurAMain => D("tu as appuyé sur Arrêter.", "you pressed Stop.");
     public static string RangeurLancer => D("Ranger", "Store");
     public static string RangeurRienAFaire => D(
-        "Rien à ranger d’ici. Le rangement ne prend que ce qui est SOUS LA MAIN : tes sacs et "
-        + "ton armurerie. Ce qui dort chez un servant ne compte pas, va le chercher d’abord.",
-        "Nothing to store from here. Storing only takes what is AT HAND: your bags and your "
-        + "armoury. What sits with a retainer does not count: fetch it first.");
+        "Rien à ranger d’ici. La coiffeuse ne puise que dans tes SACS : ni l’armurerie, ni tes "
+        + "servants ne lui sont accessibles. Sors d’abord ce que tu veux déposer.",
+        "Nothing to store from here. The dresser only draws from your BAGS: neither the armoury nor "
+        + "your retainers are within its reach. Take out what you want to store first.");
     public static string RangeurPartiel => D(
         "Une tenue se dépose même incomplète : elle occupe un emplacement, qu’on la remplisse en "
         + "une fois ou en cinq. Ce qui manque s’y ajoutera plus tard.",
@@ -271,10 +271,13 @@ public static class Mots
             $"only {reste} glamour prisms, {besoin} needed: it will stop partway.");
     public static string RangeurErreur => D("quelque chose a mal tourné.", "something went wrong.");
     public static string RangeurSansEffet => D(
-        "le jeu a dit oui sans rien faire. La coiffeuse puise dans tes SACS : une pièce rangée à "
-        + "l’armurerie ne lui est pas accessible. Sors-la d’abord.",
-        "the game said yes and did nothing. The dresser draws from your BAGS: a piece stored in "
-        + "the armoury is out of its reach. Take it out first.");
+        "le jeu a dit oui sans rien faire.",
+        "the game said yes and did nothing.");
+    public static string RangeurArmurerie(int n) => D(
+        $"{n} pièces attendent à ton armurerie. La coiffeuse ne puise que dans tes SACS : sors-les "
+        + "d’abord, et elles partiront au prochain rangement.",
+        $"{n} pieces are waiting in your armoury. The dresser only draws from your BAGS: take them "
+        + "out first and they will go on the next run.");
 
     // ---------------------------------------------------------- a ranger
 

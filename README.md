@@ -139,9 +139,11 @@ Quatre garde-fous :
 consomme un. Le plugin compte ta réserve et te dit avant de partir s'il en
 manque, plutôt que de s'arrêter en route sans expliquer pourquoi.
 
-Reste devant ta coiffeuse ou ton armoire, ouverte, pendant que ça travaille. Le
-rangement ne prend que ce qui est **sous la main**, tes sacs et ton armurerie :
-ce qui dort chez un servant, va le chercher d'abord.
+Reste devant ta coiffeuse ou ton armoire, ouverte, pendant que ça travaille. La
+coiffeuse ne puise que dans tes **sacs** : ni l'armurerie ni tes servants ne lui
+sont accessibles. Ce n'est pas une prudence de ma part, c'est le jeu lui-même,
+dont la fenêtre « Ranger » ne propose que l'inventaire. La page te dit combien de
+pièces attendent à l'armurerie pour que tu les sortes.
 
 Une pièce qui n'appartient à aucune tenue et n'a pas de case d'armoire reste où
 elle est : le jeu n'offre pas d'appel propre pour déposer une pièce seule dans la
