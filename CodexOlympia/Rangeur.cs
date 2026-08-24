@@ -2,6 +2,7 @@ using Dalamud.Game.Inventory;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
@@ -43,10 +44,6 @@ public enum Temps
     Valider,
     Transformer,
     Confirmer,
-
-    /// <summary>Le « Oui », un temps apres la case : deux gestes, comme a la
-    /// main, et on voit la case cochee avant que la reponse parte.</summary>
-    Oui,
 
     /// <summary>La question posee juste apres l'ouverture, quand la piece
     /// appartient a un ensemble deja depose : « Ranger et ajouter au mirage
@@ -101,6 +98,9 @@ public sealed class Rangeur
 
     /// <summary>Ou en est la conversion en cours.</summary>
     private Temps temps = Temps.Ouvrir;
+
+    /// <summary>Tours passes a attendre que la question paraisse.</summary>
+    private int attenteQuestion;
 
     /// <summary>Les pieces encore a tendre a la fenetre, pour la tache en cours.</summary>
     private readonly List<uint> aTendre = [];
@@ -524,18 +524,15 @@ public sealed class Rangeur
 
             case Temps.Confirmer:
             {
-                // Cocher « Confirmer » d'un VRAI clic. Poser le booleen de la
-                // case ne fait pas tourner le code du jeu qui note « confirme »
-                // et allume « Oui » : la version precedente le posait, la case
-                // restait visuellement vide et le bouton gris.
-                CliquerCase();
-                temps = Temps.Oui;
-                return false;
-            }
-
-            case Temps.Oui:
-            {
-                Repondre();
+                // La question peut mettre un instant a paraitre apres
+                // « Transformer » : on retente quelques tours avant de conclure.
+                if (!Repondre())
+                {
+                    if (++attenteQuestion < 3) return false;
+                    attenteQuestion = 0;
+                    return Passer(Mots.RangeurPasDeQuestion);
+                }
+                attenteQuestion = 0;
                 temps = Temps.Fini;
                 return false;
             }
@@ -589,65 +586,38 @@ public sealed class Rangeur
     /// qu'elle refusait poliment ce qu'elle venait de demander. La case a cocher
     /// n'est pas un rappel, c'est un noeud a part.
     /// </summary>
+    /// <summary>
+    /// Repond « Oui » a la question du jeu, si elle est posee.
+    ///
+    /// C'est la recette d'ECommons, la bibliotheque d'AutoRetainer, reprise de
+    /// sa source : si « Oui » est gris parce que « Confirmer » n'est pas cochee,
+    /// on bascule le bit qui le grise, puis on rejoue l'evenement que le bouton
+    /// a lui-meme enregistre. Pas de case a cocher : le bouton allume suffit.
+    /// </summary>
     private unsafe bool Repondre()
     {
-        var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
-        if (oui is null || !oui->IsVisible) return false;
-        oui->FireCallbackInt(0);
-        return true;
-    }
+        var oui = (AddonSelectYesno*)gui.GetAddonByName("SelectYesno").Address;
+        if (oui is null || !oui->AtkUnitBase.IsVisible) return false;
 
-    /// <summary>Clique la case « Confirmer » de la question, s'il y en a une.</summary>
-    private unsafe void CliquerCase()
-    {
-        var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
-        if (oui is null || !oui->IsVisible) return;
-        var boite = TrouverComposant(oui->RootNode, ComponentType.CheckBox);
-        if (boite is null) return;
-        var deja = (AtkComponentCheckBox*)boite->Component;
-        if (deja is not null && deja->IsChecked) return;
-        Cliquer(oui, boite);
-    }
-
-    /// <summary>
-    /// Un vrai clic : on rejoue l'evenement que le noeud a lui-meme enregistre.
-    ///
-    /// Poser un booleen n'est qu'une ecriture que le jeu ignore ; rejouer son
-    /// evenement fait tourner son propre code, celui qui coche la case a l'ecran
-    /// et allume le bouton qu'elle garde.
-    /// </summary>
-    private static unsafe void Cliquer(AtkUnitBase* fenetre, AtkComponentNode* noeud)
-    {
-        var evt = noeud->AtkResNode.AtkEventManager.Event;
-        if (evt is null) return;
-        var data = stackalloc byte[64];
-        var ptrs = (void**)data;
-        ptrs[1] = noeud;
-        ptrs[2] = fenetre;
-        fenetre->ReceiveEvent(evt->State.EventType, (int)evt->Param, evt, (AtkEventData*)data);
-    }
-
-    /// <summary>Le premier composant d'un type donne, dans l'arbre d'une fenetre.</summary>
-    private static unsafe AtkComponentNode* TrouverComposant(AtkResNode* n, ComponentType type)
-    {
-        while (n is not null)
+        var bouton = oui->YesButton;
+        if (bouton is null)
         {
-            if ((ushort)n->Type >= 1000)
-            {
-                var noeud = (AtkComponentNode*)n;
-                var c = noeud->Component;
-                if (c is not null)
-                {
-                    if (c->GetComponentType() == type) return noeud;
-                    var dedans = TrouverComposant(c->UldManager.RootNode, type);
-                    if (dedans is not null) return dedans;
-                }
-            }
-            var enfant = TrouverComposant(n->ChildNode, type);
-            if (enfant is not null) return enfant;
-            n = n->PrevSiblingNode;
+            oui->AtkUnitBase.FireCallbackInt(0);
+            return true;
         }
-        return null;
+
+        if (!bouton->IsEnabled)
+        {
+            var drapeaux = (ushort*)&bouton->AtkComponentBase.OwnerNode->AtkResNode.NodeFlags;
+            *drapeaux ^= 1 << 5;
+        }
+
+        var noeud = &bouton->AtkComponentBase.OwnerNode->AtkResNode;
+        if (!bouton->IsEnabled || !noeud->IsVisible()) return false;
+        var evt = noeud->AtkEventManager.Event;
+        if (evt is null) return false;
+        oui->AtkUnitBase.ReceiveEvent(evt->State.EventType, (int)evt->Param, evt);
+        return true;
     }
 
     /// <summary>Combien d'emplacements la coiffeuse occupe.</summary>
