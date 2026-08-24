@@ -3,8 +3,8 @@
   "Author": "Olympia-Guardian",
   "Punchline": "Envoie tes collections vers Codex Olympia.",
   "Description": "Lit ce que ton personnage a debloque dans le jeu, tenues et armoire comprises, te le montre, et l'envoie a Codex Olympia quand tu le demandes. Rien n'est envoye sans ton geste, et rien n'est jamais decoche a ta place : les ecarts te sont rapportes dans l'application, et c'est toi qui tranches. Previent aussi dans le journal quand une piece de tenue arrive dans tes sacs.",
-  "RepoUrl": "https://github.com/Olympia-Guardian/codex-olympia-dalamud",
+  "RepoUrl": "https://github.com/Olympia-Guardian/CodexOlympia",
   "Tags": ["collection", "sync", "codex", "olympia"],
   "CategoryTags": ["utility"],
-  "IconUrl": "https://raw.githubusercontent.com/Olympia-Guardian/codex-olympia-dalamud/main/icon.png"
+  "IconUrl": "https://raw.githubusercontent.com/Olympia-Guardian/CodexOlympia/main/icon.png"
 }

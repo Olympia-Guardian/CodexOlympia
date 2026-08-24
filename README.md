@@ -1,24 +1,21 @@
-# Codex Olympia — plugins Dalamud
+# Codex Olympia Synchronisation — plugin Dalamud
 
-Deux plugins, deux métiers, un dépôt.
+Deux plugins, deux métiers, deux dépôts.
 
 **Codex Olympia Synchronisation** lit ce que ton personnage a débloqué dans
 FINAL FANTASY XIV, tenues et armoire comprises, et l'envoie à
 [Codex Olympia](https://olympia-guardian.github.io/) à la demande. Il prévient
 aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
 
-**AutoArmory** (EXPÉRIMENTAL, en cours de développement)
-compare tes sacs, ton arsenal et tes servants à ta coiffeuse, liste ce qui
-reste à déposer, et le range pour toi en suivant exactement les fenêtres du
-jeu. Commande : `/autoarmory`.
+**[AutoArmory](https://github.com/Olympia-Guardian/AutoArmory)** (EXPÉRIMENTAL,
+en cours de développement) range tes tenues dans la coiffeuse tout seul. Il vit
+dans son propre dépôt, avec sa propre adresse Dalamud.
 
-L'adresse du dépôt à coller dans Dalamud est la même pour les deux :
+L'adresse de CE dépôt, à coller dans Dalamud pour la synchronisation :
 
 ```
-https://raw.githubusercontent.com/Olympia-Guardian/codex-olympia-dalamud/main/repo.json
+https://raw.githubusercontent.com/Olympia-Guardian/CodexOlympia/main/repo.json
 ```
-
-La suite de cette notice décrit le plugin de synchronisation.
 
 ## Ce qu'il fait
 
@@ -43,7 +40,7 @@ Tu cliques, il regarde, il te montre, tu envoies. C'est tout.
    *Custom Plugin Repositories* :
 
    ```
-   https://raw.githubusercontent.com/Olympia-Guardian/codex-olympia-dalamud/main/repo.json
+   https://raw.githubusercontent.com/Olympia-Guardian/CodexOlympia/main/repo.json
    ```
 
 2. `/xlplugins`, cherche **Codex Olympia**, installe.
