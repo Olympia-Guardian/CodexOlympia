@@ -10,12 +10,13 @@ using Lumina.Excel.Sheets;
 namespace CodexOlympia;
 
 /// <summary>
-/// Le plugin.
+/// Le plugin de synchronisation.
 ///
-/// Il ne surveille rien et n'envoie rien de lui-même. Il attend qu'on le lui
+/// Il ne surveille rien et n'envoie rien de lui-meme. Il attend qu'on le lui
 /// demande, lit le jeu, montre ce qu'il a lu, et n'envoie que si on le lui dit.
-/// C'est volontaire : une synchronisation qui part toute seule est une
-/// synchronisation qu'on ne relit jamais.
+/// Le rangement automatique est l'affaire de l'autre plugin, Codex Olympia
+/// Automatisation : celui-ci ne fait qu'ajouter un mot dans le journal quand
+/// une piece de tenue arrive.
 /// </summary>
 public sealed class Plugin : IDalamudPlugin
 {
@@ -29,19 +30,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IPluginLog journal;
     private readonly IChatGui discussion;
     private readonly IGameInventory sacs;
-    private readonly IFramework cadence;
-    private readonly IGameGui interfaceJeu;
-
-    /// <summary>L'interface du jeu, pour la sonde.</summary>
-    public IGameGui InterfaceJeu => interfaceJeu;
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
     private readonly Fenetre fenetre;
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     public Reglages Reglages { get; }
-    /// <summary>Le rangement automatique. Expérimental, et il agit sur le jeu.</summary>
-    public Rangeur Rangeur { get; }
     public Catalogue? Catalogue { get; private set; }
     public List<Releve> Releves { get; private set; } = [];
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
@@ -64,211 +58,6 @@ public sealed class Plugin : IDalamudPlugin
     public string Jeton =>
         ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
 
-    private List<Egaree> aRanger = [];
-    private List<Egaree> doubles = [];
-    private double prochainARanger;
-
-    /// <summary>Les pieces qu'on tient alors qu'elles sont deja deposees.</summary>
-    public List<Egaree> Doubles => doubles;
-
-    private List<Tache> apercu = [];
-    private double prochainApercu;
-
-    /// <summary>
-    /// Ce que le rangement ferait, s'il partait maintenant.
-    ///
-    /// Montre avant d'agir : un bouton qui ne dit pas ce qu'il va faire passe
-    /// pour casse quand il ne trouve rien a faire.
-    /// </summary>
-    public List<Tache> Apercu()
-    {
-        var cat = Catalogue;
-        var coffre = Coffre;
-        if (cat is null || !cat.Pret || coffre is null) return [];
-        var maintenant = Environment.TickCount64 / 1000.0;
-        if (maintenant < prochainApercu) return apercu;
-        prochainApercu = maintenant + 1.5;
-        try
-        {
-            apercu = Rangeur.Preparer(cat, coffre, Reglages.RangerArmoire);
-        }
-        catch (Exception e)
-        {
-            journal.Error(e, "apercu du rangement impossible");
-        }
-        return apercu;
-    }
-
-    /// <summary>
-    /// Ce que le personnage a sous la main et n'a pas depose.
-    ///
-    /// Le calcul parcourt les six mille pieces du catalogue : le refaire soixante
-    /// fois par seconde pour une liste qui bouge quand on ramasse un objet serait
-    /// du gachis. Deux fois par seconde suffit largement a suivre un inventaire.
-    /// </summary>
-    public List<Egaree> ARanger()
-    {
-        var cat = Catalogue;
-        var coffre = Coffre;
-        if (cat is null || !cat.Pret || coffre is null) return [];
-
-        var maintenant = Environment.TickCount64 / 1000.0;
-        if (maintenant < prochainARanger) return aRanger;
-        prochainARanger = maintenant + 0.5;
-        try
-        {
-            var main = Sacs.Miennes(sacs);
-            aRanger = CodexOlympia.ARanger.Calculer(cat, coffre, main, ServantsDuPerso());
-            doubles = CodexOlympia.ARanger.Doubles(cat, coffre, main);
-        }
-        catch (Exception e)
-        {
-            journal.Error(e, "lecture des sacs impossible");
-        }
-        return aRanger;
-    }
-
-    public Dictionary<string, uint[]> ServantsDuPerso() =>
-        Reglages.Servants.TryGetValue(ContentId, out var s) ? s : [];
-
-    /// <summary>Quand on a regarde le servant ouvert pour la derniere fois.</summary>
-    private double prochainServant;
-
-    /// <summary>Pour ne dire qu'une fois qu'un rangement s'est acheve.</summary>
-    private bool ditFini = true;
-
-    /// <summary>
-    /// Retenir ce que porte le servant a qui on parle.
-    ///
-    /// Le jeu ne charge son sac que pendant la conversation : c'est la seule
-    /// fenetre pendant laquelle on peut voir quoi que ce soit. On la saisit, une
-    /// fois par seconde, et on ne garde que les pieces de tenue.
-    /// </summary>
-    private void Veiller(IFramework _)
-    {
-        var maintenant = Environment.TickCount64 / 1000.0;
-        // Le rangement passe avant : il attend son tour et sa cadence lui est
-        // propre, la veille des servants peut patienter une seconde de plus.
-        Rangeur.Tic(Catalogue, maintenant);
-        if (Rangeur.Etat == EtatRangement.Fini && !ditFini)
-        {
-            ditFini = true;
-            discussion.Print("[Codex Olympia] " + Mots.RangeurFini(Rangeur.Faits, Rangeur.Sautes));
-            // Ce qui vient d'etre depose n'est plus a ranger : la prochaine
-            // lecture le dira, et en attendant on ne promet rien.
-            Regarder();
-        }
-        else if (Rangeur.Etat == EtatRangement.EnMarche)
-        {
-            ditFini = false;
-        }
-
-        if (maintenant < prochainServant) return;
-        prochainServant = maintenant + 1.0;
-
-        var cat = Catalogue;
-        if (cat is null || !cat.Pret || ContentId == 0) return;
-        string? nom;
-        try
-        {
-            nom = Sacs.ServantOuvert();
-        }
-        catch
-        {
-            return;
-        }
-        if (nom is null) return;
-
-        var connues = new HashSet<uint>();
-        foreach (var t in cat.Tenues)
-            foreach (var p in t.Pieces)
-                connues.Add(p.Objet);
-
-        var vus = Sacs.ChezLeServant(sacs).Where(connues.Contains).ToArray();
-        if (!Reglages.Servants.TryGetValue(ContentId, out var chez))
-        {
-            chez = [];
-            Reglages.Servants[ContentId] = chez;
-        }
-        if (chez.TryGetValue(nom, out var avant) && avant.SequenceEqual(vus)) return;
-        chez[nom] = vus;
-        Enregistrer();
-    }
-
-    /// <summary>
-    /// Un mot quand une piece de tenue arrive dans les sacs.
-    ///
-    /// Elle n'est pas cochee pour autant : un objet qui traine peut se vendre ou
-    /// se jeter. Le message dit ou la mettre pour qu'elle compte, et rien de
-    /// plus.
-    /// </summary>
-    private void PieceArrivee(GameInventoryEvent quoi, InventoryEventArgs e)
-    {
-        if (!Reglages.AvisEnJeu) return;
-        var cat = Catalogue;
-        if (cat is null || !cat.Pret) return;
-        var id = e.Item.ItemId >= 1_000_000 ? e.Item.ItemId - 1_000_000 : e.Item.ItemId;
-        if (id == 0) return;
-        // Deja depose : il n'y a rien a aller ranger.
-        if (Coffre is not null && (Coffre.Coiffeuse.Contains(id) || Coffre.Armoire.Contains(id))) return;
-
-        foreach (var t in cat.Tenues)
-        {
-            foreach (var p in t.Pieces)
-            {
-                if (p.Objet != id) continue;
-                discussion.Print("[Codex Olympia] " + Mots.AvisPiece(p.Nom, t.Nom));
-                return;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Les pastilles sur les objets qui restent a deposer.
-    ///
-    /// Dessinees a chaque image, meme fenetre fermee : c'est en ouvrant son sac
-    /// qu'on veut les voir, pas en ouvrant ce plugin. Rien ne se dessine tant
-    /// qu'aucune lecture n'a eu lieu : sans depots connus, tout serait marque.
-    /// </summary>
-    private void Marquer()
-    {
-        if (!Reglages.Pastilles || Coffre is null) return;
-        try
-        {
-            Badges.Dessiner(interfaceJeu, sacs, donnees.GetExcelSheet<Item>(), ARangerIds());
-        }
-        catch (Exception e)
-        {
-            journal.Error(e, "pastilles impossibles");
-            Reglages.Pastilles = false;
-        }
-    }
-
-    private HashSet<uint> cibles = [];
-    private double prochainesCibles;
-
-    /// <summary>Les objets a marquer, recalcules deux fois par seconde.</summary>
-    private HashSet<uint> ARangerIds()
-    {
-        var maintenant = Environment.TickCount64 / 1000.0;
-        if (maintenant >= prochainesCibles)
-        {
-            prochainesCibles = maintenant + 0.5;
-            cibles = [.. ARanger().Select(e => e.Objet)];
-        }
-        return cibles;
-    }
-
-    /// <summary>Range le jeton du personnage connecte. Vide = on l'oublie.</summary>
-    public void PoserJeton(string valeur)
-    {
-        if (ContentId == 0) return;
-        var net = valeur.Trim();
-        if (net.Length == 0) Reglages.Jetons.Remove(ContentId);
-        else Reglages.Jetons[ContentId] = net;
-        Enregistrer();
-    }
-
     public Plugin(
         IDalamudPluginInterface pi,
         ICommandManager commandes,
@@ -277,9 +66,7 @@ public sealed class Plugin : IDalamudPlugin
         IDataManager donnees,
         IPluginLog journal,
         IChatGui discussion,
-        IGameInventory sacs,
-        IFramework cadence,
-        IGameGui interfaceJeu)
+        IGameInventory sacs)
     {
         this.pi = pi;
         this.commandes = commandes;
@@ -289,28 +76,22 @@ public sealed class Plugin : IDalamudPlugin
         this.journal = journal;
         this.discussion = discussion;
         this.sacs = sacs;
-        this.cadence = cadence;
-        this.interfaceJeu = interfaceJeu;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
-        Rangeur = new Rangeur(sacs, journal, interfaceJeu);
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
 
         fenetre = new Fenetre(this);
         fenetres.AddWindow(fenetre);
 
         pi.UiBuilder.Draw += fenetres.Draw;
-        pi.UiBuilder.Draw += Marquer;
         pi.UiBuilder.OpenMainUi += Ouvrir;
         pi.UiBuilder.OpenConfigUi += Ouvrir;
+        sacs.ItemAdded += PieceArrivee;
 
         commandes.AddHandler(Commande, new CommandInfo((_, _) => Ouvrir())
         {
             HelpMessage = Mots.AideCommande,
         });
-
-        sacs.ItemAdded += PieceArrivee;
-        cadence.Update += Veiller;
 
         RechargerCatalogue();
     }
@@ -318,10 +99,8 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         sacs.ItemAdded -= PieceArrivee;
-        cadence.Update -= Veiller;
         commandes.RemoveHandler(Commande);
         pi.UiBuilder.Draw -= fenetres.Draw;
-        pi.UiBuilder.Draw -= Marquer;
         pi.UiBuilder.OpenMainUi -= Ouvrir;
         pi.UiBuilder.OpenConfigUi -= Ouvrir;
         fenetres.RemoveAllWindows();
@@ -345,7 +124,7 @@ public sealed class Plugin : IDalamudPlugin
         Enregistrer();
     }
 
-    /// <summary>Le nom du personnage sert d'étiquette, rien de plus : il dit au
+    /// <summary>Le nom du personnage sert d'etiquette, rien de plus : il dit au
     /// joueur de quel jeton il est en train de parler.</summary>
     private void RetenirLeNom()
     {
@@ -355,6 +134,16 @@ public sealed class Plugin : IDalamudPlugin
         var nom = $"{perso.CharacterName} ({monde})";
         if (Reglages.Noms.TryGetValue(id, out var vieux) && vieux == nom) return;
         Reglages.Noms[id] = nom;
+        Enregistrer();
+    }
+
+    /// <summary>Range le jeton du personnage connecte. Vide = on l'oublie.</summary>
+    public void PoserJeton(string valeur)
+    {
+        if (ContentId == 0) return;
+        var net = valeur.Trim();
+        if (net.Length == 0) Reglages.Jetons.Remove(ContentId);
+        else Reglages.Jetons[ContentId] = net;
         Enregistrer();
     }
 
@@ -375,6 +164,8 @@ public sealed class Plugin : IDalamudPlugin
         });
     }
 
+    // ------------------------------------------------------------- la lecture
+
     /// <summary>Ouvre une lecture. Rien ne part : on montre d'abord.</summary>
     public void Regarder()
     {
@@ -386,9 +177,6 @@ public sealed class Plugin : IDalamudPlugin
         Faites = 0;
         AFaire = Photo.Ordre.Length;
         prochaine = 0;
-        // Les depots vont changer : ce qui restait a ranger n'est plus a jour.
-        aRanger = [];
-        prochainARanger = 0;
     }
 
     /// <summary>Quand la prochaine etape a le droit de partir, en secondes.</summary>
@@ -440,6 +228,8 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    // --------------------------------------------------------------- l'envoi
+
     public void Envoyer()
     {
         if (EnvoiEnCours || Releves.Count == 0) return;
@@ -465,5 +255,35 @@ public sealed class Plugin : IDalamudPlugin
                 EnvoiEnCours = false;
             }
         });
+    }
+
+    // --------------------------------------------------------------- l'alerte
+
+    /// <summary>
+    /// Un mot quand une piece de tenue arrive dans les sacs.
+    ///
+    /// Elle n'est pas cochee pour autant : un objet qui traine peut se vendre ou
+    /// se jeter. Le message dit ou la mettre pour qu'elle compte, et rien de
+    /// plus.
+    /// </summary>
+    private void PieceArrivee(GameInventoryEvent quoi, InventoryEventArgs e)
+    {
+        if (!Reglages.AvisEnJeu) return;
+        var cat = Catalogue;
+        if (cat is null || !cat.Pret) return;
+        var id = e.Item.ItemId >= 1_000_000 ? e.Item.ItemId - 1_000_000 : e.Item.ItemId;
+        if (id == 0) return;
+        // Deja depose : il n'y a rien a aller ranger.
+        if (Coffre is not null && (Coffre.Coiffeuse.Contains(id) || Coffre.Armoire.Contains(id))) return;
+
+        foreach (var t in cat.Tenues)
+        {
+            foreach (var p in t.Pieces)
+            {
+                if (p.Objet != id) continue;
+                discussion.Print("[Codex Olympia] " + Mots.AvisPiece(p.Nom, t.Nom));
+                return;
+            }
+        }
     }
 }

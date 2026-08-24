@@ -38,29 +38,4 @@ public sealed class Reglages : IPluginConfiguration
     /// <summary>Prévenir dans le journal quand une pièce de tenue arrive.</summary>
     public bool AvisEnJeu { get; set; } = true;
 
-    /// <summary>Marquer d'une pastille, dans le sac, ce qui reste à déposer.</summary>
-    public bool Pastilles { get; set; } = true;
-
-    /// <summary>
-    /// Ranger aussi dans l'armoire ce qu'aucune tenue ne prendra.
-    ///
-    /// Faux par défaut : ce qu'on veut d'abord, ce sont les tenues, et un objet
-    /// rangé à l'armoire quitte l'inventaire, donc la coiffeuse ne l'aura plus.
-    /// </summary>
-    public bool RangerArmoire { get; set; }
-
-    /// <summary>Secondes entre deux gestes du rangement. Trois par défaut :
-    /// de quoi suivre ce qui se passe à l'écran.</summary>
-    public float CadenceRangement { get; set; } = 3f;
-
-    /// <summary>
-    /// Ce que chaque servant portait la dernière fois qu'on lui a parlé, par
-    /// personnage puis par nom de servant.
-    ///
-    /// Le jeu ne charge le sac d'un servant que pendant qu'on lui parle. Sans
-    /// cette mémoire, la page « à ranger » oublierait tout dès qu'on referme la
-    /// fenêtre, et ne dirait plus jamais rien des servants. Seules les pièces de
-    /// tenue y sont gardées : le reste ne regarde pas ce plugin.
-    /// </summary>
-    public Dictionary<ulong, Dictionary<string, uint[]>> Servants { get; set; } = new();
 }

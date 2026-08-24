@@ -2,7 +2,7 @@ using Dalamud.Game.Inventory;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
-namespace CodexOlympia;
+namespace CodexOlympiaAuto;
 
 /// <summary>Une pièce trouvée quelque part, et où.</summary>
 public sealed record Trouvaille(uint Objet, string Ou);

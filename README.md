@@ -1,7 +1,24 @@
-# Codex Olympia — plugin Dalamud
+# Codex Olympia — plugins Dalamud
 
-Lit ce que ton personnage a débloqué dans FINAL FANTASY XIV et l'envoie à
-[Codex Olympia](https://olympia-guardian.github.io/), à la demande.
+Deux plugins, deux métiers, un dépôt.
+
+**Codex Olympia Synchronisation** lit ce que ton personnage a débloqué dans
+FINAL FANTASY XIV, tenues et armoire comprises, et l'envoie à
+[Codex Olympia](https://olympia-guardian.github.io/) à la demande. Il prévient
+aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
+
+**Codex Olympia Automatisation** (EXPÉRIMENTAL, en cours de développement)
+compare tes sacs, ton arsenal et tes servants à ta coiffeuse, liste ce qui
+reste à déposer, et le range pour toi en suivant exactement les fenêtres du
+jeu. Commande : `/codexauto`.
+
+L'adresse du dépôt à coller dans Dalamud est la même pour les deux :
+
+```
+https://raw.githubusercontent.com/Olympia-Guardian/codex-olympia-dalamud/main/repo.json
+```
+
+La suite de cette notice décrit le plugin de synchronisation.
 
 ## Ce qu'il fait
 

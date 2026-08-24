@@ -1,6 +1,6 @@
 name: publier
 
-# Une etiquette de version suffit : git tag v0.1.0 && git push --tags
+# Une etiquette de version suffit : git tag v0.23.0 && git push --tags
 on:
   push:
     tags: ['v*']
@@ -25,10 +25,24 @@ jobs:
           Expand-Archive -Path dalamud.zip -DestinationPath "$env:AppData\XIVLauncher\addon\Hooks\dev" -Force
 
       - name: Compiler
-        run: dotnet build -c Release CodexOlympia/CodexOlympia.csproj
+        run: |
+          dotnet build -c Release CodexOlympia/CodexOlympia.csproj
+          dotnet build -c Release CodexOlympiaAuto/CodexOlympiaAuto.csproj
+
+      # Deux plugins, deux paquets. `latest.zip` reste le paquet de
+      # synchronisation : les installations d'avant la scission le cherchent
+      # encore sous ce nom.
+      - name: Paquets
+        run: |
+          Copy-Item CodexOlympia/bin/Release/CodexOlympia/latest.zip CodexOlympia.zip
+          Copy-Item CodexOlympia/bin/Release/CodexOlympia/latest.zip latest.zip
+          Copy-Item CodexOlympiaAuto/bin/Release/CodexOlympiaAuto/latest.zip CodexOlympiaAuto.zip
 
       - name: Publier
         uses: softprops/action-gh-release@v2
         with:
-          files: CodexOlympia/bin/Release/CodexOlympia/latest.zip
+          files: |
+            CodexOlympia.zip
+            CodexOlympiaAuto.zip
+            latest.zip
           generate_release_notes: true

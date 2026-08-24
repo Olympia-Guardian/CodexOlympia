@@ -1,7 +1,7 @@
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
-namespace CodexOlympia;
+namespace CodexOlympiaAuto;
 
 /// <summary>
 /// Ce que la fenetre « Ranger » du jeu contient, tel quel.

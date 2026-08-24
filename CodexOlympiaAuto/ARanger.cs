@@ -1,4 +1,4 @@
-namespace CodexOlympia;
+namespace CodexOlympiaAuto;
 
 /// <summary>Une pièce qu'on possède sans l'avoir déposée.</summary>
 public sealed record Egaree(uint Objet, string Nom, string Ou, string Tenue, bool Acheve);
