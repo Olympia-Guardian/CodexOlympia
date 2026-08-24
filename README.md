@@ -23,4 +23,14 @@ aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
    Il ne s'affiche qu'une fois.
 4. Dans le jeu : `/codex` → onglet **Configuration** → colle le jeton.
 
+## Développement
+
+Il faut le SDK .NET 10 et une installation de Dalamud (XIVLauncher).
+
+```
+dotnet build -c Release CodexOlympia/CodexOlympia.csproj
+```
+
+Le paquet se trouve dans `CodexOlympia/bin/Release/CodexOlympia/latest.zip`.
+
 Sous licence [MIT](LICENSE).
