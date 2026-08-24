@@ -208,7 +208,12 @@ public static class Mots
         "C'est la seule chose que ce plugin fasse AGIR dans le jeu : tout le reste se contente " +
         "de lire. Chaque dépôt est un ordre envoyé au serveur. Une opération à la fois, à " +
         "cadence humaine, et tout s'arrête au premier imprévu. Reste devant ta coiffeuse ou ton " +
-        "armoire, ouverte, pendant que ça travaille.",
+        "armoire, ouverte, pendant que ça travaille.
+
+" +
+        "La conversion en mirage RETIRE les matérias serties, les teintures, les mirages, les " +
+        "blasons et certains bonus, et remet la symbiose à zéro. C'est le jeu qui le fait, pas " +
+        "le plugin, mais tu dois le savoir avant de lancer.",
         "This is the only thing in this plugin that ACTS on the game: everything else only " +
         "reads. Each deposit is an order sent to the server. One operation at a time, at human " +
         "pace, and everything stops at the first surprise. Stay at your glamour dresser or " +

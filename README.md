@@ -135,6 +135,15 @@ Quatre garde-fous :
 - une tenue se dépose **même incomplète** : elle occupe un emplacement, qu'on la
   remplisse en une fois ou en cinq, et ce qui manque s'y ajoutera plus tard.
 
+Le dépôt suit exactement la procédure manuelle : ouvrir la fenêtre de conversion
+sur une première pièce, lui tendre les suivantes, valider, transformer,
+confirmer. Rien ne la raccourcit, « Transformer » appelé sans sa fenêtre répond
+oui et ne fait rien.
+
+**La conversion retire les matérias, les teintures, les mirages et les blasons**,
+et remet la symbiose à zéro. C'est le jeu qui le fait, pas le plugin, mais
+sache-le avant de lancer.
+
 **Il faut des prismes de mirage** : chaque pièce déposée dans la coiffeuse en
 consomme un. Le plugin compte ta réserve et te dit avant de partir s'il en
 manque, plutôt que de s'arrêter en route sans expliquer pourquoi.
