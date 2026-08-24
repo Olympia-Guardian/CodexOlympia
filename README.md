@@ -198,15 +198,9 @@ Le paquet se trouve dans `CodexOlympia/bin/Release/CodexOlympia/latest.zip`.
 
 ## Développement
 
-Ce plugin est développé avec assistance IA, au niveau **Copilot** de la
-[politique IA de Dalamud](https://dalamud.dev/plugin-publishing/ai-policy/) :
-l'IA (Claude, Anthropic) écrit l'essentiel du code ; l'humain
-(Olympia-Guardian) définit le comportement, arbitre chaque décision de
-conception, relit, et teste chaque version en jeu avant publication.
-L'historique git en témoigne : chaque version répond à un constat de test.
-
-Les textes anglais sont traduits du français avec assistance IA. Les icônes
-viennent des fichiers du jeu, elles ne sont pas générées.
+Développé avec assistance IA, niveau « Copilot » de la
+[politique de Dalamud](https://dalamud.dev/plugin-publishing/ai-policy/) :
+le comportement, les décisions et les tests en jeu sont humains.
 
 Sous licence [MIT](LICENSE).
 
