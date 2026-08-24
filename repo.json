@@ -3,13 +3,20 @@
     "Author": "Olympia-Guardian",
     "Name": "Codex Olympia Synchronisation",
     "InternalName": "CodexOlympia",
-    "AssemblyVersion": "0.23.2.0",
-    "Description": "Lit ce que ton personnage a debloque dans le jeu, tenues et armoire comprises, te le montre, et l'envoie a Codex Olympia quand tu le demandes. Rien n'est envoye sans ton geste, et rien n'est jamais decoche a ta place. Previent aussi dans le journal quand une piece de tenue arrive dans tes sacs.",
-    "Punchline": "Envoie tes collections vers Codex Olympia.",
+    "AssemblyVersion": "1.0.0.0",
+    "Description": "Reads what your character has unlocked in-game, collections, outfits and armoire included, shows it to you, and sends it to Codex Olympia when you ask. Nothing is sent without your action, and nothing is ever unchecked on your behalf: gaps are reported in the app, where you decide. Also prints a chat notice when an outfit piece lands in your bags. Exclusive to the Codex Olympia website (https://olympia-guardian.github.io/): without an account on the app, this plugin is useless.\n\nLit ce que ton personnage a debloque dans le jeu, tenues et armoire comprises, te le montre, et l'envoie a Codex Olympia quand tu le demandes. Rien n'est envoye sans ton geste, et rien n'est jamais decoche a ta place : les ecarts sont rapportes dans l'application, et c'est toi qui tranches. Previent aussi dans le journal quand une piece de tenue arrive dans tes sacs. Exclusif au site Codex Olympia : sans compte sur l'application, il ne sert a rien.",
+    "Punchline": "Send your FFXIV collections to Codex Olympia. / Envoie tes collections vers Codex Olympia.",
     "RepoUrl": "https://github.com/Olympia-Guardian/CodexOlympia",
     "ApplicableVersion": "any",
-    "Tags": ["collection", "sync", "codex", "olympia"],
-    "CategoryTags": ["utility"],
+    "Tags": [
+      "collection",
+      "sync",
+      "codex",
+      "olympia"
+    ],
+    "CategoryTags": [
+      "utility"
+    ],
     "DalamudApiLevel": 15,
     "IconUrl": "https://raw.githubusercontent.com/Olympia-Guardian/CodexOlympia/main/icon.png",
     "DownloadLinkInstall": "https://github.com/Olympia-Guardian/CodexOlympia/releases/latest/download/CodexOlympia.zip",
@@ -25,8 +32,16 @@
     "Punchline": "Range tes tenues dans la coiffeuse tout seul. EXPERIMENTAL. Par Codex Olympia.",
     "RepoUrl": "https://github.com/Olympia-Guardian/AutoArmory",
     "ApplicableVersion": "any",
-    "Tags": ["glamour", "dresser", "outfit", "codex", "olympia"],
-    "CategoryTags": ["utility"],
+    "Tags": [
+      "glamour",
+      "dresser",
+      "outfit",
+      "codex",
+      "olympia"
+    ],
+    "CategoryTags": [
+      "utility"
+    ],
     "DalamudApiLevel": 15,
     "IconUrl": "https://raw.githubusercontent.com/Olympia-Guardian/AutoArmory/main/icon.png",
     "DownloadLinkInstall": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip",

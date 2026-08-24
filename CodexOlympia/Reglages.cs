@@ -14,12 +14,6 @@ public sealed class Reglages : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
 
-    /// <summary>L'adresse du serveur. Modifiable pour les essais.</summary>
-    public string Serveur { get; set; } = "https://ogs-room.olympia-guardian.workers.dev";
-
-    /// <summary>Le catalogue vient du même endroit que l'application.</summary>
-    public string Catalogue { get; set; } = "https://olympia-guardian.github.io/data";
-
     /// <summary>
     /// Un jeton par personnage, retenu par identifiant de sauvegarde.
     ///

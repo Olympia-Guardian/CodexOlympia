@@ -21,7 +21,7 @@ public sealed record Retour(
 public static class Envoi
 {
     public static async Task<Retour> Deposer(
-        HttpClient http, Reglages r, string jeton, IReadOnlyList<Releve> releves)
+        HttpClient http, string jeton, IReadOnlyList<Releve> releves)
     {
         var collections = new Dictionary<string, List<uint>>();
         var portee = new Dictionary<string, List<uint>>();
@@ -43,7 +43,7 @@ public static class Envoi
         var corps = new Dictionary<string, object> { ["collections"] = collections };
         if (portee.Count > 0) corps["portee"] = portee;
 
-        using var req = new HttpRequestMessage(HttpMethod.Post, $"{r.Serveur.TrimEnd('/')}/plugin/photo")
+        using var req = new HttpRequestMessage(HttpMethod.Post, Site.Serveur + "/plugin/photo")
         {
             Content = new StringContent(JsonSerializer.Serialize(corps), Encoding.UTF8, "application/json"),
         };

@@ -154,7 +154,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             try
             {
-                Catalogue = await Catalogue.Charger(http, Reglages.Catalogue.TrimEnd('/'), cache);
+                Catalogue = await Catalogue.Charger(http, Site.Catalogue, cache);
                 journal.Information("catalogue charge ({0})", Catalogue.Date);
             }
             catch (Exception e)
@@ -242,7 +242,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             try
             {
-                Dernier = await Envoi.Deposer(http, Reglages, jeton, aEnvoyer);
+                Dernier = await Envoi.Deposer(http, jeton, aEnvoyer);
                 if (Dernier.Ok) discussion.Print("[Codex Olympia] " + Dernier.Message);
             }
             catch (Exception e)
