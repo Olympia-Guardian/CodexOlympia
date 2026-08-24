@@ -1,7 +1,7 @@
 # Codex Olympia Synchronisation
 
-Plugin Dalamud pour FINAL FANTASY XIV. Il lit ce que ton personnage a débloqué
-— collections, tenues et armoire comprises — et l'envoie à
+Plugin Dalamud pour FINAL FANTASY XIV. Il lit ce que ton personnage a débloqué,
+collections, tenues et armoire comprises, et l'envoie à
 [Codex Olympia](https://olympia-guardian.github.io/) quand tu le demandes.
 
 Rien ne part sans ton geste, et rien n'est jamais décoché à ta place : les
