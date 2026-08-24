@@ -27,10 +27,4 @@ La même adresse sert tous les plugins d'Olympia-Guardian, dont
 [AutoArmory](https://github.com/Olympia-Guardian/AutoArmory), qui range tes
 tenues dans la coiffeuse tout seul (expérimental).
 
-## Développement
-
-Développé avec assistance IA, niveau « Copilot » de la
-[politique de Dalamud](https://dalamud.dev/plugin-publishing/ai-policy/) :
-le comportement, les décisions et les tests en jeu sont humains.
-
 Sous licence [MIT](LICENSE).
