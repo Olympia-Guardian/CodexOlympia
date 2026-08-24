@@ -44,6 +44,10 @@ public enum Temps
     Transformer,
     Confirmer,
 
+    /// <summary>Le « Oui », un temps apres la case : deux gestes, comme a la
+    /// main, et on voit la case cochee avant que la reponse parte.</summary>
+    Oui,
+
     /// <summary>La question posee juste apres l'ouverture, quand la piece
     /// appartient a un ensemble deja depose : « Ranger et ajouter au mirage
     /// d'ensemble ? ». Elle precede la fenetre de conversion, elle ne la
@@ -520,6 +524,17 @@ public sealed class Rangeur
 
             case Temps.Confirmer:
             {
+                // Cocher « Confirmer » d'un VRAI clic. Poser le booleen de la
+                // case ne fait pas tourner le code du jeu qui note « confirme »
+                // et allume « Oui » : la version precedente le posait, la case
+                // restait visuellement vide et le bouton gris.
+                CliquerCase();
+                temps = Temps.Oui;
+                return false;
+            }
+
+            case Temps.Oui:
+            {
                 Repondre();
                 temps = Temps.Fini;
                 return false;
@@ -578,36 +593,61 @@ public sealed class Rangeur
     {
         var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
         if (oui is null || !oui->IsVisible) return false;
-
-        // Certaines questions ont une case « Confirmer », et « Oui » reste grise
-        // tant qu'elle n'est pas cochee. On la coche donc, quand il y en a une.
-        Cocher(oui->RootNode);
         oui->FireCallbackInt(0);
         return true;
     }
 
-    /// <summary>Coche la premiere case a cocher trouvee dans une fenetre.</summary>
-    private static unsafe void Cocher(AtkResNode* n)
+    /// <summary>Clique la case « Confirmer » de la question, s'il y en a une.</summary>
+    private unsafe void CliquerCase()
+    {
+        var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
+        if (oui is null || !oui->IsVisible) return;
+        var boite = TrouverComposant(oui->RootNode, ComponentType.CheckBox);
+        if (boite is null) return;
+        var deja = (AtkComponentCheckBox*)boite->Component;
+        if (deja is not null && deja->IsChecked) return;
+        Cliquer(oui, boite);
+    }
+
+    /// <summary>
+    /// Un vrai clic : on rejoue l'evenement que le noeud a lui-meme enregistre.
+    ///
+    /// Poser un booleen n'est qu'une ecriture que le jeu ignore ; rejouer son
+    /// evenement fait tourner son propre code, celui qui coche la case a l'ecran
+    /// et allume le bouton qu'elle garde.
+    /// </summary>
+    private static unsafe void Cliquer(AtkUnitBase* fenetre, AtkComponentNode* noeud)
+    {
+        var evt = noeud->AtkResNode.AtkEventManager.Event;
+        if (evt is null) return;
+        var data = stackalloc byte[64];
+        var ptrs = (void**)data;
+        ptrs[1] = noeud;
+        ptrs[2] = fenetre;
+        fenetre->ReceiveEvent(evt->State.EventType, (int)evt->Param, evt, (AtkEventData*)data);
+    }
+
+    /// <summary>Le premier composant d'un type donne, dans l'arbre d'une fenetre.</summary>
+    private static unsafe AtkComponentNode* TrouverComposant(AtkResNode* n, ComponentType type)
     {
         while (n is not null)
         {
             if ((ushort)n->Type >= 1000)
             {
-                var c = ((AtkComponentNode*)n)->Component;
+                var noeud = (AtkComponentNode*)n;
+                var c = noeud->Component;
                 if (c is not null)
                 {
-                    if (c->GetComponentType() == ComponentType.CheckBox)
-                    {
-                        var boite = (AtkComponentCheckBox*)c;
-                        if (!boite->IsChecked) boite->IsChecked = true;
-                        return;
-                    }
-                    Cocher(c->UldManager.RootNode);
+                    if (c->GetComponentType() == type) return noeud;
+                    var dedans = TrouverComposant(c->UldManager.RootNode, type);
+                    if (dedans is not null) return dedans;
                 }
             }
-            Cocher(n->ChildNode);
+            var enfant = TrouverComposant(n->ChildNode, type);
+            if (enfant is not null) return enfant;
             n = n->PrevSiblingNode;
         }
+        return null;
     }
 
     /// <summary>Combien d'emplacements la coiffeuse occupe.</summary>
