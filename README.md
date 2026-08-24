@@ -23,8 +23,4 @@ aussi dans le journal quand une pièce de tenue arrive dans tes sacs.
    Il ne s'affiche qu'une fois.
 4. Dans le jeu : `/codex` → onglet **Configuration** → colle le jeton.
 
-La même adresse sert tous les plugins d'Olympia-Guardian, dont
-[AutoArmory](https://github.com/Olympia-Guardian/AutoArmory), qui range tes
-tenues dans la coiffeuse tout seul (expérimental).
-
 Sous licence [MIT](LICENSE).
