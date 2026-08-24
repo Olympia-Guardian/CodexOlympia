@@ -49,6 +49,10 @@ public sealed class Reglages : IPluginConfiguration
     /// </summary>
     public bool RangerArmoire { get; set; }
 
+    /// <summary>Secondes entre deux gestes du rangement. Trois par défaut :
+    /// de quoi suivre ce qui se passe à l'écran.</summary>
+    public float CadenceRangement { get; set; } = 3f;
+
     /// <summary>
     /// Ce que chaque servant portait la dernière fois qu'on lui a parlé, par
     /// personnage puis par nom de servant.

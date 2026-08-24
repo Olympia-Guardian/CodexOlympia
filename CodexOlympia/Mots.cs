@@ -273,6 +273,14 @@ public static class Mots
         : D($"{reste} prismes de mirage seulement, il en faudrait {besoin} : ça s’arrêtera en route.",
             $"only {reste} glamour prisms, {besoin} needed: it will stop partway.");
     public static string RangeurErreur => D("quelque chose a mal tourné.", "something went wrong.");
+    public static string RangeurPasDeQuestion => D(
+        "le jeu n’a pas posé la question attendue. Regarde ton écran : une fenêtre attend "
+        + "peut-être une réponse que je ne sais pas donner.",
+        "the game did not ask the expected question. Look at your screen: a window may be "
+        + "waiting for an answer I do not know how to give.");
+    public static string RangeurCadence => D(
+        "secondes entre deux gestes",
+        "seconds between moves");
     public static string RangeurSansEffet => D(
         "le jeu a dit oui sans rien faire.",
         "the game said yes and did nothing.");

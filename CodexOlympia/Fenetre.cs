@@ -471,7 +471,22 @@ public sealed class Fenetre : Window, IDisposable
         }
         ImGui.Spacing();
 
-        if (ImGui.Button(Mots.RangeurLancer)) r.Demarrer(apercu);
+        ImGui.SetNextItemWidth(180);
+        var cadence = plugin.Reglages.CadenceRangement;
+        if (ImGui.SliderFloat("##cadence", ref cadence, 0.5f, 6f, "%.1f s"))
+        {
+            plugin.Reglages.CadenceRangement = cadence;
+            plugin.Enregistrer();
+        }
+        ImGui.SameLine();
+        ImGui.TextColored(Gris, Mots.RangeurCadence);
+        ImGui.Spacing();
+
+        if (ImGui.Button(Mots.RangeurLancer))
+        {
+            r.Cadence = plugin.Reglages.CadenceRangement;
+            r.Demarrer(apercu);
+        }
         if (r.Etat == EtatRangement.Fini && r.Total > 0)
         {
             ImGui.SameLine();

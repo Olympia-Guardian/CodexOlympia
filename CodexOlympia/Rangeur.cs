@@ -43,6 +43,10 @@ public enum Temps
     Valider,
     Transformer,
     Confirmer,
+
+    /// <summary>Le oui d'une tenue deja deposee : le jeu ne demande rien
+    /// d'autre, il n'y a ni fenetre de conversion ni bouton Transformer.</summary>
+    OuiSimple,
     Fini,
 }
 
@@ -92,6 +96,10 @@ public sealed class Rangeur
     /// <summary>Combien d'emplacements la coiffeuse occupait avant la conversion :
     /// c'est ce qui permet de distinguer un depot d'un oui poli.</summary>
     private int avantConversion;
+
+    /// <summary>Le temps entre deux gestes, en secondes. Regle par le joueur :
+    /// large, on voit ce qui se passe ; serre, ca va vite.</summary>
+    public double Cadence { get; set; } = 3.0;
 
     public EtatRangement Etat { get; private set; } = EtatRangement.Arrete;
     public string? Pourquoi { get; private set; }
@@ -293,11 +301,9 @@ public sealed class Rangeur
         if (maintenant < prochaine) return;
         // Une demi-seconde et des poussieres, et la poussiere varie : une cadence
         // reguliere au millieme ne ressemble a personne.
-        // Entre deux temps d'une meme conversion, on est plus vif : ce sont des
-        // gestes d'une meme action, pas des actions separees.
-        prochaine = maintenant
-            + (temps == Temps.Ouvrir ? 0.5 : 0.25)
-            + hasard.NextDouble() * 0.3;
+        // La meme attente partout : on regarde une machine travailler, et une
+        // cadence qui varie selon l'etape se lit mal.
+        prochaine = maintenant + Cadence + hasard.NextDouble() * 0.3;
 
         if (cat is null)
         {
@@ -371,6 +377,26 @@ public sealed class Rangeur
         {
             case Temps.Ouvrir:
             {
+                // Une tenue deja deposee se complete piece par piece : on rouvre
+                // pour chacune, et le jeu ne pose qu'une question.
+                if (tache.Moyen == Moyen.TenueEntamee && aTendre.Count > 0)
+                {
+                    var suivante = aTendre[0];
+                    var la = Trouver(suivante);
+                    aTendre.RemoveAt(0);
+                    if (la is null) return false;
+                    if (!agent->Open(
+                            suivante, la.Value.Contenant, la.Value.Case,
+                            IdFenetre("MiragePrismPrismBoxCrystallize"),
+                            IdFenetre("MiragePrismPrismBox"), true))
+                    {
+                        Arreter(Mots.RangeurRefus(tache.Nom));
+                        return false;
+                    }
+                    temps = Temps.OuiSimple;
+                    return false;
+                }
+
                 // Ce qu'on va tendre : les pieces de la tenue qu'on a sous la
                 // main et qui ne sont pas deja dans la coiffeuse.
                 aTendre.Clear();
@@ -407,7 +433,10 @@ public sealed class Rangeur
                 }
                 aTendre.RemoveAt(0);
                 avantConversion = Occupees();
-                temps = Temps.Tendre;
+                // Une tenue deja deposee n'a pas de fenetre de conversion : le
+                // jeu demande « Ranger et ajouter au mirage d'ensemble ? », et
+                // c'est tout.
+                temps = tache.Moyen == Moyen.TenueEntamee ? Temps.OuiSimple : Temps.Tendre;
                 return false;
             }
 
@@ -469,19 +498,21 @@ public sealed class Rangeur
                 return false;
             }
 
-            case Temps.Confirmer:
+            case Temps.OuiSimple:
             {
-                var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
-                if (oui is null || !oui->IsVisible)
+                if (!Repondre())
                 {
-                    // Pas de question posee : soit c'est deja fait, soit la
-                    // fenetre tarde. On laisse un tour de plus, puis on conclut.
-                    temps = Temps.Fini;
+                    Arreter(Mots.RangeurPasDeQuestion);
                     return false;
                 }
-                // Cocher « Confirmer », puis « Oui ». Deux gestes, comme a la main.
-                oui->FireCallbackInt(1);
-                oui->FireCallbackInt(0);
+                // Piece suivante, s'il en reste.
+                temps = aTendre.Count > 0 ? Temps.Ouvrir : Temps.Fini;
+                return false;
+            }
+
+            case Temps.Confirmer:
+            {
+                Repondre();
                 temps = Temps.Fini;
                 return false;
             }
@@ -504,6 +535,22 @@ public sealed class Rangeur
                 temps = Temps.Ouvrir;
                 return true;
         }
+    }
+
+    /// <summary>
+    /// Repond « Oui » a la question du jeu, si elle est posee.
+    ///
+    /// Zero, et zero seulement. Dans cette fenetre, un est « Non » : une version
+    /// precedente l'envoyait en croyant cocher « Confirmer », c'est-a-dire
+    /// qu'elle refusait poliment ce qu'elle venait de demander. La case a cocher
+    /// n'est pas un rappel, c'est un noeud a part.
+    /// </summary>
+    private unsafe bool Repondre()
+    {
+        var oui = (AtkUnitBase*)gui.GetAddonByName("SelectYesno").Address;
+        if (oui is null || !oui->IsVisible) return false;
+        oui->FireCallbackInt(0);
+        return true;
     }
 
     /// <summary>Combien d'emplacements la coiffeuse occupe.</summary>
