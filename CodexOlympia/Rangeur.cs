@@ -436,13 +436,24 @@ public sealed class Rangeur
                 var ou = Trouver(premiere)!.Value;
                 // Les identifiants des deux fenetres du jeu : l'agent en a
                 // besoin pour se rattacher a ce qui est ouvert.
-                var idCrystallize = IdFenetre("MiragePrismPrismBoxCrystallize");
                 var idCoiffeuse = IdFenetre("MiragePrismPrismBox");
                 if (idCoiffeuse == 0)
                 {
                     Arreter(Mots.RangeurCoiffeuseFermee);
                     return false;
                 }
+                // Le geste manuel part de la fenetre « Ranger », jamais
+                // d'ailleurs : sans elle, l'agent accepte tout et ne
+                // selectionne rien.
+                var idCrystallize = IdFenetre("MiragePrismPrismBoxCrystallize");
+                if (idCrystallize == 0)
+                {
+                    AgentMiragePrismPrismBox.Instance()->PopulateCrystallizeAndFireRefresh();
+                    if (++attenteQuestion < 4) return false;
+                    attenteQuestion = 0;
+                    return Passer(Mots.RangeurRangerFermee);
+                }
+                attenteQuestion = 0;
                 if (!agent->Open(premiere, ou.Contenant, ou.Case, idCrystallize, idCoiffeuse, true))
                 {
                     Arreter(Mots.RangeurRefus(tache.Nom));
@@ -524,6 +535,20 @@ public sealed class Rangeur
 
             case Temps.Confirmer:
             {
+                // Avant de repondre, LIRE. Une confirmation qui annonce zero
+                // prisme est une conversion vide : la selection a echoue, et un
+                // Oui la-dessus ne range rien, ou pire. On repond Non et on
+                // passe, plutot que de confirmer a l'aveugle.
+                var verdict = LireConfirmation();
+                if (verdict == Verdict.Vide
+                    || (verdict == Verdict.Doublon && tache.Moyen == Moyen.TenueNeuve))
+                {
+                    RepondreNon();
+                    return Passer(verdict == Verdict.Vide
+                        ? Mots.RangeurSelectionVide
+                        : Mots.RangeurDoublon(tache.Nom));
+                }
+
                 // La question peut mettre un instant a paraitre apres
                 // « Transformer » : on retente quelques tours avant de conclure.
                 if (!Repondre())
@@ -645,7 +670,7 @@ public sealed class Rangeur
         caseFaite = false;
 
         // Second geste : le bouton dont le clic porte le parametre zero.
-        var bouton = TrouverBoutonOui(fenetre->RootNode, out var clic);
+        var bouton = TrouverBouton(fenetre->RootNode, 0, out var clic);
         if (bouton is not null && clic is not null)
         {
             var composant = (AtkComponentButton*)bouton->Component;
@@ -662,6 +687,68 @@ public sealed class Rangeur
         return true;
     }
 
+    private enum Verdict
+    {
+        Rien,
+        Normale,
+        Vide,
+        Doublon,
+    }
+
+    /// <summary>
+    /// Ce que la confirmation annonce, lu dans ses propres textes.
+    ///
+    /// « Utiliser 0 prismes » veut dire qu'aucun objet n'est selectionne, et
+    /// « vous possedez deja un ensemble du meme type » qu'un Oui creerait un
+    /// doublon. Les deux se lisent, ils ne se devinent pas.
+    /// </summary>
+    private unsafe Verdict LireConfirmation()
+    {
+        var fenetre = Confirmation();
+        if (fenetre is null) return Verdict.Rien;
+
+        var vide = false;
+        var doublon = false;
+        for (var i = 0; i < fenetre->AtkValuesCount; i++)
+        {
+            var v = fenetre->AtkValues[i];
+            if (v.Type is not (AtkValueType.String or AtkValueType.ConstString)) continue;
+            var texte = v.String.ToString();
+            if (string.IsNullOrEmpty(texte)) continue;
+            if (texte.Contains("0 prisme", StringComparison.OrdinalIgnoreCase)
+                || texte.Contains("0 glamour prism", StringComparison.OrdinalIgnoreCase))
+                vide = true;
+            if (texte.Contains("possédez déjà un ensemble", StringComparison.OrdinalIgnoreCase)
+                || texte.Contains("already own", StringComparison.OrdinalIgnoreCase))
+                doublon = true;
+        }
+        if (vide) return Verdict.Vide;
+        if (doublon) return Verdict.Doublon;
+        return Verdict.Normale;
+    }
+
+    /// <summary>La fenetre de confirmation ouverte, ou rien.</summary>
+    private unsafe AtkUnitBase* Confirmation()
+    {
+        foreach (var nom in Confirmations)
+        {
+            var f = (AtkUnitBase*)gui.GetAddonByName(nom).Address;
+            if (f is not null && f->IsVisible) return f;
+        }
+        return null;
+    }
+
+    /// <summary>Clique « Non » : le bouton dont l'evenement porte le un.</summary>
+    private unsafe void RepondreNon()
+    {
+        var f = Confirmation();
+        if (f is null) return;
+        var bouton = TrouverBouton(f->RootNode, 1, out var clic);
+        if (bouton is not null && clic is not null)
+            f->ReceiveEvent(clic->State.EventType, (int)clic->Param, clic);
+        else f->FireCallbackInt(1);
+    }
+
     /// <summary>L'evenement « clic » (type 25) enregistre par un noeud.</summary>
     private static unsafe AtkEvent* EvenementClic(AtkComponentNode* noeud)
     {
@@ -674,9 +761,9 @@ public sealed class Rangeur
         return null;
     }
 
-    /// <summary>Le bouton dont le clic porte le parametre zero : « Oui ». C'est
-    /// le parametre qui nomme un bouton, pas sa place dans la fenetre.</summary>
-    private static unsafe AtkComponentNode* TrouverBoutonOui(AtkResNode* n, out AtkEvent* evenement)
+    /// <summary>Le bouton dont le clic porte ce parametre : zero est « Oui »,
+    /// un est « Non ». C'est le parametre qui nomme un bouton, pas sa place.</summary>
+    private static unsafe AtkComponentNode* TrouverBouton(AtkResNode* n, uint param, out AtkEvent* evenement)
     {
         evenement = null;
         while (n is not null)
@@ -690,13 +777,13 @@ public sealed class Rangeur
                     if (c->GetComponentType() == ComponentType.Button)
                     {
                         var evt = EvenementClic(noeud);
-                        if (evt is not null && evt->Param == 0)
+                        if (evt is not null && evt->Param == param)
                         {
                             evenement = evt;
                             return noeud;
                         }
                     }
-                    var dedans = TrouverBoutonOui(c->UldManager.RootNode, out var e1);
+                    var dedans = TrouverBouton(c->UldManager.RootNode, param, out var e1);
                     if (dedans is not null)
                     {
                         evenement = e1;
@@ -704,7 +791,7 @@ public sealed class Rangeur
                     }
                 }
             }
-            var enfant = TrouverBoutonOui(n->ChildNode, out var e2);
+            var enfant = TrouverBouton(n->ChildNode, param, out var e2);
             if (enfant is not null)
             {
                 evenement = e2;

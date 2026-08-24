@@ -266,6 +266,17 @@ public static class Mots
         D("ta coiffeuse mirage n'est pas ouverte.", "your glamour dresser is not open.");
     public static string RangeurRefus(string quoi) =>
         D($"le jeu a refusé « {quoi} ».", $"the game refused \"{quoi}\".");
+    public static string RangeurSelectionVide => D(
+        "la confirmation annonçait zéro prisme : aucune pièce n’était sélectionnée. On a répondu "
+        + "Non plutôt que de confirmer une conversion vide.",
+        "the confirmation said zero prisms: no piece was selected. We answered No rather than "
+        + "confirm an empty conversion.");
+    public static string RangeurDoublon(string nom) => D(
+        $"le jeu allait créer un second ensemble « {nom} ». On a répondu Non : pas de doublon.",
+        $"the game was about to create a second {nom} set. We answered No: no duplicates.");
+    public static string RangeurRangerFermee => D(
+        "la fenêtre « Ranger » de la coiffeuse ne s’ouvre pas.",
+        "the dresser’s Store window will not open.");
     public static string RangeurSansCatalogue => D("le catalogue a disparu.", "the catalogue is gone.");
     public static string RangeurSansPrisme => D(
         "il te manque des prismes de mirage. Chaque pièce déposée en consomme un.",
