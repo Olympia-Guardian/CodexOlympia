@@ -250,7 +250,15 @@ public sealed class Rangeur
                 // le set en occupe UN, qu'on le remplisse en une fois ou en cinq,
                 // et le jeu accepte explicitement les emplacements vides. La
                 // regle ne faisait que laisser les pieces pourrir dans les sacs.
-                var enMain = manquantes.Where(p => Trouver(p.Objet) is not null).ToList();
+                // `prises` : une piece deja revendiquee par une tenue de cette
+                // passe ne peut pas l'etre par une autre. Deux ensembles
+                // partagent parfois une piece — les accessoires Praemagitek de
+                // pisteur et d'eclaireur sont les memes objets — mais on n'en
+                // possede qu'un exemplaire. Le premier le prend, le second s'en
+                // passe et sera cree quand meme, avec ce qui lui reste.
+                var enMain = manquantes
+                    .Where(p => !prises.Contains(p.Objet) && Trouver(p.Objet) is not null)
+                    .ToList();
                 if (enMain.Count == 0) continue;
 
                 var entamee = deposees.TryGetValue(t.Id, out var place);
