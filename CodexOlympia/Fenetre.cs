@@ -153,6 +153,12 @@ public sealed class Fenetre : Window, IDisposable
         {
             ImGui.TextColored(Gris, Mots.EnvoiEnCours);
         }
+        else if (plugin.EnVerification)
+        {
+            // Un releve a zero peut encore etre un releve en retard : on
+            // n'envoie pas ce qu'on est en train de relire.
+            ImGui.TextColored(Or, Mots.VerificationAttente + Points());
+        }
         else if (ImGui.Button(Mots.Envoyer, new Vector2(220, 30)))
         {
             plugin.Envoyer();
@@ -279,7 +285,7 @@ public sealed class Fenetre : Window, IDisposable
                 ImGui.SetWindowFontScale(1.3f);
                 ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
                 ImGui.SetWindowFontScale(1f);
-                if (plugin.EnFile(cle))
+                if (plugin.EnFile(cle) || (plugin.EnVerification && plugin.Douteuse(cle)))
                 {
                     ImGui.SameLine();
                     ImGui.TextColored(Or, Mots.Verification + Points());

@@ -92,6 +92,9 @@ public static class Mots
         "The others are neither added nor reported missing: tick them by hand\n" +
         "in the app, as before.");
     public static string Verification => D("vérification", "double-checking");
+    public static string VerificationAttente => D(
+        "vérification en cours, l'envoi attend",
+        "double-checking, sending will wait");
     public static string AOuvrirTitre => D("À ouvrir en jeu", "Open in game first");
     public static string AOuvrirAide => D(
         "Le jeu ne charge ces collections qu'à l'ouverture de leur fenêtre : le carnet de " +

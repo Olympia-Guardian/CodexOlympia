@@ -76,9 +76,28 @@ public sealed class Plugin : IDalamudPlugin
     /// Plutôt que de demander au joueur de relancer, on relit nous-mêmes.</summary>
     private static readonly string[] ParObjet = ["hairstyles", "facewear", "bardings", "frames"];
 
-    /// <summary>Le délai avant la revérification : assez pour que le jeu ait fini
+    /// <summary>Le délai entre deux relectures : assez pour que le jeu ait fini
     /// de charger ce qu'il chargeait, assez court pour qu'on ne l'attende pas.</summary>
     private const double DelaiReverification = 2.0;
+
+    /// <summary>Combien de relectures avant de conclure que zéro est la vraie
+    /// réponse. Un personnage qui n'a aucune barde renverra zéro pour toujours,
+    /// et rien ne distingue ce zéro-là d'une table pas encore chargée : sans
+    /// plafond, on relirait jusqu'à la déconnexion.</summary>
+    private const int MaxRelectures = 8;
+
+    /// <summary>Relectures automatiques faites depuis la dernière lecture complète.</summary>
+    private int relectures;
+
+    /// <summary>Vrai tant que la chaîne de revérification n'a pas conclu : rien ne
+    /// part pendant ce temps, un relevé à zéro pourrait être un relevé en retard.</summary>
+    public bool EnVerification { get; private set; }
+
+    /// <summary>Une collection lue à zéro alors que le jeu savait répondre : celle
+    /// que la chaîne relit.</summary>
+    public bool Douteuse(string cle) =>
+        ParObjet.Contains(cle)
+        && Releves.Any(r => r.Cle == cle && r.Empeche is null && r.Trouves.Count == 0 && r.Total > 0);
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 
@@ -212,30 +231,34 @@ public sealed class Plugin : IDalamudPlugin
         Faites = 0;
         AFaire = file.Count;
         prochaine = 0;
+        relectures = 0;
+        EnVerification = true;
         reverifieA = -1; // a programmer quand la lecture aura fini
     }
 
     /// <summary>Relit sans geste les collections lues vides alors que le jeu
-    /// savait répondre. Une seule fois par lecture complète : une seconde
-    /// lecture vide est une vraie réponse, pas un retard.</summary>
+    /// savait répondre, et recommence tant qu'elles reviennent vides, jusqu'au
+    /// plafond. Le cas rapporté est celui où la portée revient VIDE : la table
+    /// des objets du jeu n'était pas encore en mémoire, aucune entrée n'a pu
+    /// être lue, et une lecture plus tard les trouve toutes.</summary>
     private void Reverifier()
     {
-        // Le cas rapporte est precisement celui ou la portee revient VIDE : la
-        // table des objets du jeu n'etait pas encore en memoire, aucune entree
-        // n'a pu etre lue, et une seconde lecture les trouve toutes. La portee
-        // ne doit donc pas servir de garde : seul compte le vide.
-        var douteuses = Releves
-            .Where(r => ParObjet.Contains(r.Cle) && r.Empeche is null && r.Trouves.Count == 0)
-            .Where(r => r.Total > 0)
-            .Select(r => r.Cle)
-            .Distinct()
-            .ToList();
-        if (douteuses.Count == 0) return;
+        var douteuses = ParObjet.Where(Douteuse).ToList();
+        if (douteuses.Count == 0 || relectures >= MaxRelectures)
+        {
+            // Plus rien a relire, ou plus le droit : la chaine conclut.
+            if (douteuses.Count > 0)
+                journal.Information("revérification : zéro confirmé après {0} relectures ({1})",
+                    relectures, string.Join(", ", douteuses));
+            EnVerification = false;
+            return;
+        }
+        relectures++;
         foreach (var cle in douteuses) file.Enqueue(cle);
         Faites = 0;
         AFaire = file.Count;
         prochaine = 0;
-        journal.Information("revérification : {0}", string.Join(", ", douteuses));
+        journal.Information("revérification {0}/{1} : {2}", relectures, MaxRelectures, string.Join(", ", douteuses));
     }
 
     /// <summary>
@@ -284,7 +307,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (!LectureEnCours)
         {
-            // La lecture vient de finir : la revérification part dans un instant.
+            if (!EnVerification) return;
+            // Une passe vient de finir : la suivante part dans un instant.
             if (reverifieA < 0) reverifieA = maintenant + DelaiReverification;
             else if (reverifieA > 0 && maintenant >= reverifieA)
             {
@@ -321,6 +345,7 @@ public sealed class Plugin : IDalamudPlugin
             Coffre = coffre;
             file.Dequeue();
             Faites++;
+            if (file.Count == 0 && EnVerification) reverifieA = -1;
         }
         catch (Exception e)
         {
@@ -329,6 +354,7 @@ public sealed class Plugin : IDalamudPlugin
             file.Clear();
             AFaire = 0;
             reverifieA = 0;
+            EnVerification = false;
             Dernier = new Retour(false, Mots.LectureEchouee(e.Message), [], []);
         }
     }
