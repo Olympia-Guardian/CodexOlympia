@@ -198,7 +198,29 @@ public sealed class Fenetre : Window, IDisposable
     /// collection que le jeu n'avait pas chargee porte son conseil au survol et
     /// un bouton pour la relire seule, une fois la bonne fenetre ouverte en jeu.
     /// </summary>
+    /// <summary>Les collections que le jeu ne charge qu'a l'ouverture de leur
+    /// fenetre. Elles se presentent a part, sous le mot qui dit quoi ouvrir.</summary>
+    private static readonly string[] AOuvrir = ["achievements", "armoires", "outfitpieces", "outfits"];
+
     private void Cartes(IReadOnlyList<Releve> releves)
+    {
+        var directes = Mots.Collections.Where(c => !AOuvrir.Contains(c.Cle)).ToList();
+        var aOuvrir = Mots.Collections.Where(c => AOuvrir.Contains(c.Cle)).ToList();
+
+        Grille(releves, directes);
+
+        // Le mot est visible d'emblee, pas cache dans le survol d'un bouton :
+        // c'est lui qui evite de croire a une panne.
+        ImGui.Spacing();
+        ImGui.TextColored(Or, Mots.AOuvrirTitre);
+        ImGui.PushTextWrapPos(0);
+        ImGui.TextColored(Gris, Mots.AOuvrirAide);
+        ImGui.PopTextWrapPos();
+        ImGui.Spacing();
+        Grille(releves, aOuvrir);
+    }
+
+    private void Grille(IReadOnlyList<Releve> releves, IReadOnlyList<(string Cle, string Nom)> collections)
     {
         const float gap = 8f;
         const float hauteur = 112f;
@@ -210,7 +232,7 @@ public sealed class Fenetre : Window, IDisposable
         var lecture = plugin.LectureEnCours;
         var i = 0;
         ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 8f);
-        foreach (var (cle, nom) in Mots.Collections)
+        foreach (var (cle, nom) in collections)
         {
             var x = releves.FirstOrDefault(v => v.Cle == cle);
             // Pendant une lecture, les cartes a venir restent visibles : on voit
@@ -257,6 +279,11 @@ public sealed class Fenetre : Window, IDisposable
                 ImGui.SetWindowFontScale(1.3f);
                 ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
                 ImGui.SetWindowFontScale(1f);
+                if (plugin.EnFile(cle))
+                {
+                    ImGui.SameLine();
+                    ImGui.TextColored(Or, Mots.Verification + Points());
+                }
                 if (x.Total > 0)
                 {
                     var part = Math.Clamp((float)x.Trouves.Count / x.Total, 0f, 1f);

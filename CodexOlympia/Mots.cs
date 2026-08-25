@@ -83,12 +83,21 @@ public static class Mots
         "Open the required game window first, then rescan just this collection. The rest of the report stays.");
 
     public static string Verifiables(int n, int total) =>
-        D($"{n} sur {total} vérifiables", $"{n} of {total} checkable");
+        D($"{n} lisibles sur {total}", $"{n} readable of {total}");
     public static string VerifiablesAide => D(
-        "Le jeu ne sait pas répondre pour le reste de cette collection.\n" +
-        "Ces entrées-là sont laissées tranquilles : ni ajoutées, ni signalées manquantes.",
-        "The game cannot answer for the rest of this collection.\n" +
-        "Those entries are left alone: neither added, nor reported missing.");
+        "Le jeu ne sait répondre que pour les entrées liées à un objet de déblocage.\n" +
+        "Les autres ne sont ni ajoutées ni signalées manquantes : elles se cochent\n" +
+        "à la main dans l'application, comme avant.",
+        "The game can only answer for entries tied to an unlock item.\n" +
+        "The others are neither added nor reported missing: tick them by hand\n" +
+        "in the app, as before.");
+    public static string Verification => D("vérification", "double-checking");
+    public static string AOuvrirTitre => D("À ouvrir en jeu", "Open in game first");
+    public static string AOuvrirAide => D(
+        "Le jeu ne charge ces collections qu'à l'ouverture de leur fenêtre : le carnet de " +
+        "succès, la coiffeuse mirage et l'armoire chez un rassembleur. Ouvre-les, puis Relire.",
+        "The game only loads these collections when their window opens: the achievements " +
+        "log, the glamour dresser and the armoire at a Calamity Salvager. Open them, then Rescan.");
 
     public static string AjoutSeulement => D("ajout seulement", "adds only");
     public static string AjoutSeulementAide => D(

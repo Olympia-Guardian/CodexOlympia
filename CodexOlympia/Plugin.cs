@@ -66,6 +66,19 @@ public sealed class Plugin : IDalamudPlugin
 
     /// <summary>Vrai si cette collection attend son tour dans la file.</summary>
     public bool EnFile(string cle) => file.Contains(EtapeDe(cle));
+
+    /// <summary>Quand la revérification doit partir, en secondes de jeu. Zéro :
+    /// aucune n'est due.</summary>
+    private double reverifieA;
+
+    /// <summary>Les collections lues objet par objet : le jeu leur répond parfois
+    /// « rien » à la première lecture après la connexion, et tout à la seconde.
+    /// Plutôt que de demander au joueur de relancer, on relit nous-mêmes.</summary>
+    private static readonly string[] ParObjet = ["hairstyles", "facewear", "bardings", "frames"];
+
+    /// <summary>Le délai avant la revérification : assez pour que le jeu ait fini
+    /// de charger ce qu'il chargeait, assez court pour qu'on ne l'attende pas.</summary>
+    private const double DelaiReverification = 2.0;
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 
@@ -199,6 +212,26 @@ public sealed class Plugin : IDalamudPlugin
         Faites = 0;
         AFaire = file.Count;
         prochaine = 0;
+        reverifieA = -1; // a programmer quand la lecture aura fini
+    }
+
+    /// <summary>Relit sans geste les collections lues vides alors que le jeu
+    /// savait répondre. Une seule fois par lecture complète : une seconde
+    /// lecture vide est une vraie réponse, pas un retard.</summary>
+    private void Reverifier()
+    {
+        var douteuses = Releves
+            .Where(r => ParObjet.Contains(r.Cle) && r.Empeche is null && r.Trouves.Count == 0)
+            .Where(r => (r.Portee?.Count ?? r.Total) > 0)
+            .Select(r => r.Cle)
+            .Distinct()
+            .ToList();
+        if (douteuses.Count == 0) return;
+        foreach (var cle in douteuses) file.Enqueue(cle);
+        Faites = 0;
+        AFaire = file.Count;
+        prochaine = 0;
+        journal.Information("revérification : {0}", string.Join(", ", douteuses));
     }
 
     /// <summary>
@@ -245,7 +278,17 @@ public sealed class Plugin : IDalamudPlugin
     /// lit sans risque.</summary>
     public void Avancer(double maintenant)
     {
-        if (!LectureEnCours) return;
+        if (!LectureEnCours)
+        {
+            // La lecture vient de finir : la revérification part dans un instant.
+            if (reverifieA < 0) reverifieA = maintenant + DelaiReverification;
+            else if (reverifieA > 0 && maintenant >= reverifieA)
+            {
+                reverifieA = 0;
+                Reverifier();
+            }
+            return;
+        }
         if (maintenant < prochaine) return;
         prochaine = maintenant + Cadence;
 
@@ -281,6 +324,7 @@ public sealed class Plugin : IDalamudPlugin
             Releves = [];
             file.Clear();
             AFaire = 0;
+            reverifieA = 0;
             Dernier = new Retour(false, Mots.LectureEchouee(e.Message), [], []);
         }
     }
