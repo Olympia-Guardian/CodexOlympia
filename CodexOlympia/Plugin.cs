@@ -220,9 +220,13 @@ public sealed class Plugin : IDalamudPlugin
     /// lecture vide est une vraie réponse, pas un retard.</summary>
     private void Reverifier()
     {
+        // Le cas rapporte est precisement celui ou la portee revient VIDE : la
+        // table des objets du jeu n'etait pas encore en memoire, aucune entree
+        // n'a pu etre lue, et une seconde lecture les trouve toutes. La portee
+        // ne doit donc pas servir de garde : seul compte le vide.
         var douteuses = Releves
             .Where(r => ParObjet.Contains(r.Cle) && r.Empeche is null && r.Trouves.Count == 0)
-            .Where(r => (r.Portee?.Count ?? r.Total) > 0)
+            .Where(r => r.Total > 0)
             .Select(r => r.Cle)
             .Distinct()
             .ToList();
