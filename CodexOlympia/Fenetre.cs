@@ -282,17 +282,21 @@ public sealed class Fenetre : Window, IDisposable
             }
             else
             {
+                // Le denominateur est ce que le plugin sait lire : quand le jeu ne
+                // repond que pour une partie du catalogue, « 0 / 398 » ment a qui
+                // possede tout ce qui se lit. Le reste est dit en dessous.
+                var lisibles = x.Limite == Limite.Capacite && x.Portee is not null ? x.Portee.Count : x.Total;
                 ImGui.SetWindowFontScale(1.3f);
-                ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {x.Total}");
+                ImGui.TextColored(x.Trouves.Count > 0 ? Vert : Gris, $"{x.Trouves.Count} / {lisibles}");
                 ImGui.SetWindowFontScale(1f);
                 if (plugin.EnFile(cle) || (plugin.EnVerification && plugin.Douteuse(cle)))
                 {
                     ImGui.SameLine();
                     ImGui.TextColored(Or, Mots.Verification + Points());
                 }
-                if (x.Total > 0)
+                if (lisibles > 0)
                 {
-                    var part = Math.Clamp((float)x.Trouves.Count / x.Total, 0f, 1f);
+                    var part = Math.Clamp((float)x.Trouves.Count / lisibles, 0f, 1f);
                     ImGui.PushStyleColor(ImGuiCol.PlotHistogram, x.Trouves.Count > 0 ? Vert : Gris);
                     ImGui.ProgressBar(part, new Vector2(-1, 5), string.Empty);
                     ImGui.PopStyleColor();
@@ -319,9 +323,17 @@ public sealed class Fenetre : Window, IDisposable
         switch (x.Limite)
         {
             case Limite.Capacite:
-                ImGui.TextColored(Gris, Mots.Verifiables(x.Portee?.Count ?? 0, x.Total));
-                Survol(Mots.VerifiablesAide);
+            {
+                // Ce que le jeu ne sait pas lire n'est ni compte ni reproche :
+                // il se coche dans l'application, et le survol dit pourquoi.
+                var reste = x.Total - (x.Portee?.Count ?? 0);
+                if (reste > 0)
+                {
+                    ImGui.TextColored(Gris, Mots.AuJournal(reste));
+                    Survol(Mots.VerifiablesAide);
+                }
                 break;
+            }
             case Limite.Depot:
                 ImGui.TextColored(Gris, Mots.AjoutSeulement);
                 Survol(Mots.AjoutSeulementAide);

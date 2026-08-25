@@ -82,8 +82,9 @@ public static class Mots
         "Ouvre d'abord la fenêtre demandée en jeu, puis relis cette collection seule. Le reste du relevé ne bouge pas.",
         "Open the required game window first, then rescan just this collection. The rest of the report stays.");
 
-    public static string Verifiables(int n, int total) =>
-        D($"{n} lisibles sur {total}", $"{n} readable of {total}");
+    public static string AuJournal(int n) => n == 1
+        ? D("1 autre se coche dans l'application", "1 more is ticked in the app")
+        : D($"{n} autres se cochent dans l'application", $"{n} more are ticked in the app");
     public static string VerifiablesAide => D(
         "Le jeu ne sait répondre que pour les entrées liées à un objet de déblocage.\n" +
         "Les autres ne sont ni ajoutées ni signalées manquantes : elles se cochent\n" +
