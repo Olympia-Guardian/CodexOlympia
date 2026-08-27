@@ -18,7 +18,7 @@ namespace CodexOlympia;
 /// Automatisation : celui-ci ne fait qu'ajouter un mot dans le journal quand
 /// une piece de tenue arrive.
 /// </summary>
-public sealed class Plugin : IDalamudPlugin
+public sealed partial class Plugin : IDalamudPlugin
 {
     private const string Commande = "/codex";
 
@@ -30,6 +30,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IPluginLog journal;
     private readonly IChatGui discussion;
     private readonly IGameInventory sacs;
+    private readonly ICondition condition;
+    private readonly IFramework cadre;
     public ITextureProvider Textures { get; }
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
@@ -125,7 +127,9 @@ public sealed class Plugin : IDalamudPlugin
         IPluginLog journal,
         IChatGui discussion,
         IGameInventory sacs,
-        ITextureProvider textures)
+        ITextureProvider textures,
+        ICondition condition,
+        IFramework cadre)
     {
         Textures = textures;
         this.pi = pi;
@@ -136,6 +140,8 @@ public sealed class Plugin : IDalamudPlugin
         this.journal = journal;
         this.discussion = discussion;
         this.sacs = sacs;
+        this.condition = condition;
+        this.cadre = cadre;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
@@ -147,6 +153,14 @@ public sealed class Plugin : IDalamudPlugin
         pi.UiBuilder.OpenMainUi += Ouvrir;
         pi.UiBuilder.OpenConfigUi += Ouvrir;
         sacs.ItemAdded += PieceArrivee;
+        // La lecture avance a chaque image du jeu, fenetre ouverte ou non : la
+        // synchro automatique ne peut pas dependre d'une fenetre qu'on n'ouvre
+        // plus une fois qu'elle est reglee.
+        cadre.Update += Tour;
+        etat.Login += SurConnexion;
+        etat.Logout += SurDeconnexion;
+        etat.TerritoryChanged += SurZone;
+        if (etat.IsLoggedIn) SurConnexion();
 
         commandes.AddHandler(Commande, new CommandInfo((_, _) => Ouvrir())
         {
@@ -158,6 +172,10 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        cadre.Update -= Tour;
+        etat.Login -= SurConnexion;
+        etat.Logout -= SurDeconnexion;
+        etat.TerritoryChanged -= SurZone;
         sacs.ItemAdded -= PieceArrivee;
         commandes.RemoveHandler(Commande);
         pi.UiBuilder.Draw -= fenetres.Draw;
@@ -234,6 +252,7 @@ public sealed class Plugin : IDalamudPlugin
         Dernier = null;
         Releves = [];
         Coffre = null;
+        evalue = false;
         file.Clear();
         foreach (var cle in Photo.Ordre) file.Enqueue(cle);
         Faites = 0;
@@ -282,6 +301,7 @@ public sealed class Plugin : IDalamudPlugin
         var cat = Catalogue;
         if (cat is null || !cat.Pret || LectureEnCours) return;
         Dernier = null;
+        evalue = false;
         var etape = EtapeDe(cle);
         if (etape is "armoires" or "outfitpieces")
         {
@@ -378,12 +398,20 @@ public sealed class Plugin : IDalamudPlugin
 
         EnvoiEnCours = true;
         var aEnvoyer = Releves;
+        var pour = ContentId;
         _ = Task.Run(async () =>
         {
             try
             {
                 Dernier = await Envoi.Deposer(http, jeton, aEnvoyer);
-                if (Dernier.Ok) discussion.Print("[Codex Olympia] " + Dernier.Message);
+                if (Dernier.Ok)
+                {
+                    discussion.Print("[Codex Olympia] " + Dernier.Message);
+                    // Ce qui vient de partir devient la reference du neuf. Range
+                    // depuis le fil du jeu, au prochain tour : les reglages ne
+                    // s'ecrivent pas depuis un fil de fond.
+                    aRetenir = (pour, Photographie(aEnvoyer));
+                }
             }
             catch (Exception e)
             {

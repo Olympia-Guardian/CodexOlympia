@@ -362,6 +362,35 @@ public static class Mots
         $"« {piece} » fait partie de la tenue « {tenue} ». Dépose-la dans ta coiffeuse pour qu'elle compte.",
         $"\"{piece}\" belongs to the \"{tenue}\" outfit. Put it in your glamour dresser so it counts.");
     public static string AvisTitre => D("Prévenir en jeu", "Notify in game");
+
+    // ---------------------------------------------- la synchro automatique
+    public static string SyncAutoTitre => D("Synchronisation automatique", "Automatic sync");
+    public static string SyncAutoExplique => D(
+        "Le plugin regarde tout seul à la connexion, au changement de zone et toutes les cinq " +
+        "minutes, et envoie dès qu'il y a du neuf depuis le dernier envoi. Jamais en combat, en " +
+        "instance ou en cinématique, jamais deux fois en moins d'une minute. Rien n'est jamais " +
+        "retiré : c'est la même photo que le bouton, sans le bouton.",
+        "The plugin looks on its own at login, on zone change and every five minutes, and sends " +
+        "as soon as there is something new since the last send. Never in combat, in a duty or " +
+        "in a cutscene, never twice within a minute. Nothing is ever removed: it is the same " +
+        "snapshot as the button, without the button.");
+    public static string SyncAutoEtat(double dans) => dans < 0
+        ? D("Synchro automatique : en attente de la connexion", "Auto sync: waiting for login")
+        : dans < 1
+            ? D("Synchro automatique : lecture imminente", "Auto sync: about to read")
+            : D($"Synchro automatique : prochaine lecture dans {dans:F0} s", $"Auto sync: next read in {dans:F0} s");
+    public static string NouveautesTitre(int n) => D(
+        $"{n} nouveauté(s) depuis le dernier envoi",
+        $"{n} new since the last send");
+    public static string NouveautesJamais => D(
+        "Rien n'a encore été envoyé depuis ce plugin pour ce personnage : tout ce qui a été lu est à envoyer.",
+        "Nothing has been sent from this plugin for this character yet: everything read is pending.");
+    public static string EtAutres(int n) => D($"et {n} autre(s)", $"and {n} more");
+    public static string RienDeNeuf => D("Rien de neuf depuis le dernier envoi.", "Nothing new since the last send.");
+
+    // --------------------------------------------------------------- le pied
+    public static string Discord => "Discord";
+    public static string Bugs => D("Signaler un bug", "Report a bug");
     public static string PastillesExplique => D(
         "Une pastille sur les objets de ton sac qu'il reste à déposer.",
         "A dot on the items in your bag that are still waiting to be deposited.");

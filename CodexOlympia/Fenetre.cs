@@ -45,7 +45,8 @@ public sealed class Fenetre : Window, IDisposable
     {
         // La lecture se fait ici, une collection par image : c'est le fil du jeu,
         // le seul d'ou sa mémoire se lit sans risque.
-        plugin.Avancer(ImGui.GetTime());
+        // (La lecture avance désormais à chaque image du jeu, fenêtre ouverte
+        // ou non : voir Plugin.Tour. Ici on ne fait que montrer.)
 
         if (!ImGui.BeginTabBar("pages")) return;
         if (ImGui.BeginTabItem(Mots.PageSync))
@@ -62,6 +63,40 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.EndTabItem();
         }
         ImGui.EndTabBar();
+        Pied();
+    }
+
+    // ------------------------------------------------------------ le pied
+
+    /// <summary>Le Discord de l'appli, où l'on pose ses questions.</summary>
+    private const string Discord = "https://discord.gg/vG4sMjjHFy";
+
+    /// <summary>Le forum des bugs, sur ce Discord : un post par bug.</summary>
+    private const string Bugs = "https://discord.com/channels/1542459890524749864/1542472939427864706";
+
+    /// <summary>Trois boutons, toujours au même endroit, quelle que soit la
+    /// page : parler, signaler, soutenir. Les couleurs disent lequel est lequel
+    /// avant même de lire.</summary>
+    private void Pied()
+    {
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        Lien(Mots.Discord, Discord, new Vector4(0.35f, 0.40f, 0.95f, 1f));
+        ImGui.SameLine();
+        Lien(Mots.Bugs, Bugs, new Vector4(0.75f, 0.22f, 0.22f, 1f));
+        ImGui.SameLine();
+        Lien(Mots.Soutien, Cafe, new Vector4(0.18f, 0.55f, 0.34f, 1f));
+        Survol(Mots.SoutienAide);
+    }
+
+    private static void Lien(string texte, string adresse, Vector4 teinte)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Button, teinte);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, teinte * new Vector4(1.15f, 1.15f, 1.15f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, teinte * new Vector4(0.85f, 0.85f, 0.85f, 1f));
+        if (ImGui.Button(texte)) Dalamud.Utility.Util.OpenLink(adresse);
+        ImGui.PopStyleColor(3);
     }
 
     // ------------------------------------------------------- la page du jour
@@ -149,6 +184,7 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.Spacing();
         }
 
+        Nouveautes(releves);
         if (plugin.EnvoiEnCours)
         {
             ImGui.TextColored(Gris, Mots.EnvoiEnCours);
@@ -436,6 +472,18 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.Separator();
         ImGui.Spacing();
 
+        ImGui.TextColored(Or, Mots.SyncAutoTitre);
+        var auto = r.SyncAuto;
+        if (ImGui.Checkbox("##auto", ref auto))
+        {
+            r.SyncAuto = auto;
+            plugin.Enregistrer();
+        }
+        ImGui.SameLine();
+        ImGui.TextWrapped(Mots.SyncAutoExplique);
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
         ImGui.TextColored(Or, Mots.Langue_);
         ImGui.SetNextItemWidth(200);
         var choix = (int)r.Langue;
@@ -448,13 +496,57 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
-        if (ImGui.Button(Mots.Soutien)) Dalamud.Utility.Util.OpenLink(Cafe);
-        ImGui.SameLine();
-        ImGui.TextColored(Gris, Mots.SoutienAide);
+        // (Le pot à café est au pied de la fenêtre, avec le Discord et les bugs.)
     }
 
     /// <summary>Le pot à café de l'auteur de l'application.</summary>
     private const string Cafe = "https://buymeacoffee.com/derp4kiin";
+
+    /// <summary>
+    /// Ce qui attend d'être envoyé, quand la synchro automatique est éteinte :
+    /// les objets nouveaux depuis le dernier envoi, par collection et par leur
+    /// nom, avant le bouton qui les envoie. Quand elle est allumée, une ligne
+    /// dit quand elle repassera.
+    /// </summary>
+    private void Nouveautes(IReadOnlyList<Releve> releves)
+    {
+        if (plugin.Reglages.SyncAuto)
+        {
+            ImGui.TextColored(Gris, Mots.SyncAutoEtat(plugin.ProchaineLectureDans));
+            ImGui.Spacing();
+            return;
+        }
+        var neuf = plugin.Nouveautes();
+        var total = neuf.Sum(n => n.Ids.Count);
+        if (total == 0)
+        {
+            if (releves.Count > 0 && !plugin.JamaisEnvoye) ImGui.TextColored(Gris, Mots.RienDeNeuf);
+            ImGui.Spacing();
+            return;
+        }
+        ImGui.TextColored(Or, Mots.NouveautesTitre(total));
+        if (plugin.JamaisEnvoye)
+        {
+            ImGui.PushTextWrapPos(0);
+            ImGui.TextColored(Gris, Mots.NouveautesJamais);
+            ImGui.PopTextWrapPos();
+            ImGui.Spacing();
+            return;
+        }
+        const int parCollection = 8;
+        var cat = plugin.Catalogue;
+        foreach (var (cle, ids) in neuf)
+        {
+            var noms = ids.Take(parCollection).Select(id => cat?.Nom(cle, id) ?? $"#{id}");
+            var suite = ids.Count > parCollection ? " " + Mots.EtAutres(ids.Count - parCollection) : string.Empty;
+            ImGui.PushTextWrapPos(0);
+            ImGui.TextColored(Gris, $"{Lisible(cle)} ({ids.Count}) : ");
+            ImGui.SameLine(0, 0);
+            ImGui.TextWrapped(string.Join(", ", noms) + suite);
+            ImGui.PopTextWrapPos();
+        }
+        ImGui.Spacing();
+    }
 
     // ------------------------------------------------------------------ menu
 

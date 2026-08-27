@@ -40,6 +40,24 @@ public sealed class Catalogue
     /// <summary>L'objet qui déverrouille, quand l'entrée en a un.</summary>
     public Dictionary<string, Dictionary<uint, uint>> Objets { get; } = new();
 
+    /// <summary>Le nom de chaque entrée, dans les deux langues, par collection :
+    /// pour dire « Colibri callado » plutôt que « monture 435 » quand on liste
+    /// ce qui attend d'être envoyé.</summary>
+    public Dictionary<string, Dictionary<uint, (string Fr, string En)>> Noms { get; } = new();
+
+    /// <summary>Le nom d'une entrée dans la langue de la fenêtre, ou son numéro
+    /// si le catalogue ne le connaît pas.</summary>
+    public string Nom(string cle, uint id)
+    {
+        if (Noms.TryGetValue(cle, out var noms) && noms.TryGetValue(id, out var n))
+        {
+            var nom = Mots.Fr ? n.Fr : n.En;
+            if (nom.Length == 0) nom = Mots.Fr ? n.En : n.Fr;
+            if (nom.Length > 0) return nom;
+        }
+        return $"#{id}";
+    }
+
     /// <summary>Les tenues et leurs pièces.</summary>
     public List<Tenue> Tenues { get; } = [];
 
@@ -119,6 +137,7 @@ public sealed class Catalogue
 
         var ids = new List<uint>();
         var objets = new Dictionary<uint, uint>();
+        var noms = new Dictionary<uint, (string Fr, string En)>();
         foreach (var e in liste.EnumerateArray())
         {
             if (!e.TryGetProperty("id", out var ji) || ji.ValueKind != JsonValueKind.Number) continue;
@@ -126,6 +145,7 @@ public sealed class Catalogue
             ids.Add(id);
             if (e.TryGetProperty("itemId", out var jo) && jo.ValueKind == JsonValueKind.Number)
                 objets[id] = jo.GetUInt32();
+            noms[id] = (Texte(e, "name"), Texte(e, "nameEn"));
 
             if (cle != "outfits") continue;
             if (!e.TryGetProperty("pieces", out var jp) || jp.ValueKind != JsonValueKind.Array) continue;
@@ -144,5 +164,15 @@ public sealed class Catalogue
 
         Ids[cle] = [.. ids];
         Objets[cle] = objets;
+        Noms[cle] = noms;
+        // Les pièces n'ont pas de fichier à elles : elles vivent dans les tenues.
+        if (cle == "outfits")
+        {
+            var pieces = new Dictionary<uint, (string Fr, string En)>();
+            foreach (var t in Tenues)
+                foreach (var p in t.Pieces)
+                    pieces[p.Objet] = (p.Fr, p.En);
+            Noms["outfitpieces"] = pieces;
+        }
     }
 }

@@ -33,6 +33,24 @@ public sealed class Reglages : IPluginConfiguration
     public bool AvisEnJeu { get; set; } = true;
 
     /// <summary>
+    /// Synchroniser sans geste : lire à la connexion, au changement de zone et
+    /// à intervalle régulier, et envoyer dès qu'il y a du neuf.
+    ///
+    /// Éteint par défaut. C'est un accord donné une fois pour toutes, pas une
+    /// surprise : l'envoi automatique ne fait rien qu'un envoi à la main ne
+    /// ferait, avec les mêmes lectures et les mêmes règles.
+    /// </summary>
+    public bool SyncAuto { get; set; }
+
+    /// <summary>
+    /// Ce que le plugin a envoyé en dernier, par personnage puis par collection.
+    ///
+    /// C'est contre cela que le neuf se mesure, jamais contre ce que
+    /// l'application possède : le plugin ne la lit pas, il ne fait que déposer.
+    /// </summary>
+    public Dictionary<ulong, Dictionary<string, List<uint>>> Envoyes { get; set; } = new();
+
+    /// <summary>
     /// Ce que la dernière photo a vu dans les dépôts, par personnage.
     ///
     /// L'avis en jeu s'en sert dès la connexion, avant toute nouvelle photo.
