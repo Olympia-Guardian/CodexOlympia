@@ -423,6 +423,7 @@ public static class Mots
         ("frames", D("Portraits", "Portrait frames")),
         ("spells", D("Sorts bleus", "Blue magic spells")),
         ("achievements", D("Succès", "Achievements")),
+        ("quests", D("Quêtes", "Quests")),
         ("armoires", D("Armoire", "Armoire")),
         ("outfitpieces", D("Pièces de tenue", "Outfit pieces")),
         ("outfits", D("Tenues entières", "Complete outfits")),

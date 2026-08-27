@@ -219,6 +219,7 @@ public sealed class Fenetre : Window, IDisposable
         ["frames"] = 88,
         ["spells"] = 78,
         ["achievements"] = 6,
+        ["quests"] = 61412,
         ["armoires"] = 52,
         ["outfitpieces"] = 2,
         ["outfits"] = 32,

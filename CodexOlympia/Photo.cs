@@ -74,7 +74,7 @@ public static class Photo
     [
         "mounts", "minions", "orchestrions", "emotes", "hairstyles", "fashions",
         "facewear", "bardings", "cards", "frames", "spells", "achievements",
-        "armoires", "outfitpieces",
+        "quests", "armoires", "outfitpieces",
     ];
 
     /// <summary>Fait UNE étape de la lecture et rend ce qu'elle a produit.
@@ -136,6 +136,26 @@ public static class Photo
                     ];
                 }
                 return [Simple(cat, cle, id => id <= int.MaxValue && succes->IsComplete((int)id))];
+            }
+
+            case "quests":
+            {
+                // Le jeu tient l'achèvement des quêtes comme un déverrouillage
+                // définitif, toujours chargé : rien à ouvrir. Une quête à
+                // variantes est faite dès que l'une l'est ; un mandat se
+                // demande autrement.
+                var qm = QuestManager.Instance();
+                var variantes = cat.Variantes.GetValueOrDefault(cle);
+                return
+                [
+                    Simple(cat, cle, id =>
+                    {
+                        if (cat.Mandats.Contains(id)) return id <= ushort.MaxValue && qm->IsLevequestComplete((ushort)id);
+                        if (variantes is not null && variantes.TryGetValue(id, out var v))
+                            return v.Any(QuestManager.IsQuestComplete);
+                        return QuestManager.IsQuestComplete(id);
+                    }),
+                ];
             }
 
             case "armoires":

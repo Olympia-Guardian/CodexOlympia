@@ -31,11 +31,20 @@ public sealed class Catalogue
     [
         "mounts", "minions", "orchestrions", "emotes", "fashions", "facewear",
         "hairstyles", "bardings", "cards", "frames", "spells", "achievements",
-        "armoires", "outfits",
+        "quests", "armoires", "outfits",
     ];
 
     /// <summary>Les identifiants du catalogue, par collection, dans son ordre.</summary>
     public Dictionary<string, uint[]> Ids { get; } = new();
+
+    /// <summary>Les variantes d'une entrée, par collection : une quête de
+    /// départ existe en plusieurs exemplaires selon la ville ou la classe, le
+    /// catalogue n'en garde qu'une, et elle est faite dès que l'une l'est.</summary>
+    public Dictionary<string, Dictionary<uint, uint[]>> Variantes { get; } = new();
+
+    /// <summary>Les mandats, parmi les quêtes : le jeu les tient à part et ne
+    /// répond pas à la même question pour eux.</summary>
+    public HashSet<uint> Mandats { get; } = [];
 
     /// <summary>L'objet qui déverrouille, quand l'entrée en a un.</summary>
     public Dictionary<string, Dictionary<uint, uint>> Objets { get; } = new();
@@ -106,13 +115,25 @@ public sealed class Catalogue
                     texte = await http.GetStringAsync($"{racine}/{cle}.json");
                     await File.WriteAllTextAsync(fichier, texte);
                 }
-                catch when (File.Exists(fichier))
+                catch
                 {
-                    texte = await File.ReadAllTextAsync(fichier);
+                    // Réseau absent, ou fichier pas encore publié : ce qu'on a
+                    // en cache, sinon rien pour cette collection.
+                    if (File.Exists(fichier)) texte = await File.ReadAllTextAsync(fichier);
                 }
             }
 
-            if (texte is null) continue;
+            if (texte is null)
+            {
+                // Une collection sans catalogue est une collection vide : on
+                // ne lit rien pour elle et on n'envoie rien, mais les autres
+                // continuent. Elle ne doit pas bloquer le plugin entier.
+                cat.Ids[cle] = [];
+                cat.Objets[cle] = new();
+                cat.Noms[cle] = new();
+                cat.Variantes[cle] = new();
+                continue;
+            }
             cat.Lire(cle, texte);
         }
 
@@ -138,6 +159,7 @@ public sealed class Catalogue
         var ids = new List<uint>();
         var objets = new Dictionary<uint, uint>();
         var noms = new Dictionary<uint, (string Fr, string En)>();
+        var variantes = new Dictionary<uint, uint[]>();
         foreach (var e in liste.EnumerateArray())
         {
             if (!e.TryGetProperty("id", out var ji) || ji.ValueKind != JsonValueKind.Number) continue;
@@ -146,6 +168,14 @@ public sealed class Catalogue
             if (e.TryGetProperty("itemId", out var jo) && jo.ValueKind == JsonValueKind.Number)
                 objets[id] = jo.GetUInt32();
             noms[id] = (Texte(e, "name"), Texte(e, "nameEn"));
+            if (e.TryGetProperty("ids", out var jv) && jv.ValueKind == JsonValueKind.Array)
+            {
+                var v = new List<uint>();
+                foreach (var x in jv.EnumerateArray())
+                    if (x.ValueKind == JsonValueKind.Number) v.Add(x.GetUInt32());
+                if (v.Count > 1) variantes[id] = [.. v];
+            }
+            if (e.TryGetProperty("leve", out var jl) && jl.ValueKind == JsonValueKind.True) Mandats.Add(id);
 
             if (cle != "outfits") continue;
             if (!e.TryGetProperty("pieces", out var jp) || jp.ValueKind != JsonValueKind.Array) continue;
@@ -165,6 +195,7 @@ public sealed class Catalogue
         Ids[cle] = [.. ids];
         Objets[cle] = objets;
         Noms[cle] = noms;
+        Variantes[cle] = variantes;
         // Les pièces n'ont pas de fichier à elles : elles vivent dans les tenues.
         if (cle == "outfits")
         {
