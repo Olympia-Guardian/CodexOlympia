@@ -32,4 +32,24 @@ public sealed class Reglages : IPluginConfiguration
     /// <summary>Prévenir dans le journal quand une pièce de tenue arrive.</summary>
     public bool AvisEnJeu { get; set; } = true;
 
+    /// <summary>
+    /// Ce que la dernière photo a vu dans les dépôts, par personnage.
+    ///
+    /// L'avis en jeu s'en sert dès la connexion, avant toute nouvelle photo.
+    /// Sans cette mémoire, chaque session repartait de rien : le plugin
+    /// conseillait de déposer des pièces qu'il avait lui-même vues rangées la
+    /// veille, dès qu'un coffre les faisait défiler.
+    /// </summary>
+    public Dictionary<ulong, Depots> Depots { get; set; } = new();
+}
+
+/// <summary>
+/// Le contenu des deux dépôts, sous la forme que les réglages savent écrire et
+/// relire : des listes. Un dépôt jamais lu reste vide, et un dépôt vide ne
+/// remplace jamais une mémoire pleine (voir <c>Plugin.RetenirDepots</c>).
+/// </summary>
+public sealed class Depots
+{
+    public List<uint> Coiffeuse { get; set; } = [];
+    public List<uint> Armoire { get; set; } = [];
 }

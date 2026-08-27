@@ -42,6 +42,14 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
     public Coffre? Coffre { get; private set; }
 
+    /// <summary>Les depots tels que la derniere photo les a vus, relus des
+    /// reglages pour le personnage connecte : la memoire qui survit a la
+    /// session. L'avis en jeu s'en sert tant qu'aucune photo n'a ete reprise.</summary>
+    private Coffre? depotsRetenus;
+
+    /// <summary>Le personnage pour lequel <see cref="depotsRetenus"/> a ete relu.</summary>
+    private ulong depotsPour;
+
     /// <summary>Les etapes qui restent a lire. La lecture complete y met tout
     /// Photo.Ordre ; une relecture ciblee n'y met qu'une collection et ce qui
     /// depend d'elle.</summary>
@@ -343,6 +351,7 @@ public sealed class Plugin : IDalamudPlugin
             Releves.RemoveAll(r => anciens.Contains(r.Cle));
             Releves.AddRange(produits);
             Coffre = coffre;
+            if (cle == "armoires" && coffre is not null) RetenirDepots(coffre);
             file.Dequeue();
             Faites++;
             if (file.Count == 0 && EnVerification) reverifieA = -1;
@@ -390,22 +399,99 @@ public sealed class Plugin : IDalamudPlugin
 
     // --------------------------------------------------------------- l'alerte
 
+    /// <summary>Les conteneurs ou un objet « arrive » vraiment chez le joueur :
+    /// ses sacs et son arsenal. Les autres (coffre de compagnie, servants,
+    /// cabas) levent le meme evenement quand ils se CHARGENT, en faisant
+    /// defiler tout leur contenu comme autant d'arrivees : ouvrir le coffre de
+    /// la compagnie libre en debut de session conseillait de deposer des pieces
+    /// qui n'ont jamais quitte sa page.</summary>
+    private static readonly HashSet<GameInventoryType> SacsDuJoueur =
+    [
+        GameInventoryType.Inventory1,
+        GameInventoryType.Inventory2,
+        GameInventoryType.Inventory3,
+        GameInventoryType.Inventory4,
+        GameInventoryType.ArmoryMainHand,
+        GameInventoryType.ArmoryOffHand,
+        GameInventoryType.ArmoryHead,
+        GameInventoryType.ArmoryBody,
+        GameInventoryType.ArmoryHands,
+        GameInventoryType.ArmoryLegs,
+        GameInventoryType.ArmoryFeets,
+        GameInventoryType.ArmoryEar,
+        GameInventoryType.ArmoryNeck,
+        GameInventoryType.ArmoryWrist,
+        GameInventoryType.ArmoryRings,
+    ];
+
+    /// <summary>Retient ce que la photo vient de voir dans les depots, pour le
+    /// personnage connecte. Un depot que le jeu n'avait pas charge ne remplace
+    /// jamais ce qu'on en savait : la coiffeuse se lit vide tant qu'elle n'a pas
+    /// ete ouverte (la lecture tient deja ce vide pour « pas ouverte »), et une
+    /// memoire effacee par une lecture a vide serait exactement le bug qu'on
+    /// corrige.</summary>
+    private void RetenirDepots(Coffre coffre)
+    {
+        var id = ContentId;
+        if (id == 0) return;
+        if (!Reglages.Depots.TryGetValue(id, out var d)) Reglages.Depots[id] = d = new Depots();
+        var change = false;
+        if (coffre.Coiffeuse.Count > 0)
+        {
+            d.Coiffeuse = [.. coffre.Coiffeuse];
+            change = true;
+        }
+        if (coffre.ArmoireLue)
+        {
+            d.Armoire = [.. coffre.Armoire];
+            change = true;
+        }
+        if (!change) return;
+        depotsRetenus = new Coffre([.. d.Coiffeuse], [.. d.Armoire], true);
+        depotsPour = id;
+        Enregistrer();
+    }
+
+    /// <summary>La memoire des depots du personnage connecte, ou rien. Relue
+    /// des reglages quand le personnage change : pas besoin d'ecouter la
+    /// connexion, l'identifiant suffit.</summary>
+    private Coffre? DepotsRetenus()
+    {
+        var id = ContentId;
+        if (id == 0) return null;
+        if (depotsPour != id)
+        {
+            depotsRetenus = Reglages.Depots.TryGetValue(id, out var d)
+                ? new Coffre([.. d.Coiffeuse], [.. d.Armoire], true)
+                : null;
+            depotsPour = id;
+        }
+        return depotsRetenus;
+    }
+
+    private static bool Deposee(Coffre? c, uint id) =>
+        c is not null && (c.Coiffeuse.Contains(id) || c.Armoire.Contains(id));
+
     /// <summary>
     /// Un mot quand une piece de tenue arrive dans les sacs.
     ///
     /// Elle n'est pas cochee pour autant : un objet qui traine peut se vendre ou
     /// se jeter. Le message dit ou la mettre pour qu'elle compte, et rien de
-    /// plus.
+    /// plus. Il se tait pour ce que la derniere photo, de cette session ou d'une
+    /// precedente, a deja vu range.
     /// </summary>
     private void PieceArrivee(GameInventoryEvent quoi, InventoryEventArgs e)
     {
         if (!Reglages.AvisEnJeu) return;
+        if (!SacsDuJoueur.Contains(e.Item.ContainerType)) return;
         var cat = Catalogue;
         if (cat is null || !cat.Pret) return;
         var id = e.Item.ItemId >= 1_000_000 ? e.Item.ItemId - 1_000_000 : e.Item.ItemId;
         if (id == 0) return;
-        // Deja depose : il n'y a rien a aller ranger.
-        if (Coffre is not null && (Coffre.Coiffeuse.Contains(id) || Coffre.Armoire.Contains(id))) return;
+        // Deja depose : il n'y a rien a aller ranger. La photo de cette session
+        // fait foi si elle existe, et la memoire des sessions passees repond
+        // pour ce qu'elle n'a pas pu voir.
+        if (Deposee(Coffre, id) || Deposee(DepotsRetenus(), id)) return;
 
         foreach (var t in cat.Tenues)
         {

@@ -43,7 +43,7 @@ public sealed record Releve(
     Limite Limite = Limite.Aucune);
 
 /// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
-public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire);
+public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire, bool ArmoireLue = false);
 
 /// <summary>
 /// La lecture du jeu, à un instant donné.
@@ -206,7 +206,7 @@ public static class Photo
                     if (p.Armoire > 0 && ui->Cabinet.IsItemInCabinet(p.Armoire - 1))
                         cases.Add(p.Objet);
 
-        return new Coffre(coiffeuse, cases);
+        return new Coffre(coiffeuse, cases, armoireLue);
     }
 
     /// <summary>Les onze emplacements d'une tenue, ou un tableau vide si le jeu
