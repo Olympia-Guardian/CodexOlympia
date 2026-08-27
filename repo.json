@@ -47,5 +47,30 @@
     "DownloadLinkInstall": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip",
     "DownloadLinkUpdate": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip",
     "DownloadLinkTesting": "https://github.com/Olympia-Guardian/AutoArmory/releases/latest/download/latest.zip"
+  },
+  {
+    "Author": "Olympia-Guardian",
+    "Name": "AutoLoseVerminion",
+    "InternalName": "AutoLoseVerminion",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Enchaine les combats contre un maitre du Choc des mascottes sans les jouer : inscription, confirmation, on regarde l'ordinateur gagner, on quitte, on recommence, jusqu'au nombre voulu. Une defaite compte pour le carnet de defis de la semaine, c'est tout l'interet. Rien ne se lance sans ton geste, et Arreter coupe tout. Par Codex Olympia.\n\nChains Lord of Verminion Master Battles without playing them: queue, confirm, watch the AI win, leave, repeat, up to the number you set. A loss still counts for the weekly challenge log, which is the whole point. Nothing starts without you, and Stop ends everything. By Codex Olympia.",
+    "Punchline": "Perd des combats du Choc des mascottes pour toi. / Loses Lord of Verminion matches for you.",
+    "RepoUrl": "https://github.com/Olympia-Guardian/AutoLoseVerminion",
+    "ApplicableVersion": "any",
+    "Tags": [
+      "verminion",
+      "gold saucer",
+      "challenge log",
+      "codex",
+      "olympia"
+    ],
+    "CategoryTags": [
+      "utility"
+    ],
+    "DalamudApiLevel": 15,
+    "IconUrl": "https://raw.githubusercontent.com/Olympia-Guardian/AutoLoseVerminion/main/icon.png",
+    "DownloadLinkInstall": "https://github.com/Olympia-Guardian/AutoLoseVerminion/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Olympia-Guardian/AutoLoseVerminion/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Olympia-Guardian/AutoLoseVerminion/releases/latest/download/latest.zip"
   }
 ]
