@@ -15,5 +15,5 @@ public static class Site
     public const string Serveur = "https://ogs-room.olympia-guardian.workers.dev";
 
     /// <summary>Le catalogue des collections, publié par l'application.</summary>
-    public const string Catalogue = "https://olympia-guardian.github.io/data";
+    public const string Catalogue = "https://codex-olympia.com/data";
 }
