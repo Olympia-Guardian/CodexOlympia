@@ -160,11 +160,11 @@ public static class Mots
     public static string BestiaireNonCharge => D(
         "le jeu n'a pas chargé le bestiaire : connecte un personnage, puis regarde à nouveau",
         "the game has not loaded the bestiary: log in a character, then look again");
-    public static string BestiaireAConfirmer(int trouves, int total) => D(
-        $"lecture à confirmer : {trouves} bêtes lues sur {total}. Compare avec ton bestiaire en jeu ; " +
-        "/codex bestiaire donne le détail. Rien n'est envoyé tant que ce n'est pas confirmé.",
-        $"reading to confirm: {trouves} beasts read out of {total}. Compare with your in-game bestiary; " +
-        "/codex bestiaire gives the details. Nothing is sent until this is confirmed.");
+    public static string BestiaireFormeInattendue => D(
+        "le bestiaire du jeu n'a pas la forme attendue, sans doute depuis un patch : rien n'est envoyé. " +
+        "/codex bestiaire écrit le détail dans le journal Dalamud.",
+        "the game's bestiary does not have the expected shape, probably since a patch: nothing is sent. " +
+        "/codex bestiaire writes the details to the Dalamud log.");
     public static string BestiaireLu(int trouves, int total, string noms) => D(
         $"bestiaire : {trouves} bêtes lues sur {total}" + (noms.Length > 0 ? $" : {noms}" : "") +
         ". Le détail est dans le journal Dalamud (/xllog).",

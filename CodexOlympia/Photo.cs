@@ -361,19 +361,22 @@ public static class Photo
     /// décrit.</summary>
     private const int DecalageVecteurNote = 0x48;
 
-    /// <summary>La lecture du bestiaire n'a pas encore été comparée au jeu :
-    /// tant que ce n'est pas fait, la collection se montre et ne s'envoie pas.
-    /// À passer à vrai une fois /codex bestiaire confirmé devant le bestiaire.</summary>
-    private const bool BestiaireConfirme = false;
+    /// <summary>Une entrée du bestiaire tient sur quatre octets : le numéro de la
+    /// bête (sa ligne dans XBMPet), deux octets dont on ignore le sens (vus à 0,
+    /// 1 et 2, puis toujours 1), et un octet nul.</summary>
+    private const int TailleEntreeNote = 4;
 
     /// <summary>
     /// Le bestiaire du dresseur (7.56).
     ///
     /// Le jeu le tient dans son module XBMNote, un fichier de sauvegarde client
     /// comme le carnet des jobs de soutien du Croissant occulte : un en-tête,
-    /// puis un vecteur d'octets, un par bête, dans l'ordre de la table XBMPet,
-    /// qui est aussi celui du catalogue. FFXIVClientStructs ne décrit pas
-    /// encore ce module ; on lit là où ses voisins rangent le leur.
+    /// puis un vecteur d'entrées, UNE PAR BÊTE ENREGISTRÉE, dans l'ordre où
+    /// elles sont entrées. Une bête qui n'y figure pas n'a pas été capturée.
+    /// Vérifié le 9 septembre 2026 devant le bestiaire de Vincent : quarante-
+    /// quatre entrées, « 44/50 » à l'écran, les six absentes étant les bêtes
+    /// de donjon et de raid qu'il n'avait pas encore. FFXIVClientStructs ne
+    /// décrit pas ce module ; on lit là où ses voisins rangent leur vecteur.
     /// </summary>
     private static Releve Bestiaire(Catalogue cat)
     {
@@ -383,11 +386,28 @@ public static class Photo
         var octets = OctetsBestiaire();
         if (octets is null)
             return new Releve(cle, [], null, ids.Length, Mots.BestiaireNonCharge);
-        var trouves = new List<uint>();
-        foreach (var id in ids)
-            if (id < octets.Length && octets[id] != 0) trouves.Add(id);
-        var garde = BestiaireConfirme ? null : Mots.BestiaireAConfirmer(trouves.Count, ids.Length);
-        return new Releve(cle, trouves, null, ids.Length, garde);
+        var entrees = EntreesBestiaire(octets);
+        // Une forme qui n'est plus celle qu'on connaît (un patch a pu changer
+        // l'entrée) ne donne rien plutôt qu'une collection fausse.
+        if (entrees is null)
+            return new Releve(cle, [], null, ids.Length, Mots.BestiaireFormeInattendue);
+        var trouves = ids.Where(entrees.Contains).ToList();
+        return new Releve(cle, trouves, null, ids.Length);
+    }
+
+    /// <summary>Les numéros des bêtes enregistrées, ou rien si le vecteur n'a
+    /// pas la forme attendue : des entrées de quatre octets, un numéro non nul
+    /// et jamais répété en tête, un octet nul en queue.</summary>
+    private static HashSet<uint>? EntreesBestiaire(byte[] octets)
+    {
+        if (octets.Length % TailleEntreeNote != 0) return null;
+        var ids = new HashSet<uint>();
+        for (var i = 0; i < octets.Length; i += TailleEntreeNote)
+        {
+            var id = octets[i];
+            if (id == 0 || octets[i + 3] != 0 || !ids.Add(id)) return null;
+        }
+        return ids;
     }
 
     /// <summary>Le vecteur du module XBMNote, copié. Rien si le jeu ne l'a pas
@@ -410,9 +430,9 @@ public static class Photo
     }
 
     /// <summary>Ce que /codex bestiaire écrit dans le journal Dalamud : les
-    /// octets bruts des deux modules du dresseur et les deux lectures possibles
-    /// du vecteur, un octet par bête ou un bit par bête, avec les noms. C'est
-    /// avec ça qu'on confirme la forme, en jeu, devant le bestiaire.</summary>
+    /// octets bruts des deux modules du dresseur, puis chaque entrée du vecteur
+    /// décodée, numéro, nom et les deux octets qu'on ne sait pas lire. C'est
+    /// avec ça qu'on vérifie la forme, en jeu, devant le bestiaire.</summary>
     public static unsafe string DiagnosticBestiaire(Catalogue cat)
     {
         var ui = UIModule.Instance();
@@ -429,25 +449,32 @@ public static class Photo
             return sb.ToString();
         }
         sb.AppendLine($"vecteur XBMNote : {octets.Length} octets : {BitConverter.ToString(octets)}");
+        var entrees = EntreesBestiaire(octets);
+        if (entrees is null)
+        {
+            sb.AppendLine("entrées : forme inattendue");
+            return sb.ToString();
+        }
+        sb.AppendLine($"entrées : {entrees.Count}");
+        for (var i = 0; i + TailleEntreeNote <= octets.Length; i += TailleEntreeNote)
+            sb.AppendLine($"  {octets[i],3} {cat.Nom("beastmaster", octets[i])} : {octets[i + 1]} {octets[i + 2]}");
         var ids = cat.Ids.GetValueOrDefault("beastmaster") ?? [];
-        var parOctet = ids.Where(id => id < octets.Length && octets[id] != 0).ToList();
-        var parBit = ids.Where(id => (id >> 3) < octets.Length && (octets[id >> 3] & (1 << (int)(id & 7))) != 0).ToList();
-        sb.AppendLine($"un octet par bête : {parOctet.Count} : " +
-                      string.Join(", ", parOctet.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
-        sb.AppendLine($"un bit par bête : {parBit.Count} : " +
-                      string.Join(", ", parBit.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
+        var absentes = ids.Where(id => !entrees.Contains(id)).ToList();
+        sb.AppendLine($"absentes du bestiaire : {absentes.Count} : " +
+                      string.Join(", ", absentes.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
         return sb.ToString();
     }
 
-    /// <summary>Le résumé pour le journal de discussion : la lecture retenue,
-    /// un octet par bête, avec les noms.</summary>
+    /// <summary>Le résumé pour le journal de discussion : les bêtes
+    /// enregistrées, avec leurs noms.</summary>
     public static string ResumeBestiaire(Catalogue cat)
     {
         var octets = OctetsBestiaire();
         var ids = cat.Ids.GetValueOrDefault("beastmaster") ?? [];
         if (octets is null) return Mots.BestiaireNonCharge;
-        var trouves = ids.Where(id => id < octets.Length && octets[id] != 0)
-            .Select(id => cat.Nom("beastmaster", id)).ToList();
+        var entrees = EntreesBestiaire(octets);
+        if (entrees is null) return Mots.BestiaireFormeInattendue;
+        var trouves = ids.Where(entrees.Contains).Select(id => cat.Nom("beastmaster", id)).ToList();
         return Mots.BestiaireLu(trouves.Count, ids.Length, string.Join(", ", trouves));
     }
 
