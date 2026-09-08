@@ -129,7 +129,7 @@ public sealed class Fenetre : Window, IDisposable
 
         ImGui.Spacing();
         ImGui.BeginDisabled(lecture);
-        if (ImGui.Button(Mots.Regarder, new Vector2(180, 28))) plugin.Regarder();
+        if (ImGui.Button(Mots.Regarder, new Vector2(180, 28))) plugin.RegarderAJour();
         ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.AlignTextToFramePadding();

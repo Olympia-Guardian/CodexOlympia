@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text.Json;
 using Dalamud.Game.Command;
 using Dalamud.Game.Inventory;
 using Dalamud.Game.Inventory.InventoryEventArgTypes;
@@ -264,6 +265,65 @@ public sealed partial class Plugin : IDalamudPlugin
             catch (Exception e)
             {
                 journal.Error(e, "catalogue illisible");
+            }
+        });
+    }
+
+    /// <summary>La date du catalogue chez l'application, ou rien si le reseau
+    /// manque : dans ce cas on garde ce qu'on a.</summary>
+    private async Task<string> DateDistante()
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(await http.GetStringAsync($"{Site.Catalogue}/meta.json"));
+            return doc.RootElement.GetProperty("updatedAt").GetString() ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    /// <summary>Vrai le temps de verifier la date du catalogue avant une lecture.</summary>
+    private bool rafraichit;
+
+    /// <summary>Pose par le fil reseau, leve par le fil du jeu : la lecture
+    /// demandee peut partir, le catalogue est a jour.</summary>
+    private volatile bool aRegarder;
+
+    /// <summary>Relit le catalogue s'il a change chez l'application, puis regarde.
+    ///
+    /// Le catalogue ne se lisait qu'au demarrage du plugin : une ronde de nuit
+    /// passee pendant la session laissait le plugin lire le jeu avec la liste de
+    /// la veille, et les succes d'un patch n'etaient ni lus ni envoyes tant
+    /// qu'on ne relancait pas. Une petite requete avant chaque lecture suffit :
+    /// la date de meta.json, et le catalogue entier seulement si elle a bouge.
+    /// La lecture elle-meme part du fil du jeu, par <c>Tour</c>.</summary>
+    public void RegarderAJour()
+    {
+        if (LectureEnCours || rafraichit) return;
+        rafraichit = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var cat = Catalogue;
+                var distante = await DateDistante();
+                if (cat is null || (distante.Length > 0 && distante != cat.Date))
+                {
+                    var cache = Path.Combine(pi.GetPluginConfigDirectory(), "catalogue");
+                    Catalogue = await Catalogue.Charger(http, Site.Catalogue, cache);
+                    journal.Information("catalogue relu avant lecture ({0})", Catalogue.Date);
+                }
+            }
+            catch (Exception e)
+            {
+                journal.Error(e, "catalogue illisible");
+            }
+            finally
+            {
+                rafraichit = false;
+                aRegarder = true;
             }
         });
     }

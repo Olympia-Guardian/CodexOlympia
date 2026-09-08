@@ -98,6 +98,14 @@ public sealed partial class Plugin
             Retenir(r.Pour, r.Envoye);
         }
 
+        // Une lecture demandee attendait que le catalogue soit verifie : elle
+        // part d'ici, sur le fil du jeu, jamais du fil reseau.
+        if (aRegarder)
+        {
+            aRegarder = false;
+            Regarder();
+        }
+
         if (!Reglages.SyncAuto) return;
         if (ContentId == 0 || Jeton.Length == 0 || Catalogue?.Pret != true) return;
         if (LectureEnCours || EnVerification || EnvoiEnCours) return;
@@ -126,7 +134,7 @@ public sealed partial class Plugin
         {
             prochaineLecture = maintenant + Intervalle;
             journal.Information("synchro automatique : lecture");
-            Regarder();
+            RegarderAJour();
         }
     }
 
