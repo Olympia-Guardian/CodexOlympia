@@ -1,6 +1,8 @@
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.Exd;
+using FFXIVClientStructs.STD;
 using Lumina.Excel.Sheets;
 
 namespace CodexOlympia;
@@ -73,7 +75,7 @@ public static class Photo
     public static readonly string[] Ordre =
     [
         "mounts", "minions", "orchestrions", "emotes", "hairstyles", "fashions",
-        "facewear", "bardings", "cards", "frames", "spells", "achievements",
+        "facewear", "bardings", "cards", "frames", "spells", "beastmaster", "achievements",
         "quests", "armoires", "outfitpieces",
     ];
 
@@ -123,6 +125,9 @@ public static class Photo
 
             case "spells":
                 return [Sorts(cat, sorts, ui)];
+
+            case "beastmaster":
+                return [Bestiaire(cat)];
 
             case "achievements":
             {
@@ -348,6 +353,114 @@ public static class Photo
         return new Releve(
             cle, trouves, complet ? null : portee, ids.Length, null, null,
             complet ? Limite.Aucune : Limite.Capacite);
+    }
+
+    /// <summary>Où le module XBMNote range son vecteur : juste après l'en-tête
+    /// commun des fichiers de sauvegarde client (0x48), comme ses deux voisins
+    /// de même taille, MKDSupportJobNote et MKDLore, que FFXIVClientStructs
+    /// décrit.</summary>
+    private const int DecalageVecteurNote = 0x48;
+
+    /// <summary>La lecture du bestiaire n'a pas encore été comparée au jeu :
+    /// tant que ce n'est pas fait, la collection se montre et ne s'envoie pas.
+    /// À passer à vrai une fois /codex bestiaire confirmé devant le bestiaire.</summary>
+    private const bool BestiaireConfirme = false;
+
+    /// <summary>
+    /// Le bestiaire du dresseur (7.56).
+    ///
+    /// Le jeu le tient dans son module XBMNote, un fichier de sauvegarde client
+    /// comme le carnet des jobs de soutien du Croissant occulte : un en-tête,
+    /// puis un vecteur d'octets, un par bête, dans l'ordre de la table XBMPet,
+    /// qui est aussi celui du catalogue. FFXIVClientStructs ne décrit pas
+    /// encore ce module ; on lit là où ses voisins rangent le leur.
+    /// </summary>
+    private static Releve Bestiaire(Catalogue cat)
+    {
+        const string cle = "beastmaster";
+        if (!cat.Ids.TryGetValue(cle, out var ids))
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
+        var octets = OctetsBestiaire();
+        if (octets is null)
+            return new Releve(cle, [], null, ids.Length, Mots.BestiaireNonCharge);
+        var trouves = new List<uint>();
+        foreach (var id in ids)
+            if (id < octets.Length && octets[id] != 0) trouves.Add(id);
+        var garde = BestiaireConfirme ? null : Mots.BestiaireAConfirmer(trouves.Count, ids.Length);
+        return new Releve(cle, trouves, null, ids.Length, garde);
+    }
+
+    /// <summary>Le vecteur du module XBMNote, copié. Rien si le jeu ne l'a pas
+    /// chargé (personne de connecté) ou s'il n'a pas la forme attendue.</summary>
+    private static unsafe byte[]? OctetsBestiaire()
+    {
+        var ui = UIModule.Instance();
+        if (ui == null) return null;
+        var module = (byte*)ui->GetXBMNoteModule();
+        if (module == null) return null;
+        var vecteur = (StdVector<byte>*)(module + DecalageVecteurNote);
+        if (vecteur->First == null || vecteur->Last == null || vecteur->Last < vecteur->First) return null;
+        var n = vecteur->Last - vecteur->First;
+        // Cinquante bêtes tiennent dans quelques dizaines d'octets : bien
+        // au-delà, ce n'est pas le vecteur qu'on croit.
+        if (n == 0 || n > 4096) return null;
+        var copie = new byte[n];
+        for (var i = 0; i < n; i++) copie[i] = vecteur->First[i];
+        return copie;
+    }
+
+    /// <summary>Ce que /codex bestiaire écrit dans le journal Dalamud : les
+    /// octets bruts des deux modules du dresseur et les deux lectures possibles
+    /// du vecteur, un octet par bête ou un bit par bête, avec les noms. C'est
+    /// avec ça qu'on confirme la forme, en jeu, devant le bestiaire.</summary>
+    public static unsafe string DiagnosticBestiaire(Catalogue cat)
+    {
+        var ui = UIModule.Instance();
+        if (ui == null) return "UIModule : absent";
+        var sb = new System.Text.StringBuilder();
+        var note = (byte*)ui->GetXBMNoteModule();
+        var xbm = (byte*)ui->GetXBMModule();
+        sb.AppendLine("XBMNoteModule (0x60) : " + Hex(note, 0x60));
+        sb.AppendLine("XBMModule (0x88) : " + Hex(xbm, 0x88));
+        var octets = OctetsBestiaire();
+        if (octets is null)
+        {
+            sb.AppendLine("vecteur XBMNote : absent ou vide");
+            return sb.ToString();
+        }
+        sb.AppendLine($"vecteur XBMNote : {octets.Length} octets : {BitConverter.ToString(octets)}");
+        var ids = cat.Ids.GetValueOrDefault("beastmaster") ?? [];
+        var parOctet = ids.Where(id => id < octets.Length && octets[id] != 0).ToList();
+        var parBit = ids.Where(id => (id >> 3) < octets.Length && (octets[id >> 3] & (1 << (int)(id & 7))) != 0).ToList();
+        sb.AppendLine($"un octet par bête : {parOctet.Count} : " +
+                      string.Join(", ", parOctet.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
+        sb.AppendLine($"un bit par bête : {parBit.Count} : " +
+                      string.Join(", ", parBit.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
+        return sb.ToString();
+    }
+
+    /// <summary>Le résumé pour le journal de discussion : la lecture retenue,
+    /// un octet par bête, avec les noms.</summary>
+    public static string ResumeBestiaire(Catalogue cat)
+    {
+        var octets = OctetsBestiaire();
+        var ids = cat.Ids.GetValueOrDefault("beastmaster") ?? [];
+        if (octets is null) return Mots.BestiaireNonCharge;
+        var trouves = ids.Where(id => id < octets.Length && octets[id] != 0)
+            .Select(id => cat.Nom("beastmaster", id)).ToList();
+        return Mots.BestiaireLu(trouves.Count, ids.Length, string.Join(", ", trouves));
+    }
+
+    private static unsafe string Hex(byte* p, int n)
+    {
+        if (p == null) return "null";
+        var sb = new System.Text.StringBuilder(n * 3);
+        for (var i = 0; i < n; i++)
+        {
+            if (i > 0 && i % 8 == 0) sb.Append(' ');
+            sb.Append(p[i].ToString("X2"));
+        }
+        return sb.ToString();
     }
 
     /// <summary>

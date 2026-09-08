@@ -162,7 +162,7 @@ public sealed partial class Plugin : IDalamudPlugin
         etat.TerritoryChanged += SurZone;
         if (etat.IsLoggedIn) SurConnexion();
 
-        commandes.AddHandler(Commande, new CommandInfo((_, _) => Ouvrir())
+        commandes.AddHandler(Commande, new CommandInfo((_, args) => Commander(args))
         {
             HelpMessage = Mots.AideCommande,
         });
@@ -190,6 +190,32 @@ public sealed partial class Plugin : IDalamudPlugin
     {
         RetenirLeNom();
         fenetre.IsOpen = true;
+    }
+
+    /// <summary>/codex ouvre la fenetre ; /codex bestiaire ecrit la lecture du
+    /// bestiaire dans le journal de discussion, et son detail brut dans le
+    /// journal Dalamud. C'est le geste qui sert a confirmer, en jeu, la forme
+    /// du module que FFXIVClientStructs ne decrit pas encore.</summary>
+    private void Commander(string args)
+    {
+        if (args.Trim().Equals("bestiaire", StringComparison.OrdinalIgnoreCase))
+        {
+            DiagnostiquerBestiaire();
+            return;
+        }
+        Ouvrir();
+    }
+
+    private void DiagnostiquerBestiaire()
+    {
+        var cat = Catalogue;
+        if (cat is null)
+        {
+            discussion.Print("[Codex Olympia] " + Mots.CatalogueAbsent);
+            return;
+        }
+        journal.Information("bestiaire :\n" + Photo.DiagnosticBestiaire(cat));
+        discussion.Print("[Codex Olympia] " + Photo.ResumeBestiaire(cat));
     }
 
     public void Enregistrer() => pi.SavePluginConfig(Reglages);

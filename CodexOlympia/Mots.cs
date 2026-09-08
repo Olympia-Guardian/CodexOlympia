@@ -157,6 +157,19 @@ public static class Mots
     // ------------------------------------------------------------ la lecture
 
     public static string CatalogueAbsent => D("catalogue absent", "catalogue missing");
+    public static string BestiaireNonCharge => D(
+        "le jeu n'a pas chargé le bestiaire : connecte un personnage, puis regarde à nouveau",
+        "the game has not loaded the bestiary: log in a character, then look again");
+    public static string BestiaireAConfirmer(int trouves, int total) => D(
+        $"lecture à confirmer : {trouves} bêtes lues sur {total}. Compare avec ton bestiaire en jeu ; " +
+        "/codex bestiaire donne le détail. Rien n'est envoyé tant que ce n'est pas confirmé.",
+        $"reading to confirm: {trouves} beasts read out of {total}. Compare with your in-game bestiary; " +
+        "/codex bestiaire gives the details. Nothing is sent until this is confirmed.");
+    public static string BestiaireLu(int trouves, int total, string noms) => D(
+        $"bestiaire : {trouves} bêtes lues sur {total}" + (noms.Length > 0 ? $" : {noms}" : "") +
+        ". Le détail est dans le journal Dalamud (/xllog).",
+        $"bestiary: {trouves} beasts read out of {total}" + (noms.Length > 0 ? $": {noms}" : "") +
+        ". Details are in the Dalamud log (/xllog).");
     public static string OuvreSucces => D(
         "ouvre ton carnet de succès une fois, puis regarde à nouveau",
         "open your achievements log once, then look again");
@@ -422,6 +435,7 @@ public static class Mots
         ("cards", D("Cartes de Triple Triade", "Triple Triad cards")),
         ("frames", D("Portraits", "Portrait frames")),
         ("spells", D("Sorts bleus", "Blue magic spells")),
+        ("beastmaster", D("Bestiaire du dresseur", "Beastmaster bestiary")),
         ("achievements", D("Succès", "Achievements")),
         ("quests", D("Quêtes", "Quests")),
         ("armoires", D("Armoire", "Armoire")),

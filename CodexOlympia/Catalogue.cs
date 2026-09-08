@@ -30,7 +30,7 @@ public sealed class Catalogue
     public static readonly string[] Cles =
     [
         "mounts", "minions", "orchestrions", "emotes", "fashions", "facewear",
-        "hairstyles", "bardings", "cards", "frames", "spells", "achievements",
+        "hairstyles", "bardings", "cards", "frames", "spells", "beastmaster", "achievements",
         "quests", "armoires", "outfits",
     ];
 

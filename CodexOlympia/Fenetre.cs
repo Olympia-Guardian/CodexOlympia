@@ -218,6 +218,7 @@ public sealed class Fenetre : Window, IDisposable
         ["cards"] = 27661,
         ["frames"] = 88,
         ["spells"] = 78,
+        ["beastmaster"] = 62143,
         ["achievements"] = 6,
         ["quests"] = 61412,
         ["armoires"] = 52,
