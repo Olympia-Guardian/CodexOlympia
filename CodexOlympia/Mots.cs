@@ -322,6 +322,12 @@ public static class Mots
     public static string CeQuiAttend => D("Ce qui attend", "What is waiting");
     public static string NCollections(int n) => D($"{n} collection(s)", $"{n} collection(s)");
     public static string RegarderCourt => D("Scan", "Scan");
+    public static string ToutRenvoyer => D("Tout renvoyer", "Send it all again");
+    public static string ToutRenvoyerAide => D(
+        "À utiliser si tu as décoché des choses sur le site : le plugin ne voit pas ce que "
+        + "tu y changes, et sans ça il croit avoir déjà tout envoyé.",
+        "Use this if you unticked things on the site: the plugin cannot see what you change "
+        + "there, and without this it believes it already sent everything.");
     public static string EnvoyerN(int n) => D($"Envoyer {n} nouveauté(s)", $"Send {n} new");
 
     /// <summary>Un moment passé, dit en gros : « il y a 2 h ».</summary>

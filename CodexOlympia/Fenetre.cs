@@ -764,6 +764,11 @@ public sealed class Fenetre : Window, IDisposable
             return;
         }
         if (Pieces.BoutonFantome("##regarder3", Mots.Regarder)) plugin.RegarderAJour();
+        ImGui.SameLine(0, 8f * E);
+        // Le plugin ne voit pas ce qui se decoche sur le site : sans ce geste,
+        // il croirait avoir deja tout envoye et ne renverrait jamais (PLG-R58).
+        if (Pieces.BoutonFantome("##renvoyer", Mots.ToutRenvoyer)) plugin.Envoyer();
+        Pieces.Infobulle(Mots.ToutRenvoyerAide);
         Note(fin, Mots.RienDeNeuf);
     }
 
