@@ -312,13 +312,6 @@ public static class Photo
                 return vus;
             }
 
-            case "quests":
-            {
-                foreach (var x in entrees)
-                    if (QuestManager.IsQuestComplete(x.Id)) vus.Add(x.Id);
-                return vus;
-            }
-
             case "beastmaster":
             {
                 // Le bestiaire ne se demande pas bete par bete : le module tient

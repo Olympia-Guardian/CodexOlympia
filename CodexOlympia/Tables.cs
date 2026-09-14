@@ -132,14 +132,15 @@ public static class Tables
                 ? null
                 : new Entree(r.RowId, r.Name.ExtractText(), (uint)r.Icon));
 
-        // Les succès et les quêtes. Deux tables énormes : la grille n'en dessine
-        // que ce qu'on voit, et les lignes sans nom ne sont pas des entrées.
+        // Les succès. Quatre mille lignes, dont la grille ne dessine que ce
+        // qu'on voit ; les lignes sans nom ne sont pas des entrées.
+        //
+        // Les quêtes n'y sont pas, et c'est un choix : leur table n'a pas
+        // d'icône d'entrée, seulement l'image de la scène qui les ouvre, et une
+        // grille de cinq mille vignettes de cinématique ne montre rien. Elles
+        // restent suivies par la synchronisation, qui les compte sans les
+        // dessiner.
         Poser(sortie, journal, "achievements", Feuille<Achievement>(donnees, journal), r =>
-            r.Name.ExtractText().Length == 0
-                ? null
-                : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
-
-        Poser(sortie, journal, "quests", Feuille<Quest>(donnees, journal), r =>
             r.Name.ExtractText().Length == 0
                 ? null
                 : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
