@@ -36,6 +36,11 @@ public sealed class Visage : IDisposable
     private readonly ITextureProvider textures;
     private readonly IPluginLog journal;
 
+    /// <summary>Le facteur du plugin : ce qui doit se faire sur le fil du jeu
+    /// s'y dépose. Une image et une identité arrivent du réseau, et rien ne les
+    /// range depuis là-bas.</summary>
+    private readonly Action<Action> surLeFilDuJeu;
+
     /// <summary>Le personnage pour lequel tout ceci a été demandé.</summary>
     public ulong Pour { get; private set; }
 
@@ -50,11 +55,13 @@ public sealed class Visage : IDisposable
     /// redemande rien. Un serveur injoignable ne doit pas être martelé.</summary>
     private double prochaineTentative;
 
-    public Visage(HttpClient http, ITextureProvider textures, IPluginLog journal)
+    public Visage(HttpClient http, ITextureProvider textures, IPluginLog journal,
+        Action<Action> surLeFilDuJeu)
     {
         this.http = http;
         this.textures = textures;
         this.journal = journal;
+        this.surLeFilDuJeu = surLeFilDuJeu;
     }
 
     /// <summary>
@@ -97,15 +104,19 @@ public sealed class Visage : IDisposable
             {
                 var qui = await Demander(jeton);
                 if (qui is null) return;
-                if (Pour != contentId) return;
-                Qui = qui;
                 var image = await PremiereImage(qui);
-                if (Pour != contentId)
+                surLeFilDuJeu(() =>
                 {
-                    image?.Dispose();
-                    return;
-                }
-                Image = image;
+                    // Le personnage a pu changer pendant le voyage : ce qui
+                    // revient ne s'installe que s'il parle encore de lui.
+                    if (Pour != contentId)
+                    {
+                        if (image is not null) anciennes.Add(image);
+                        return;
+                    }
+                    Qui = qui;
+                    Image = image;
+                });
             }
             catch (Exception e)
             {

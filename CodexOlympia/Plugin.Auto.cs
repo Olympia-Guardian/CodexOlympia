@@ -46,10 +46,6 @@ public sealed partial class Plugin
     /// <summary>Quand le dernier envoi automatique est parti.</summary>
     private double dernierEnvoiAuto = -EntreDeuxEnvois;
 
-    /// <summary>Ce qu'un envoi réussi laisse à ranger dans les réglages, depuis
-    /// le fil du jeu.</summary>
-    private (ulong Pour, Dictionary<string, List<uint>> Envoye)? aRetenir;
-
     /// <summary>Le neuf, calculé une fois par relevé et par envoi, pas à chaque image.</summary>
     private List<(string Cle, List<uint> Ids)>? nouveautes;
     private object? nouveautesPour;
@@ -90,26 +86,25 @@ public sealed partial class Plugin
     private void Tour(IFramework _)
     {
         var maintenant = chrono.Elapsed.TotalSeconds;
+        // Le courrier d'abord : ce qu'un fil de fond a depose, execute ici, sur
+        // le fil du jeu. Une lettre qui echoue n'emporte pas les suivantes.
+        while (boite.TryDequeue(out var lettre))
+        {
+            try
+            {
+                lettre();
+            }
+            catch (Exception e)
+            {
+                journal.Error(e, "une lettre du fil de fond a mal tourne");
+            }
+        }
         // Le reglage d'accessibilite se change sans relancer le jeu : la
         // fenetre le relit a chaque image, c'est une lecture d'un booleen.
         MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
         // Le visage ne se demande que si quelqu'un regarde (PLG-R40).
         if (fenetre.IsOpen) Visage.Assurer(ContentId, Jeton, maintenant);
         Avancer(maintenant);
-
-        if (aRetenir is { } r)
-        {
-            aRetenir = null;
-            Retenir(r.Pour, r.Envoye);
-        }
-
-        // Une lecture demandee attendait que le catalogue soit verifie : elle
-        // part d'ici, sur le fil du jeu, jamais du fil reseau.
-        if (aRegarder)
-        {
-            aRegarder = false;
-            Regarder();
-        }
 
         if (!Reglages.SyncAuto) return;
         if (ContentId == 0 || Jeton.Length == 0 || Catalogue?.Pret != true) return;

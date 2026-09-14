@@ -15,12 +15,6 @@ internal static class Texte
     public static void A(string t, Vector2 ou, Vector4 c)
         => ImGui.GetWindowDrawList().AddText(ou, Peinture.Col(c), t);
 
-    public static void Droite(string t, float x, float y, Vector4 c)
-        => A(t, new Vector2(x - Mesurer(t).X, y), c);
-
-    public static void Centre(string t, float x, float y, Vector4 c)
-        => A(t, new Vector2(x - Mesurer(t).X * 0.5f, y), c);
-
     /// <summary>Centré dans une boîte, dans les deux sens.</summary>
     public static void Milieu(string t, Vector2 min, Vector2 max, Vector4 c)
     {

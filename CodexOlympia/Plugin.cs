@@ -63,6 +63,21 @@ public sealed partial class Plugin : IDalamudPlugin
     /// depend d'elle.</summary>
     private readonly Queue<string> file = new();
 
+    /// <summary>
+    /// La boîte aux lettres du fil du jeu.
+    ///
+    /// Tout ce qui se fait au loin — un envoi, un catalogue, un portrait — finit
+    /// par vouloir toucher au plugin ou au jeu. Rien ne le fait directement :
+    /// on dépose ici, et <see cref="Tour"/> exécute sur le fil du jeu, à l'image
+    /// suivante. Trois raccourcis existaient déjà pour trois cas ; un seul
+    /// chemin vaut mieux, et il ferme le dernier trou, l'écriture dans le
+    /// journal de discussion depuis un fil de fond.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentQueue<System.Action> boite = new();
+
+    /// <summary>Fait faire ceci au prochain tour, sur le fil du jeu.</summary>
+    private void SurLeFilDuJeu(System.Action quoi) => boite.Enqueue(quoi);
+
     /// <summary>Combien d'etapes la lecture en cours a franchies, et sur combien.
     /// Zero sur zero quand rien n'est en cours.</summary>
     public int Faites { get; private set; }
@@ -105,6 +120,28 @@ public sealed partial class Plugin : IDalamudPlugin
     public bool EnVerification { get; private set; }
 
     /// <summary>
+    /// Les collections dont la dernière lecture sent le retard, calculées une
+    /// fois par passe et relues ensuite.
+    ///
+    /// Le calcul compare des listes de plusieurs milliers d'entrées ; la
+    /// fenêtre, elle, demande « celle-ci est douteuse ? » pour chaque tuile et
+    /// à chaque image. Le refaire soixante fois par seconde et par collection
+    /// coûtait bien plus cher que la lecture elle-même.
+    /// </summary>
+    private readonly HashSet<string> douteuses = [];
+
+    public bool Douteuse(string cle) => douteuses.Contains(cle);
+
+    /// <summary>Refait le tri, à la fin d'une passe de lecture.</summary>
+    private void RecalculerDouteuses()
+    {
+        douteuses.Clear();
+        foreach (var cle in Photo.Ordre)
+            if (SentLeRetard(cle))
+                douteuses.Add(cle);
+    }
+
+    /// <summary>
     /// Une collection que la chaîne relit, à trois signes : lue entièrement
     /// vide (PLG-R33), lue avec une portée effondrée (PLG-R44), ou lue sans
     /// retrouver ce qui est déjà parti (PLG-R45).
@@ -114,7 +151,7 @@ public sealed partial class Plugin : IDalamudPlugin
     /// sur soixante-et-une se laissait interroger, et la fenêtre annonçait
     /// fièrement « 1 / 1 » avec un anneau plein.
     /// </summary>
-    public bool Douteuse(string cle)
+    private bool SentLeRetard(string cle)
     {
         var r = Releves.FirstOrDefault(x => x.Cle == cle);
         if (r is null || r.Empeche is not null || r.Total == 0) return false;
@@ -207,7 +244,7 @@ public sealed partial class Plugin : IDalamudPlugin
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
         MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
 
-        Visage = new Visage(http, textures, journal);
+        Visage = new Visage(http, textures, journal, SurLeFilDuJeu);
         fenetre = new Fenetre(this);
         fenetres.AddWindow(fenetre);
 
@@ -321,8 +358,12 @@ public sealed partial class Plugin : IDalamudPlugin
         {
             try
             {
-                Catalogue = await Catalogue.Charger(http, Site.Catalogue, cache);
-                journal.Information("catalogue charge ({0})", Catalogue.Date);
+                var neuf = await Catalogue.Charger(http, Site.Catalogue, cache);
+                SurLeFilDuJeu(() =>
+                {
+                    Catalogue = neuf;
+                    journal.Information("catalogue charge ({0})", neuf.Date);
+                });
             }
             catch (Exception e)
             {
@@ -351,7 +392,6 @@ public sealed partial class Plugin : IDalamudPlugin
 
     /// <summary>Pose par le fil reseau, leve par le fil du jeu : la lecture
     /// demandee peut partir, le catalogue est a jour.</summary>
-    private volatile bool aRegarder;
 
     /// <summary>Relit le catalogue s'il a change chez l'application, puis regarde.
     ///
@@ -374,8 +414,12 @@ public sealed partial class Plugin : IDalamudPlugin
                 if (cat is null || (distante.Length > 0 && distante != cat.Date))
                 {
                     var cache = Path.Combine(pi.GetPluginConfigDirectory(), "catalogue");
-                    Catalogue = await Catalogue.Charger(http, Site.Catalogue, cache);
-                    journal.Information("catalogue relu avant lecture ({0})", Catalogue.Date);
+                    var neuf = await Catalogue.Charger(http, Site.Catalogue, cache);
+                    SurLeFilDuJeu(() =>
+                    {
+                        Catalogue = neuf;
+                        journal.Information("catalogue relu avant lecture ({0})", neuf.Date);
+                    });
                 }
             }
             catch (Exception e)
@@ -384,8 +428,11 @@ public sealed partial class Plugin : IDalamudPlugin
             }
             finally
             {
-                rafraichit = false;
-                aRegarder = true;
+                SurLeFilDuJeu(() =>
+                {
+                    rafraichit = false;
+                    Regarder();
+                });
             }
         });
     }
@@ -424,12 +471,12 @@ public sealed partial class Plugin : IDalamudPlugin
     /// </summary>
     private void Reverifier()
     {
-        var douteuses = Photo.Ordre.Where(Douteuse).ToList();
+        RecalculerDouteuses();
         if (douteuses.Count == 0 || relectures >= MaxRelectures)
         {
             // Plus rien a relire, ou plus le droit : la chaine conclut.
             if (douteuses.Count > 0)
-                journal.Information("revérification : zéro confirmé après {0} relectures ({1})",
+                journal.Information("revérification : lecture tenue pour bonne après {0} relectures ({1})",
                     relectures, string.Join(", ", douteuses));
             EnVerification = false;
             return;
@@ -528,7 +575,11 @@ public sealed partial class Plugin : IDalamudPlugin
             if (cle == "armoires" && coffre is not null) RetenirDepots(coffre);
             file.Dequeue();
             Faites++;
-            if (file.Count == 0 && EnVerification) reverifieA = -1;
+            if (file.Count == 0)
+            {
+                RecalculerDouteuses();
+                if (EnVerification) reverifieA = -1;
+            }
         }
         catch (Exception e)
         {
@@ -555,27 +606,27 @@ public sealed partial class Plugin : IDalamudPlugin
         var pour = ContentId;
         _ = Task.Run(async () =>
         {
+            Retour retour;
             try
             {
-                Dernier = await Envoi.Deposer(http, jeton, aEnvoyer);
-                if (Dernier.Ok)
-                {
-                    discussion.Print("[Codex Olympia] " + Dernier.Message);
-                    // Ce qui vient de partir devient la reference du neuf. Range
-                    // depuis le fil du jeu, au prochain tour : les reglages ne
-                    // s'ecrivent pas depuis un fil de fond.
-                    aRetenir = (pour, Photographie(aEnvoyer));
-                }
+                retour = await Envoi.Deposer(http, jeton, aEnvoyer);
             }
             catch (Exception e)
             {
                 journal.Error(e, "envoi impossible");
-                Dernier = new Retour(false, Mots.ServeurInjoignable(e.Message), [], []);
+                retour = new Retour(false, Mots.ServeurInjoignable(e.Message), [], []);
             }
-            finally
+            // Le fil reseau ne touche a rien : il rapporte, et le fil du jeu
+            // range. Le journal de discussion, surtout, ne s'ecrit que d'ici.
+            SurLeFilDuJeu(() =>
             {
                 EnvoiEnCours = false;
-            }
+                Dernier = retour;
+                if (!retour.Ok) return;
+                discussion.Print("[Codex Olympia] " + retour.Message);
+                // Ce qui vient de partir devient la reference du neuf.
+                Retenir(pour, Photographie(aEnvoyer));
+            });
         });
     }
 

@@ -70,20 +70,6 @@ internal static class Peinture
 
     private static uint Opaque(Vector4 c) => ImGui.ColorConvertFloat4ToU32(c with { W = 1f });
 
-    /// <summary>Une lueur autour d'une carte : trois rectangles de plus en
-    /// plus larges et de plus en plus pâles. Pas de flou dans ImGui, mais
-    /// l'empilement en donne l'idée.</summary>
-    public static void Lueur(ImDrawListPtr dl, Vector2 min, Vector2 max, float rond, Vector4 c, float force = 1f)
-    {
-        for (var couche = 3; couche >= 1; couche--)
-        {
-            var marge = couche * 3f * Echelle;
-            var a = 0.04f * (4 - couche) * force;
-            dl.AddRectFilled(min - new Vector2(marge), max + new Vector2(marge),
-                Col(Teintes.Alpha(c, a)), rond + marge);
-        }
-    }
-
     /// <summary>Une tache de couleur très diluée, posée au fond de la fenêtre :
     /// cinq cercles concentriques de plus en plus pâles.</summary>
     public static void Tache(ImDrawListPtr dl, Vector2 centre, float rayon, Vector4 c, float sommet)
@@ -123,21 +109,6 @@ internal static class Peinture
             u1.Y = part;
         }
         dl.AddImageRounded(image, min, max, u0, u1, Col(Vector4.One), rond, ImDrawFlags.RoundCornersAll);
-    }
-
-    // ------------------------------------------------------------- les jauges
-
-    /// <summary>Une barre en gélule : le creux, puis le plein.</summary>
-    public static void Barre(ImDrawListPtr dl, Vector2 origine, float largeur, float hauteur, float part, Vector4 c)
-    {
-        var rond = hauteur * 0.5f;
-        var fin = origine + new Vector2(largeur, hauteur);
-        Plein(dl, origine, fin, Teintes.Filet, rond);
-        part = Math.Clamp(part, 0f, 1f);
-        if (part <= 0f) return;
-        // Jamais plus étroit qu'un bout arrondi, sinon la gélule se pince.
-        var l = MathF.Max(hauteur, largeur * part);
-        Degrade(dl, origine, new Vector2(origine.X + l, fin.Y), Teintes.Eclaircir(c, 0.2f), c, rond);
     }
 
     /// <summary>

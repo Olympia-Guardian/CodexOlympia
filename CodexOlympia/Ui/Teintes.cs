@@ -58,8 +58,6 @@ internal static class Teintes
 
     public static Vector4 Eclaircir(Vector4 c, float t) => Vector4.Lerp(c, Vector4.One, t) with { W = c.W };
 
-    public static Vector4 Assombrir(Vector4 c, float t) => Vector4.Lerp(c, Vector4.Zero, t) with { W = c.W };
-
     /// <summary>Une couleur teintée d'une autre, sans changer sa
     /// transparence : de quoi border une carte de son accent.</summary>
     public static Vector4 Melanger(Vector4 fond, Vector4 accent, float part)

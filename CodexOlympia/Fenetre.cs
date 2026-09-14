@@ -270,9 +270,24 @@ public sealed class Fenetre : Window, IDisposable
             return;
         }
 
+        PiecesQuiDorment();
         CeQuiAttend();
         Collections();
         Retour();
+    }
+
+    /// <summary>
+    /// Le conseil des pièces qui dorment (PLG-R42).
+    ///
+    /// Une pièce rangée à l'armoire est possédée, mais elle ne sert à aucun
+    /// glamour tant qu'elle dort là-bas. C'est un conseil, pas un fait de
+    /// collection : il n'entre jamais dans la photo.
+    /// </summary>
+    private void PiecesQuiDorment()
+    {
+        var dort = plugin.Releves.FirstOrDefault(r => r.Cle == "adeposer");
+        if (dort is null || dort.Trouves.Count == 0) return;
+        CarteTitree(Mots.PieceQuiDort(dort.Trouves.Count), Mots.PieceQuiDortAide, null);
     }
 
     /// <summary>Une carte qui ne porte qu'une phrase : ce qui manque, ou ce qui
@@ -858,7 +873,7 @@ public sealed class Fenetre : Window, IDisposable
         }
 
         var nom = r.Noms.TryGetValue(plugin.ContentId, out var n) ? n : "?";
-        Reglage(Mots.JetonDe(nom), Mots.JetonExplique, () =>
+        CarteTitree(Mots.JetonDe(nom), Mots.JetonExplique, () =>
         {
             ImGui.SetNextItemWidth(-1);
             var jeton = plugin.Jeton;
@@ -866,7 +881,7 @@ public sealed class Fenetre : Window, IDisposable
                 plugin.PoserJeton(jeton);
         });
 
-        Reglage(Mots.SyncAutoTitre, Mots.SyncAutoExplique, null, () =>
+        CarteTitree(Mots.SyncAutoTitre, Mots.SyncAutoExplique, null, () =>
         {
             var auto = r.SyncAuto;
             if (Pieces.Interrupteur("##auto", ref auto))
@@ -876,7 +891,7 @@ public sealed class Fenetre : Window, IDisposable
             }
         });
 
-        Reglage(Mots.AvisTitre, Mots.AvisExplique, null, () =>
+        CarteTitree(Mots.AvisTitre, Mots.AvisExplique, null, () =>
         {
             var avis = r.AvisEnJeu;
             if (Pieces.Interrupteur("##avis", ref avis))
@@ -886,7 +901,7 @@ public sealed class Fenetre : Window, IDisposable
             }
         });
 
-        Reglage(Mots.Langue_, string.Empty, () =>
+        CarteTitree(Mots.Langue_, string.Empty, () =>
         {
             ImGui.SetNextItemWidth(220f * E);
             var choix = (int)r.Langue;
@@ -896,13 +911,15 @@ public sealed class Fenetre : Window, IDisposable
     }
 
     /// <summary>
-    /// Une carte de réglage : son titre, sa phrase d'explication, et le geste.
+    /// Une carte titrée : son titre en or, sa phrase d'explication, et ce
+    /// qu'elle porte. Les réglages, les conseils et la page « à propos » sont
+    /// tous faits de celles-là.
     ///
     /// La hauteur n'est pas connue d'avance — le texte se replie selon la
     /// largeur — alors on dessine le contenu d'abord sur un calque, on mesure,
     /// et on peint le fond derrière. C'est la recette des cartes d'ImGui.
     /// </summary>
-    private void Reglage(string titre, string aide, Action? dessous, Action? aCote = null)
+    private void CarteTitree(string titre, string aide, Action? dessous, Action? aCote = null)
     {
         var large = ImGui.GetContentRegionAvail().X;
         var origine = ImGui.GetCursorScreenPos();
@@ -951,13 +968,13 @@ public sealed class Fenetre : Window, IDisposable
 
     private void PageAPropos()
     {
-        Reglage("Codex Olympia", Mots.Presentation, () =>
+        CarteTitree("Codex Olympia", Mots.Presentation, () =>
         {
             if (Pieces.BoutonFantome("##site", "codex-olympia.com", 0f, true, 34f, Teintes.Or))
                 Dalamud.Utility.Util.OpenLink("https://codex-olympia.com/");
         });
-        Reglage(Mots.SyncAutoTitre, Mots.SyncAutoExplique, null);
-        Reglage(Mots.AOuvrirTitre, Mots.AOuvrirAide, null);
+        CarteTitree(Mots.SyncAutoTitre, Mots.SyncAutoExplique, null);
+        CarteTitree(Mots.AOuvrirTitre, Mots.AOuvrirAide, null);
 
         // La version, tout en bas, discrète : ce qu'on demande quand on
         // signale un bug.
