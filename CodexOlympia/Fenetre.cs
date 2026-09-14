@@ -612,8 +612,9 @@ public sealed class Fenetre : Window, IDisposable
                 if (x.NonLues > 0) lignes.Add(Mots.PasEncoreLues(x.NonLues));
                 break;
             case Limite.Depot:
-                lignes.Add(Mots.AjoutSeulement);
-                lignes.Add(Mots.AjoutSeulementAide);
+                // Rien a dire : que l'armoire et la coiffeuse ne prouvent que
+                // ce qu'elles contiennent est l'affaire du plugin, pas du
+                // joueur, et l'ecrire dans chaque infobulle n'aidait personne.
                 break;
         }
         if (x.Note is not null) lignes.Add(x.Note);

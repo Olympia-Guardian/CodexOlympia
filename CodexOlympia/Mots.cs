@@ -73,15 +73,6 @@ public static class Mots
         "The game only loads these collections when their window opens: the achievements " +
         "log, the glamour dresser and the armoire at a Calamity Salvager. Open them, then Rescan.");
 
-    public static string AjoutSeulement => D("ajout seulement", "adds only");
-    public static string AjoutSeulementAide => D(
-        "Cette collection se constate dans un dépôt : la coiffeuse mirage ou l'armoire.\n" +
-        "On y voit ce qui s'y trouve, jamais ce qui n'y est pas. Une pièce peut dormir\n" +
-        "dans un sac ou chez un servant. Rien ne sera donc signalé comme manquant.",
-        "This collection is observed in a deposit: the glamour dresser or the armoire.\n" +
-        "You see what is in there, never what is not. A piece may sit in a bag or with\n" +
-        "a retainer. Nothing will ever be reported as missing.");
-
     public static string NonLues(int n) => n == 1
         ? D("Une collection n'a pas pu être lue : elle ne sera pas envoyée.",
             "One collection could not be read: it will not be sent.")
