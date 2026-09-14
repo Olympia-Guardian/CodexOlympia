@@ -237,6 +237,11 @@ public static class Mots
     public static string GaleriePatch(string n) => D($"Patch {n}", $"Patch {n}");
     public static string GaleriePlusObtenable => D("Plus obtenable", "No longer obtainable");
     public static string GalerieFermer => D("Fermer", "Close");
+    public static string GaleriePieces(int n) => n == 1
+        ? D("Une pièce", "One piece")
+        : D($"{n} pièces", $"{n} pieces");
+    public static string GalerieToutEssayer => D("Tout essayer", "Try the whole set");
+    public static string GalerieEssayer => D("Clic : essayer", "Click to try on");
 
     /// <summary>La famille d'une source, telle que l'application la nomme : les
     /// mêmes mots des deux côtés, pour qu'on s'y retrouve.</summary>

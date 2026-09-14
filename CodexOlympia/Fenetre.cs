@@ -958,6 +958,33 @@ public sealed class Fenetre : Window, IDisposable
 
     /// <summary>La grille des icones du jeu. Ce qu'on a est net, ce qui manque
     /// est en retrait, et la pastille verte le redit sans la couleur seule.</summary>
+    /// <summary>La liste filtrée, gardée d'une image sur l'autre : six mille
+    /// pièces de tenue se trient vite, mais pas soixante fois par seconde.</summary>
+    private List<Entree> filtrees = [];
+    private string filtreCle = string.Empty;
+    private Vue filtreVue;
+    private int filtreMien = -1;
+
+    private List<Entree> Filtrer(List<Entree> entrees, HashSet<uint> mien)
+    {
+        if (filtreCle == galerieCle && filtreVue == galerieVue && filtreMien == mien.Count)
+            return filtrees;
+
+        var sortie = new List<Entree>(entrees.Count);
+        foreach (var x in entrees)
+        {
+            var aMoi = mien.Contains(x.Id);
+            if (galerieVue == Vue.Manquants && aMoi) continue;
+            if (galerieVue == Vue.AMoi && !aMoi) continue;
+            sortie.Add(x);
+        }
+        filtrees = sortie;
+        filtreCle = galerieCle;
+        filtreVue = galerieVue;
+        filtreMien = mien.Count;
+        return sortie;
+    }
+
     private void Grille(List<Entree> entrees, HashSet<uint> mien)
     {
         var cote = 46f * E;
@@ -965,15 +992,38 @@ public sealed class Fenetre : Window, IDisposable
         var large = ImGui.GetContentRegionAvail().X;
         var colonnes = Math.Max(1, (int)((large + ecart) / (cote + ecart)));
         var dl = ImGui.GetWindowDrawList();
-        var i = 0;
-        foreach (var e in entrees)
-        {
-            var aMoi = mien.Contains(e.Id);
-            if (galerieVue == Vue.Manquants && aMoi) continue;
-            if (galerieVue == Vue.AMoi && !aMoi) continue;
 
-            if (i % colonnes != 0) ImGui.SameLine(0, ecart);
-            i++;
+        var visibles = Filtrer(entrees, mien);
+        if (visibles.Count == 0)
+        {
+            ImGui.TextColored(Teintes.Discret, Mots.RienDeNeuf);
+            return;
+        }
+
+        // On ne dessine que les rangees qu'on voit. L'armoire en compte trois
+        // mille cinq cents et les pieces de tenue six mille : les poser toutes
+        // a chaque image ferait ramer la fenetre pour rien, et le defilement
+        // resterait le meme.
+        var pas = cote + ecart;
+        var rangees = (visibles.Count + colonnes - 1) / colonnes;
+        var haut = ImGui.GetScrollY();
+        var vue = ImGui.GetWindowHeight();
+        // La grille ne commence pas en haut de l'enfant : les pilules de filtre
+        // la precedent, et sans ce decalage on elaguerait une rangee de trop.
+        var debut = ImGui.GetCursorPosY();
+        var premiere = Math.Max(0, (int)((haut - debut) / pas) - 1);
+        var derniere = Math.Min(rangees - 1, (int)((haut + vue - debut) / pas) + 1);
+        if (derniere < premiere) derniere = premiere;
+        if (premiere > 0) ImGui.Dummy(new Vector2(large, premiere * pas));
+
+        for (var r = premiere; r <= derniere; r++)
+        for (var c = 0; c < colonnes; c++)
+        {
+            var rang = r * colonnes + c;
+            if (rang >= visibles.Count) break;
+            var e = visibles[rang];
+            var aMoi = mien.Contains(e.Id);
+            if (c > 0) ImGui.SameLine(0, ecart);
 
             var origine = ImGui.GetCursorScreenPos();
             var g = Pieces.Zone($"##g{e.Id}", new Vector2(cote));
@@ -1002,7 +1052,8 @@ public sealed class Fenetre : Window, IDisposable
             Pieces.Infobulle(e.Nom);
             if (g.Clic) galerieChoisi = choisi ? 0u : e.Id;
         }
-        if (i == 0) ImGui.TextColored(Teintes.Discret, Mots.RienDeNeuf);
+
+        if (derniere < rangees - 1) ImGui.Dummy(new Vector2(large, (rangees - 1 - derniere) * pas));
     }
 
     /// <summary>
@@ -1055,6 +1106,8 @@ public sealed class Fenetre : Window, IDisposable
         var autre = plugin.Catalogue?.AutreNom(galerieCle, numero) ?? string.Empty;
         if (autre.Length > 0 && autre != e.Nom) ImGui.TextColored(Teintes.Discret, autre);
 
+        LesPieces(e, dedans);
+
         if (detail is not null)
         {
             ImGui.Dummy(new Vector2(0, 3f * E));
@@ -1093,6 +1146,58 @@ public sealed class Fenetre : Window, IDisposable
         dl.ChannelsMerge();
         ImGui.SetCursorScreenPos(new Vector2(origine.X, bas));
         ImGui.Dummy(new Vector2(large, 4f * E));
+    }
+
+    /// <summary>
+    /// Les pièces d'une tenue, sous son nom (PLG-R51).
+    ///
+    /// Chacune se clique pour l'essayer, et le bouton doré les essaie toutes :
+    /// le jeu empile ce qu'on lui donne, la silhouette s'habille de la tenue
+    /// entière. Rien n'est acheté ni équipé.
+    /// </summary>
+    private void LesPieces(Entree tenue, float dedans)
+    {
+        if (galerieCle != "outfits") return;
+        if (!plugin.Jeu.Ensembles.TryGetValue(tenue.Id, out var objets)) return;
+
+        ImGui.Dummy(new Vector2(0, 5f * E));
+        ImGui.TextColored(Teintes.Or, Mots.GaleriePieces(objets.Length));
+        ImGui.Dummy(new Vector2(0, 2f * E));
+
+        var mien = Possedes("outfitpieces");
+        var cote = 34f * E;
+        var ecart = 4f * E;
+        var dl = ImGui.GetWindowDrawList();
+        var colonnes = Math.Max(1, (int)((dedans + ecart) / (cote + ecart)));
+        for (var i = 0; i < objets.Length; i++)
+        {
+            if (!plugin.Jeu.Pieces.TryGetValue(objets[i], out var piece)) continue;
+            if (i % colonnes != 0) ImGui.SameLine(0, ecart);
+
+            var aMoi = mien.Contains(piece.Id);
+            var origine = ImGui.GetCursorScreenPos();
+            var g = Pieces.Zone($"##p{piece.Id}", new Vector2(cote));
+            var bout = origine + new Vector2(cote);
+            var chaud = Mouvement.Survol($"##p{piece.Id}#s", g.Dessus);
+            Peinture.Carte(dl, origine, bout, Teintes.RondTuile * E,
+                Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.10f),
+                aMoi ? Teintes.Alpha(Teintes.Vert, 0.4f) : Teintes.Filet);
+            if (Icone(piece.Icone) is { } image)
+            {
+                var marge = 4f * E;
+                dl.AddImage(image.Handle, origine + new Vector2(marge), bout - new Vector2(marge),
+                    Vector2.Zero, Vector2.One,
+                    Peinture.Col(new Vector4(1f, 1f, 1f, aMoi ? 1f : 0.32f)));
+            }
+            if (aMoi)
+                dl.AddCircleFilled(bout - new Vector2(5f * E), 3f * E, Peinture.Col(Teintes.Vert));
+            Pieces.Infobulle($"{piece.Nom}\n{Mots.GalerieEssayer}");
+            if (g.Clic) plugin.Essayer(piece.Id);
+        }
+
+        ImGui.Dummy(new Vector2(0, 5f * E));
+        if (Pieces.BoutonFantome("##tout-essayer", Mots.GalerieToutEssayer, dedans, true, 30f, Teintes.Or))
+            foreach (var objet in objets) plugin.Essayer(objet);
     }
 
     private void PiedGalerie(Vector2 fin)

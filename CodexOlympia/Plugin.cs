@@ -66,6 +66,19 @@ public sealed partial class Plugin : IDalamudPlugin
         return vu;
     }
 
+    /// <summary>
+    /// Fait essayer un objet au personnage (PLG-R51).
+    ///
+    /// Le jeu empile ce qu'on lui donne : rappeler la méthode pièce après
+    /// pièce habille la silhouette de toute la tenue. Rien n'est acheté, rien
+    /// n'est équipé, et le joueur referme la fenêtre quand il veut.
+    /// </summary>
+    public void Essayer(uint objet)
+    {
+        if (objet == 0) return;
+        FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentTryon.TryOn(0u, objet, 0, 0, 0, false);
+    }
+
     /// <summary>Après une lecture, ce qui était gardé ne vaut plus.</summary>
     public void OublierGalerie()
     {
@@ -104,6 +117,12 @@ public sealed partial class Plugin : IDalamudPlugin
         }
         return pont;
     }
+
+    /// <summary>Ce que les tables du client savent dire.</summary>
+    public Jeu Jeu { get; private set; } = new(
+        new Dictionary<string, List<Entree>>(),
+        new Dictionary<uint, uint[]>(),
+        new Dictionary<uint, Entree>());
 
     public IReadOnlyDictionary<string, List<Entree>> Tables { get; private set; } =
         new Dictionary<string, List<Entree>>();
@@ -288,7 +307,8 @@ public sealed partial class Plugin : IDalamudPlugin
         Visage = new Visage(http, textures, journal, SurLeFilDuJeu);
         try
         {
-            Tables = CodexOlympia.Tables.Batir(donnees);
+            Jeu = CodexOlympia.Tables.Batir(donnees);
+            Tables = Jeu.Collections;
             journal.Information("tables du jeu : {0} collections", Tables.Count);
         }
         catch (Exception e)

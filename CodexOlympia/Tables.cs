@@ -7,6 +7,18 @@ namespace CodexOlympia;
 public sealed record Entree(uint Id, string Nom, uint Icone);
 
 /// <summary>
+/// Ce que les tables du client savent dire, une fois lues.
+///
+/// <c>Collections</c> est la galerie ; <c>Ensembles</c> dit quelles pièces
+/// composent une tenue ; <c>Pieces</c> retrouve une pièce par son objet, pour
+/// la nommer dans la fiche d'une tenue sans reparcourir la liste.
+/// </summary>
+public sealed record Jeu(
+    IReadOnlyDictionary<string, List<Entree>> Collections,
+    IReadOnlyDictionary<uint, uint[]> Ensembles,
+    IReadOnlyDictionary<uint, Entree> Pieces);
+
+/// <summary>
 /// Ce qui existe, lu dans les tables du client (PLG-R46).
 ///
 /// Le nom et l'icône viennent du jeu, dans sa langue, et se mettent à jour avec
@@ -31,7 +43,7 @@ public static class Tables
     private const uint PasDeTeinte = 12;
 
     /// <summary>Les collections que le jeu sait décrire tout seul.</summary>
-    public static IReadOnlyDictionary<string, List<Entree>> Batir(IDataManager donnees)
+    public static Jeu Batir(IDataManager donnees)
     {
         var sortie = new Dictionary<string, List<Entree>>();
 
@@ -104,8 +116,59 @@ public static class Tables
                 ? null
                 : new Entree(r.RowId, r.Name.ExtractText(), (uint)r.Icon));
 
-        return sortie;
+        // Les tenues, leurs pièces et l'armoire. Le jeu porte les trois : une
+        // ligne d'ensemble mirage est un objet, et ses onze emplacements sont
+        // les objets qui la composent ; une ligne d'armoire désigne l'objet
+        // qu'elle range. Le catalogue numerote l'armoire a partir de un, le jeu
+        // a partir de zero : la galerie suit le catalogue, pour que les deux
+        // comptes parlent des memes cases.
+        var objets = donnees.GetExcelSheet<Item>();
+        var ensembles = new Dictionary<uint, uint[]>();
+        var pieces = new Dictionary<uint, Entree>();
+
+        var tenues = new List<Entree>();
+        foreach (var ligne in donnees.GetExcelSheet<MirageStoreSetItem>())
+        {
+            if (ligne.RowId == 0) continue;
+            var dedans = Emplacements(ligne).Where(x => x != 0).Distinct().ToArray();
+            if (dedans.Length == 0) continue;
+            if (Objet(objets, ligne.RowId) is not { } tenue) continue;
+            tenues.Add(tenue);
+            ensembles[ligne.RowId] = dedans;
+            foreach (var p in dedans)
+                if (!pieces.ContainsKey(p) && Objet(objets, p) is { } piece)
+                    pieces[p] = piece;
+        }
+        if (tenues.Count > 0)
+        {
+            sortie["outfits"] = tenues;
+            sortie["outfitpieces"] = [.. pieces.Values];
+        }
+
+        Poser(sortie, "armoires", donnees.GetExcelSheet<Cabinet>(), r =>
+            Objet(objets, r.Item.RowId) is { } o ? o with { Id = r.RowId + 1 } : null);
+
+        return new Jeu(sortie, ensembles, pieces);
     }
+
+    /// <summary>Un objet du jeu en entrée de galerie, ou rien quand il n'a ni
+    /// nom ni icône.</summary>
+    private static Entree? Objet(Lumina.Excel.ExcelSheet<Item> objets, uint id)
+    {
+        if (id == 0) return null;
+        var ligne = objets.GetRowOrDefault(id);
+        if (ligne is null) return null;
+        var nom = ligne.Value.Name.ExtractText();
+        return nom.Length == 0 ? null : new Entree(id, nom, ligne.Value.Icon);
+    }
+
+    /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille.</summary>
+    private static uint[] Emplacements(MirageStoreSetItem s) =>
+    [
+        s.MainHand.RowId, s.OffHand.RowId, s.Head.RowId, s.Body.RowId, s.Hands.RowId,
+        s.Legs.RowId, s.Feet.RowId, s.Earrings.RowId, s.Necklace.RowId, s.Bracelets.RowId,
+        s.Ring.RowId,
+    ];
 
     private static void Poser<T>(
         Dictionary<string, List<Entree>> ou,
