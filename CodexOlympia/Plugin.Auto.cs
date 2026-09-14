@@ -178,8 +178,8 @@ public sealed partial class Plugin
     /// rien au serveur : ce qui est parti une fois y est pour de bon, et le
     /// miroir qu'on garde ici doit dire la même chose. Elle remplaçait la
     /// liste d'une collection par celle de la dernière photo ; quand le jeu
-    /// n'avait chargé qu'une partie d'une collection — les coiffures, les
-    /// lunettes, les bardes et les portraits se lisent par morceaux — la
+    /// n'avait chargé qu'une partie d'une collection (les coiffures, les
+    /// lunettes, les bardes et les portraits se lisent par morceaux), la
     /// mémoire rétrécissait, et la lecture suivante, complète, annonçait comme
     /// nouveau ce qui était déjà envoyé depuis longtemps.
     /// </summary>

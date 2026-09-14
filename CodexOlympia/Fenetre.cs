@@ -394,7 +394,7 @@ public sealed class Fenetre : Window, IDisposable
 
         var enLecture = plugin.LectureEnCours;
         var neuf = enLecture ? -1 : plugin.Nouveautes().Sum(x => x.Ids.Count);
-        Pieces.TuileStat("##c2", Mots.MotNouveautes, neuf < 0 ? "—" : neuf.ToString(),
+        Pieces.TuileStat("##c2", Mots.MotNouveautes, neuf < 0 ? "…" : neuf.ToString(),
             neuf < 0 ? Mots.ApresLecture : Mots.DepuisEnvoi,
             neuf > 0 ? Teintes.Or : Teintes.Discret, l);
         ImGui.SameLine(0, ecart);
@@ -853,8 +853,8 @@ public sealed class Fenetre : Window, IDisposable
     /// Une carte titrée : réglages, conseils et page « à propos » en sont tous
     /// faits.
     ///
-    /// La hauteur n'est pas connue d'avance — le texte se replie selon la
-    /// largeur — alors on dessine le contenu d'abord sur un calque, on mesure,
+    /// La hauteur n'est pas connue d'avance, le texte se repliant selon la
+    /// largeur : on dessine le contenu d'abord sur un calque, on mesure,
     /// et on peint le fond derrière. C'est la recette des cartes d'ImGui.
     /// </summary>
     private void CarteTitree(string titre, string aide, Action? dessous, Action? aCote = null)

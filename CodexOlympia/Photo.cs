@@ -193,7 +193,7 @@ public static class Photo
             // Un emplacement qui porte une ligne de MirageStoreSetItem n'est pas
             // un objet : c'est un ENSEMBLE, rangé d'un bloc. Le jeu dit alors,
             // emplacement par emplacement, lesquelles de ses pièces s'y trouvent
-            // vraiment — un ensemble déposé peut être incomplet.
+            // vraiment : un ensemble déposé peut être incomplet.
             var set = ensembles.GetRowOrDefault(net);
             var estEnsemble = set is not null && Slots(set.Value).Any(x => x != 0);
             if (estEnsemble)
