@@ -103,13 +103,16 @@ internal static class Pieces
         var v = Texte.Mesurer(valeur);
         ImGui.SetWindowFontScale(1f);
         var m = mot.Length > 0 ? new Vector2(Texte.LargeurPetitesCapitales(mot), Texte.Mesurer(mot).Y) : Vector2.Zero;
-        var ecart = mot.Length > 0 ? 1f * E : 0f;
+        // Un mot plus large que l'anneau deborde et se fait couper par le
+        // trace : mieux vaut ne pas l'ecrire.
+        if (m.X > rayon * 1.8f) m = Vector2.Zero;
+        var ecart = m.X > 0f ? 1f * E : 0f;
         var haut = centre.Y - (v.Y + ecart + m.Y) * 0.5f;
 
         ImGui.SetWindowFontScale(1.45f);
         Texte.A(valeur, new Vector2(centre.X - v.X * 0.5f, haut), Teintes.Encre);
         ImGui.SetWindowFontScale(1f);
-        if (mot.Length > 0)
+        if (m.X > 0f)
             Texte.PetitesCapitales(mot, new Vector2(centre.X - m.X * 0.5f, haut + v.Y + ecart), Teintes.Discret);
     }
 

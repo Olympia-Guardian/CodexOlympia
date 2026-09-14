@@ -308,8 +308,10 @@ public sealed class Fenetre : Window, IDisposable
         var rayon = 34f * E;
         var centre = new Vector2(fin.X - 22f * E - rayon, origine.Y + h * 0.5f);
         var part = Mouvement.Vers("##anneau-tete", Math.Clamp((float)lues / total, 0f, 1f));
+        // Pas de mot dans l'anneau : « COLLECTIONS » est plus large que lui et
+        // se faisait couper, et le compteur juste dessous le dit deja.
         Pieces.Anneau(centre, rayon, 6f * E, part, Teintes.Avancement(lues, total),
-            $"{lues} / {total}", Mots.MotCollections, plugin.LectureEnCours);
+            $"{lues} / {total}", string.Empty, plugin.LectureEnCours);
 
         var droite = centre.X - rayon - 16f * E;
         var largeurTexte = MathF.Max(60f * E, droite - x);
