@@ -3,6 +3,52 @@ using System.Text.Json;
 
 namespace CodexOlympia;
 
+/// <summary>Une façon d'obtenir une entrée, telle que l'application la publie.
+/// <c>Genre</c> est la famille (succès, donjon, boutique...), en anglais, parce
+/// que c'est une clé et non une phrase ; <c>Fr</c> et <c>En</c> sont la phrase.</summary>
+public sealed record Source(string Genre, string Fr, string En)
+{
+    public string Phrase
+    {
+        get
+        {
+            var t = Mots.Fr ? Fr : En;
+            if (t.Length == 0) t = Mots.Fr ? En : Fr;
+            return t;
+        }
+    }
+}
+
+/// <summary>
+/// Ce que le jeu ne sait pas dire d'une entrée (PLG-R47).
+///
+/// Le client connaît le nom, l'icône et si c'est débloqué ; il ne connaît ni le
+/// patch d'arrivée, ni le fait qu'une entrée ne s'obtienne plus, ni une phrase
+/// qui dise comment l'avoir. Ces trois-là viennent de l'application, et leur
+/// absence n'empêche rien : la fiche s'ouvre sans elles.
+/// </summary>
+public sealed record Detail(
+    string Patch,
+    bool Inobtenable,
+    string NoticeFr,
+    string NoticeEn,
+    IReadOnlyList<Source> Sources)
+{
+    /// <summary>La notice de l'objet, dans la langue de la fenêtre.</summary>
+    public string Notice
+    {
+        get
+        {
+            var t = Mots.Fr ? NoticeFr : NoticeEn;
+            return t.Length > 0 ? t : (Mots.Fr ? NoticeEn : NoticeFr);
+        }
+    }
+
+    /// <summary>La boutique en ligne, que le jeu ne distingue pas d'un déblocage
+    /// ordinaire une fois l'objet reçu.</summary>
+    public bool Boutique => Sources.Any(x => x.Genre == "Premium");
+}
+
 /// <summary>Une pièce de tenue : son objet, sa case d'armoire s'il y en a une,
 /// et son nom dans les deux langues.</summary>
 public sealed record Piece(uint Objet, uint Armoire, string Fr, string En)
@@ -49,6 +95,21 @@ public sealed class Catalogue
     /// <summary>L'objet qui déverrouille, quand l'entrée en a un.</summary>
     public Dictionary<string, Dictionary<uint, uint>> Objets { get; } = new();
 
+    /// <summary>Le patch, l'inobtenable et les sources, pour les collections que
+    /// la galerie montre. Les autres n'en gardent pas : un succès porte sa phrase
+    /// comme les autres, et il y en a vingt-quatre mille.</summary>
+    public Dictionary<string, Dictionary<uint, Detail>> Details { get; } = new();
+
+    /// <summary>Les collections dont on garde le détail en mémoire.</summary>
+    private static readonly HashSet<string> Detaillees =
+    [
+        "mounts", "minions", "orchestrions", "emotes", "fashions", "bardings", "cards",
+    ];
+
+    /// <summary>Ce que l'application sait d'une entrée, ou rien.</summary>
+    public Detail? Detail(string cle, uint id) =>
+        Details.TryGetValue(cle, out var d) && d.TryGetValue(id, out var v) ? v : null;
+
     /// <summary>Le nom de chaque entrée, dans les deux langues, par collection :
     /// pour dire « Colibri callado » plutôt que « monture 435 » quand on liste
     /// ce qui attend d'être envoyé.</summary>
@@ -65,6 +126,14 @@ public sealed class Catalogue
             if (nom.Length > 0) return nom;
         }
         return $"#{id}";
+    }
+
+    /// <summary>Le nom d'une entrée dans l'autre langue, ou rien quand c'est le
+    /// même mot : le tiroir de l'application le montre sous le nom.</summary>
+    public string AutreNom(string cle, uint id)
+    {
+        if (!Noms.TryGetValue(cle, out var noms) || !noms.TryGetValue(id, out var n)) return string.Empty;
+        return Mots.Fr ? n.En : n.Fr;
     }
 
     /// <summary>Les tenues et leurs pièces.</summary>
@@ -160,6 +229,7 @@ public sealed class Catalogue
         var objets = new Dictionary<uint, uint>();
         var noms = new Dictionary<uint, (string Fr, string En)>();
         var variantes = new Dictionary<uint, uint[]>();
+        var details = Detaillees.Contains(cle) ? new Dictionary<uint, Detail>() : null;
         foreach (var e in liste.EnumerateArray())
         {
             if (!e.TryGetProperty("id", out var ji) || ji.ValueKind != JsonValueKind.Number) continue;
@@ -176,6 +246,8 @@ public sealed class Catalogue
                 if (v.Count > 1) variantes[id] = [.. v];
             }
             if (e.TryGetProperty("leve", out var jl) && jl.ValueKind == JsonValueKind.True) Mandats.Add(id);
+
+            if (details is not null) details[id] = LireDetail(e);
 
             if (cle != "outfits") continue;
             if (!e.TryGetProperty("pieces", out var jp) || jp.ValueKind != JsonValueKind.Array) continue;
@@ -194,6 +266,7 @@ public sealed class Catalogue
 
         Ids[cle] = [.. ids];
         Objets[cle] = objets;
+        if (details is not null) Details[cle] = details;
         Noms[cle] = noms;
         Variantes[cle] = variantes;
         // Les pièces n'ont pas de fichier à elles : elles vivent dans les tenues.
@@ -205,5 +278,27 @@ public sealed class Catalogue
                     pieces[p.Objet] = (p.Fr, p.En);
             Noms["outfitpieces"] = pieces;
         }
+    }
+
+    private static Detail LireDetail(JsonElement e)
+    {
+        var sources = new List<Source>();
+        if (e.TryGetProperty("sources", out var js) && js.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var x in js.EnumerateArray())
+            {
+                if (x.ValueKind != JsonValueKind.Object) continue;
+                var genre = Texte(x, "type");
+                var fr = Texte(x, "text");
+                var en = Texte(x, "textEn");
+                if (fr.Length == 0 && en.Length == 0 && genre.Length == 0) continue;
+                sources.Add(new Source(genre, fr, en));
+            }
+        }
+        var inobtenable = e.TryGetProperty("unobtainable", out var ju)
+            && ju.ValueKind == JsonValueKind.True;
+        return new Detail(
+            Texte(e, "patch"), inobtenable,
+            Texte(e, "description"), Texte(e, "descriptionEn"), sources);
     }
 }

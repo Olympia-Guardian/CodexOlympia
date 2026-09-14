@@ -92,6 +92,23 @@ internal static class Pieces
         ImGui.Dummy(new Vector2(l, h));
     }
 
+    /// <summary>Une étiquette : la même que les puces de l'application, un mot
+    /// dans une gélule teintée. Sans point, contrairement à la pastille d'état,
+    /// parce qu'elle ne dit pas un état mais une catégorie.</summary>
+    public static void Puce(string texte, Vector4 teinte)
+    {
+        var dl = ImGui.GetWindowDrawList();
+        var origine = ImGui.GetCursorScreenPos();
+        var t = Texte.Mesurer(texte);
+        var l = t.X + 16f * E;
+        var h = t.Y + 5f * E;
+        var fin = origine + new Vector2(l, h);
+        Peinture.Plein(dl, origine, fin, Teintes.Alpha(teinte, 0.13f), h * 0.5f);
+        Peinture.Contour(dl, origine, fin, Teintes.Alpha(teinte, 0.30f), h * 0.5f);
+        Texte.A(texte, new Vector2(origine.X + 8f * E, origine.Y + 2.5f * E), teinte);
+        ImGui.Dummy(new Vector2(l, h));
+    }
+
     public static void Anneau(Vector2 centre, float rayon, float epaisseur, float part, Vector4 teinte,
         string valeur, string mot, bool tourne = false)
     {

@@ -93,7 +93,7 @@ public sealed partial class Plugin : IDalamudPlugin
     /// <summary>Ce qu'une etape produit comme releves : c'est ce qu'il faut
     /// retirer avant de la rejouer, sans toucher au reste.</summary>
     private static string[] EmisPar(string etape) =>
-        etape == "outfitpieces" ? ["outfitpieces", "outfits", "adeposer"] : [etape];
+        etape == "outfitpieces" ? ["outfitpieces", "outfits"] : [etape];
 
     /// <summary>Vrai si cette collection attend son tour dans la file.</summary>
     public bool EnFile(string cle) => file.Contains(EtapeDe(cle));
@@ -532,6 +532,7 @@ public sealed partial class Plugin : IDalamudPlugin
                 cat,
                 donnees.GetExcelSheet<AozAction>(),
                 donnees.GetExcelSheet<MirageStoreSetItem>(),
+                donnees.GetExcelSheet<Item>(),
                 ref coffre);
             // Une relecture remplace ce que l'etape avait produit la premiere
             // fois : deux releves de la meme collection seraient un mensonge.

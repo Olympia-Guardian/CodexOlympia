@@ -45,7 +45,7 @@ public static class Mots
         D("Le catalogue de l'application n'est pas encore chargé.", "The app catalogue is not loaded yet.");
     public static string Reessayer => D("Réessayer", "Try again");
 
-    public static string Regarder => D("Regarder ce que j'ai", "See what I have");
+    public static string Regarder => D("Scan des collections", "Scan collections");
     public static string RienNePart => D("rien n'est envoyé à cette étape", "nothing is sent at this step");
     public static string Presentation => D(
         "Le plugin lit ce que le jeu tient pour débloqué, te le montre, et n'envoie que si tu " +
@@ -66,7 +66,7 @@ public static class Mots
     public static string VerificationAttente => D(
         "vérification en cours, l'envoi attend",
         "double-checking, sending will wait");
-    public static string AOuvrirTitre => D("À ouvrir en jeu", "Open in game first");
+    public static string AOuvrirTitre => D("À ouvrir en jeu d'abord", "Open in game first");
     public static string AOuvrirAide => D(
         "Le jeu ne charge ces collections qu'à l'ouverture de leur fenêtre : le carnet de " +
         "succès, la coiffeuse mirage et l'armoire chez un rassembleur. Ouvre-les, puis Relire.",
@@ -81,14 +81,6 @@ public static class Mots
         "This collection is observed in a deposit: the glamour dresser or the armoire.\n" +
         "You see what is in there, never what is not. A piece may sit in a bag or with\n" +
         "a retainer. Nothing will ever be reported as missing.");
-
-    public static string PieceQuiDort(int n) => n == 1
-        ? D("Une pièce de tenue dort dans ton armoire.", "One outfit piece sits in your armoire.")
-        : D($"{n} pièces de tenue dorment dans ton armoire.",
-            $"{n} outfit pieces sit in your armoire.");
-    public static string PieceQuiDortAide => D(
-        "Dépose-les dans la coiffeuse pour pouvoir t'en servir.",
-        "Move them to the glamour dresser to actually use them.");
 
     public static string NonLues(int n) => n == 1
         ? D("Une collection n'a pas pu être lue : elle ne sera pas envoyée.",
@@ -228,8 +220,6 @@ public static class Mots
     public static string GalerieTout => D("Tout", "All");
     public static string GalerieManquants => D("Manquants", "Missing");
     public static string GalerieAMoi => D("À moi", "Mine");
-    public static string GalerieAToi => D("À toi", "Yours");
-    public static string GalerieIlTeManque => D("Il te manque", "You are missing");
     public static string GalerieVide => D(
         "Rien à montrer ici. Regarde d'abord ce que tu as, depuis la page de synchronisation.",
         "Nothing to show yet. Read what you have first, from the sync page.");
@@ -240,11 +230,61 @@ public static class Mots
         "Cette collection n'est pas encore dans la galerie : le jeu et l'application ne numérotent pas ses entrées pareil.",
         "This collection is not in the gallery yet: the game and the app number its entries differently.");
     public static string GalerieCompte(int fait, int total) => $"{fait} / {total}";
+    public static string GalerieObtention => D("Comment l'obtenir", "How to get it");
+    public static string GalerieSourceInconnue => D(
+        "L'application ne sait pas d'où vient cet objet.",
+        "The app does not know where this one comes from.");
+    public static string GaleriePatch(string n) => D($"Patch {n}", $"Patch {n}");
+    public static string GaleriePlusObtenable => D("Plus obtenable", "No longer obtainable");
+    public static string GalerieFermer => D("Fermer", "Close");
+
+    /// <summary>La famille d'une source, telle que l'application la nomme : les
+    /// mêmes mots des deux côtés, pour qu'on s'y retrouve.</summary>
+    public static string Famille(string genre) => genre switch
+    {
+        "Trial" => D("Défi", "Trial"),
+        "Raid" => D("Raid", "Raid"),
+        "Chaotic Raid" => D("Raid chaotique", "Chaotic Raid"),
+        "Dungeon" => D("Donjon", "Dungeon"),
+        "V&C Dungeon" => D("Donjon variant/critérié", "V&C Dungeon"),
+        "Deep Dungeon" => D("Donjon sans fond", "Deep Dungeon"),
+        "Occult Crescent" => D("Croissant occulte", "Occult Crescent"),
+        "Bozja" => D("Bozja", "Bozja"),
+        "Eureka" => D("Eurêka", "Eureka"),
+        "Hunts" => D("Chasses", "Hunts"),
+        "FATE" => D("ALÉA", "FATE"),
+        "Treasure Hunt" => D("Chasse aux trésors", "Treasure Hunt"),
+        "Tribal" => D("Tribus", "Tribal Quests"),
+        "Quest" => D("Quête", "Quest"),
+        "Achievement" => D("Haut fait", "Achievement"),
+        "Wondrous Tails" => D("Carnet fabuleux", "Wondrous Tails"),
+        "Gold Saucer" => D("Gold Saucer", "Gold Saucer"),
+        "PvP" => D("JcJ", "PvP"),
+        "Island Sanctuary" => D("Îlôt paradisiaque", "Island Sanctuary"),
+        "Cosmic Exploration" => D("Exploration cosmique", "Cosmic Exploration"),
+        "Skybuilders" => D("Restauration d'Ishgard", "Ishgardian Restoration"),
+        "Crafting" => D("Artisanat", "Crafting"),
+        "Gathering" => D("Récolte", "Gathering"),
+        "Voyages" => D("Expéditions", "Voyages"),
+        "Venture" => D("Missions de servant", "Retainer Ventures"),
+        "Purchase" => D("Achat", "Purchase"),
+        "Premium" => D("Boutique en ligne", "Online Store"),
+        "Event" => D("Événement passé", "Past Event"),
+        "NPC" => D("Duel de PNJ", "NPC Duel"),
+        "Beastmaster" => D("Dresseur", "Beastmaster"),
+        "Other" => D("Autre", "Other"),
+        _ => genre,
+    };
     public static string Fermer => D("Fermer", "Close");
 
     public static string EtatJeton => D("Jeton manquant", "No token");
     public static string EtatPerso => D("Pas de personnage", "No character");
     public static string EtatLecture => D("Lecture en cours", "Reading");
+
+    /// <summary>Le bouton pendant le scan : il dit où on en est plutôt que de
+    /// répéter qu'on travaille.</summary>
+    public static string ScanEnCours(int fait, int total) =>
+        D($"Scan en cours ({fait}/{total})", $"Scanning ({fait}/{total})");
     public static string EtatEnvoi => D("Envoi", "Sending");
     public static string EtatPret => D("Prêt à envoyer", "Ready to send");
     public static string EtatAJour => D("À jour", "Up to date");
@@ -276,7 +316,7 @@ public static class Mots
             $"{n} entries the game has not loaded yet: we will read again in a moment.");
     public static string CeQuiAttend => D("Ce qui attend", "What is waiting");
     public static string NCollections(int n) => D($"{n} collection(s)", $"{n} collection(s)");
-    public static string RegarderCourt => D("Regarder", "Read");
+    public static string RegarderCourt => D("Scan", "Scan");
     public static string EnvoyerN(int n) => D($"Envoyer {n} nouveauté(s)", $"Send {n} new");
 
     /// <summary>Un moment passé, dit en gros : « il y a 2 h ».</summary>

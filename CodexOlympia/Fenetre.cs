@@ -3,6 +3,7 @@ using CodexOlympia.Ui;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Textures;
+using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 
@@ -249,7 +250,6 @@ public sealed class Fenetre : Window, IDisposable
             return;
         }
 
-        PiecesQuiDorment();
         CeQuiAttend();
         Collections();
         Retour();
@@ -257,13 +257,6 @@ public sealed class Fenetre : Window, IDisposable
 
     /// <summary>Le conseil des pièces qui dorment (PLG-R42) : un conseil, pas
     /// un fait de collection, il n'entre jamais dans la photo.</summary>
-    private void PiecesQuiDorment()
-    {
-        var dort = plugin.Releves.FirstOrDefault(r => r.Cle == "adeposer");
-        if (dort is null || dort.Trouves.Count == 0) return;
-        CarteTitree(Mots.PieceQuiDort(dort.Trouves.Count), Mots.PieceQuiDortAide, null);
-    }
-
     /// <summary>Une carte qui ne porte qu'une phrase. Le geste qui répare est
     /// dans le pied.</summary>
     private void CarteMot(string mot, Vector4 teinte)
@@ -303,7 +296,7 @@ public sealed class Fenetre : Window, IDisposable
             x += lp + 14f * E;
         }
 
-        var lues = plugin.Releves.Count(r => r.Cle != "adeposer" && r.Empeche is null);
+        var lues = plugin.Releves.Count(r => r.Empeche is null);
         var total = Math.Max(1, Mots.Collections.Length);
         var rayon = 34f * E;
         var centre = new Vector2(fin.X - 22f * E - rayon, origine.Y + h * 0.5f);
@@ -390,7 +383,7 @@ public sealed class Fenetre : Window, IDisposable
         var large = ImGui.GetContentRegionAvail().X;
         var l = (large - ecart * 3f) / 4f;
 
-        var lues = plugin.Releves.Count(r => r.Cle != "adeposer" && r.Empeche is null);
+        var lues = plugin.Releves.Count(r => r.Empeche is null);
         var total = Mots.Collections.Length;
         var reste = Math.Max(0, total - lues);
         Pieces.TuileStat("##c1", Mots.MotCollections, $"{lues} / {total}",
@@ -497,11 +490,9 @@ public sealed class Fenetre : Window, IDisposable
         Titre(Mots.LuesSeules, Mots.NCollections(directes.Count));
         Grille(directes);
 
+        // Le titre porte la consigne ; le pourquoi tient dans la page
+        // « À propos », où l'on va quand on veut comprendre.
         Titre(Mots.AOuvrirTitre, Mots.NCollections(aOuvrir.Count));
-        ImGui.PushTextWrapPos(0);
-        ImGui.TextColored(Teintes.Discret, Mots.AOuvrirAide);
-        ImGui.PopTextWrapPos();
-        ImGui.Dummy(new Vector2(0, 2f * E));
         Grille(aOuvrir);
     }
 
@@ -746,7 +737,7 @@ public sealed class Fenetre : Window, IDisposable
         }
         if (plugin.LectureEnCours)
         {
-            Pieces.BoutonOr("##lecture", Mots.EtatLecture, 0f, false);
+            Pieces.BoutonOr("##lecture", Mots.ScanEnCours(plugin.Faites, plugin.AFaire), 0f, false);
             Note(fin, Phrase());
             return;
         }
@@ -852,9 +843,24 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.Dummy(new Vector2(0, 2f * E));
         }
 
-        Filtres();
-        Grille(entrees, mien);
-        Fiche(entrees, mien);
+        var choisi = entrees.FirstOrDefault(x => x.Id == galerieChoisi);
+        var dispo = ImGui.GetContentRegionAvail();
+        var largeur = choisi is null ? 0f : MathF.Min(232f * E, dispo.X * 0.44f);
+        var ecart = largeur > 0f ? 10f * E : 0f;
+
+        using (var gauche = ImRaii.Child("##galerie-grille", new Vector2(dispo.X - largeur - ecart, dispo.Y)))
+        {
+            if (gauche)
+            {
+                Filtres();
+                Grille(entrees, mien);
+            }
+        }
+
+        if (choisi is null) return;
+        ImGui.SameLine(0, ecart);
+        using var droite = ImRaii.Child("##galerie-fiche", new Vector2(largeur, dispo.Y));
+        if (droite) Fiche(choisi);
     }
 
     /// <summary>Les numeros que la derniere lecture a trouves pour cette
@@ -932,6 +938,17 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.Dummy(new Vector2(0, 2f * E));
     }
 
+    /// <summary>L'image d'une icône du jeu, ou rien. Toutes les tables ne
+    /// désignent pas une icône qui existe : une entrée retirée garde son
+    /// numéro, et le demander lève une erreur qui emporte la page entière.</summary>
+    private IDalamudTextureWrap? Icone(uint numero)
+    {
+        if (numero == 0) return null;
+        return plugin.Textures.TryGetFromGameIcon(new GameIconLookup(numero), out var partagee)
+            ? partagee.GetWrapOrEmpty()
+            : null;
+    }
+
     /// <summary>La grille des icones du jeu. Ce qu'on a est net, ce qui manque
     /// est en retrait, et la pastille verte le redit sans la couleur seule.</summary>
     private void Grille(List<Entree> entrees, HashSet<uint> mien)
@@ -960,9 +977,8 @@ public sealed class Fenetre : Window, IDisposable
                 Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.08f),
                 choisi ? Teintes.Or : aMoi ? Teintes.Alpha(Teintes.Vert, 0.4f) : Teintes.Filet);
 
-            if (e.Icone != 0)
+            if (Icone(e.Icone) is { } image)
             {
-                var image = plugin.Textures.GetFromGameIcon(new GameIconLookup(e.Icone)).GetWrapOrEmpty();
                 var marge = 5f * E;
                 dl.AddImage(image.Handle, origine + new Vector2(marge), fin - new Vector2(marge),
                     Vector2.Zero, Vector2.One,
@@ -977,19 +993,98 @@ public sealed class Fenetre : Window, IDisposable
                 dl.AddCircleFilled(fin - new Vector2(6f * E), 3.5f * E, Peinture.Col(Teintes.Vert));
 
             Pieces.Infobulle(e.Nom);
-            if (g.Clic) galerieChoisi = e.Id;
+            if (g.Clic) galerieChoisi = choisi ? 0u : e.Id;
         }
         if (i == 0) ImGui.TextColored(Teintes.Discret, Mots.RienDeNeuf);
     }
 
-    /// <summary>La fiche de l'objet choisi (PLG-R49).</summary>
-    private void Fiche(List<Entree> entrees, HashSet<uint> mien)
+    /// <summary>
+    /// Le tiroir de l'objet choisi (PLG-R49), calqué sur celui de l'application :
+    /// l'image, le nom, l'autre langue, les puces, la notice, puis comment
+    /// l'obtenir.
+    ///
+    /// Il ne dit pas si l'objet est possédé : la grille le montre déjà, par la
+    /// pastille et par l'icône en retrait.
+    /// </summary>
+    private void Fiche(Entree e)
     {
-        var e = entrees.FirstOrDefault(x => x.Id == galerieChoisi);
-        if (e is null) return;
-        ImGui.Dummy(new Vector2(0, 4f * E));
-        var aMoi = mien.Contains(e.Id);
-        CarteTitree(e.Nom, aMoi ? Mots.GalerieAToi : Mots.GalerieIlTeManque, null);
+        var detail = plugin.Catalogue?.Detail(galerieCle, e.Id);
+        var large = ImGui.GetContentRegionAvail().X;
+        var origine = ImGui.GetCursorScreenPos();
+        var dl = ImGui.GetWindowDrawList();
+        dl.ChannelsSplit(2);
+        dl.ChannelsSetCurrent(1);
+
+        var croix = 22f * E;
+        var coinX = origine.X + large - croix - 8f * E;
+        ImGui.SetCursorScreenPos(new Vector2(coinX, origine.Y + 8f * E));
+        var gc = Pieces.Zone("##fiche-fermer", new Vector2(croix));
+        var chaud = Mouvement.Survol("##fiche-fermer#s", gc.Dessus);
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            Texte.Milieu(FontAwesomeIcon.Times.ToIconString(),
+                new Vector2(coinX, origine.Y + 8f * E),
+                new Vector2(coinX + croix, origine.Y + 8f * E + croix),
+                Vector4.Lerp(Teintes.Discret, Teintes.Encre, chaud));
+        }
+        Pieces.Infobulle(Mots.GalerieFermer);
+        if (gc.Clic) galerieChoisi = 0;
+
+        ImGui.SetCursorScreenPos(origine + new Vector2(12f * E, 10f * E));
+        ImGui.BeginGroup();
+        var dedans = large - 24f * E;
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + dedans);
+
+        if (Icone(e.Icone) is { } image)
+        {
+            var cote = MathF.Min(76f * E, dedans);
+            var coin = ImGui.GetCursorScreenPos() + new Vector2((dedans - cote) * 0.5f, 0);
+            dl.AddImage(image.Handle, coin, coin + new Vector2(cote));
+            ImGui.Dummy(new Vector2(dedans, cote + 6f * E));
+        }
+
+        ImGui.TextColored(Teintes.Or, e.Nom);
+        var autre = plugin.Catalogue?.AutreNom(galerieCle, e.Id) ?? string.Empty;
+        if (autre.Length > 0 && autre != e.Nom) ImGui.TextColored(Teintes.Discret, autre);
+
+        if (detail is not null)
+        {
+            ImGui.Dummy(new Vector2(0, 3f * E));
+            if (detail.Patch.Length > 0) Pieces.Puce(Mots.GaleriePatch(detail.Patch), Teintes.Encre2);
+            if (detail.Inobtenable) Pieces.Puce(Mots.GaleriePlusObtenable, Teintes.Rouge);
+            if (detail.Notice.Length > 0)
+            {
+                ImGui.Dummy(new Vector2(0, 3f * E));
+                ImGui.TextColored(Teintes.Encre2, detail.Notice);
+            }
+
+            ImGui.Dummy(new Vector2(0, 5f * E));
+            ImGui.TextColored(Teintes.Or, Mots.GalerieObtention);
+            ImGui.Dummy(new Vector2(0, 2f * E));
+            if (detail.Sources.Count == 0)
+            {
+                ImGui.TextColored(Teintes.Discret, Mots.GalerieSourceInconnue);
+            }
+            else
+            {
+                foreach (var src in detail.Sources)
+                {
+                    Pieces.Puce(Mots.Famille(src.Genre),
+                        src.Genre == "Premium" ? Teintes.Ambre : Teintes.Bleu);
+                    if (src.Phrase.Length > 0) ImGui.TextColored(Teintes.Encre2, src.Phrase);
+                    ImGui.Dummy(new Vector2(0, 4f * E));
+                }
+            }
+        }
+
+        ImGui.PopTextWrapPos();
+        ImGui.EndGroup();
+        var bas = ImGui.GetItemRectMax().Y + 10f * E;
+        dl.ChannelsSetCurrent(0);
+        Peinture.Carte(dl, origine, new Vector2(origine.X + large, bas), Teintes.RondCarte * E);
+        dl.ChannelsMerge();
+        ImGui.SetCursorScreenPos(new Vector2(origine.X, bas));
+        ImGui.Dummy(new Vector2(large, 4f * E));
     }
 
     private void PiedGalerie(Vector2 fin)

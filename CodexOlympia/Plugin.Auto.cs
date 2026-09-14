@@ -145,7 +145,7 @@ public sealed partial class Plugin
             Reglages.Envoyes.TryGetValue(id, out var envoyes);
             foreach (var x in Releves)
             {
-                if (x.Empeche is not null || x.Cle == "adeposer" || x.Trouves.Count == 0) continue;
+                if (x.Empeche is not null || x.Trouves.Count == 0) continue;
                 HashSet<uint>? deja = envoyes is not null && envoyes.TryGetValue(x.Cle, out var l) ? [.. l] : null;
                 var neuf = deja is null ? [.. x.Trouves] : x.Trouves.Where(t => !deja.Contains(t)).ToList();
                 if (neuf.Count > 0) sortie.Add((x.Cle, neuf));
@@ -158,13 +158,13 @@ public sealed partial class Plugin
     }
 
     /// <summary>Les listes d'une photo telles qu'elles partent : par collection,
-    /// sans les lignes empêchées ni le conseil de rangement.</summary>
+    /// sans les lignes empêchées.</summary>
     private static Dictionary<string, List<uint>> Photographie(IReadOnlyList<Releve> releves)
     {
         var photo = new Dictionary<string, List<uint>>();
         foreach (var x in releves)
         {
-            if (x.Empeche is not null || x.Cle == "adeposer") continue;
+            if (x.Empeche is not null) continue;
             photo[x.Cle] = [.. x.Trouves];
         }
         return photo;

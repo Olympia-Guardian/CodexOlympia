@@ -83,6 +83,7 @@ public static class Photo
         Catalogue cat,
         Lumina.Excel.ExcelSheet<AozAction> sorts,
         Lumina.Excel.ExcelSheet<MirageStoreSetItem> ensembles,
+        Lumina.Excel.ExcelSheet<Item> objets,
         ref Coffre? coffre)
     {
         var ps = PlayerState.Instance();
@@ -103,18 +104,12 @@ public static class Photo
             case "cards":
                 return [Simple(cat, cle, id => id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)id))];
 
+            case "facewear":
+                return [Lunettes(cat, objets, ps)];
+
             // Sans objet déverrouillant au catalogue, une entrée n'est pas
             // interrogeable : elle sort de la portée.
-            //
-            // Les lunettes y reviennent : le jeu a bien sa propre question,
-            // posée par le numéro de sa table, mais cette table compte une
-            // ligne par teinte, sept cent quarante-cinq pour soixante et une
-            // entrées au catalogue. Les deux numérotations n'ont rien à voir,
-            // et la question portait sur d'autres lunettes que celles qu'on
-            // croyait. Le « 1 / 1 » qui avait motivé le raccourci se soigne
-            // autrement, par la revérification d'une portée effondrée (PLG-R44).
             case "hairstyles":
-            case "facewear":
             case "bardings":
             case "frames":
                 return [ParObjet(cat, cle)];
@@ -290,6 +285,45 @@ public static class Photo
 
     /// <summary>Ce qui se lit par l'objet qui le déverrouille. Les entrées sans
     /// objet connu ne sont pas regardées, et on le déclare.</summary>
+    /// <summary>
+    /// Les lunettes, demandées par leur numéro (PLG-R55).
+    ///
+    /// Le catalogue désigne une paire de lunettes par le magazine de mode qui
+    /// la débloque. La ligne de ce magazine porte, dans sa donnée annexe, le
+    /// numéro de la première teinte dans la table des lunettes, et c'est ce
+    /// numéro-là que le jeu attend. Les soixante et un magazines mènent aux
+    /// soixante et une entrées, nom pour nom.
+    ///
+    /// Ce détour évite de passer par la ligne d'objet du client : une ligne
+    /// qu'on lui demande n'est pas forcément chargée, et ce qu'il rend alors
+    /// peut être la ligne d'un autre objet. La table de Lumina, elle, est
+    /// entière et ne bouge pas.
+    /// </summary>
+    private static unsafe Releve Lunettes(
+        Catalogue cat, Lumina.Excel.ExcelSheet<Item> objets, PlayerState* ps)
+    {
+        const string cle = "facewear";
+        if (!cat.Ids.TryGetValue(cle, out var ids) || !cat.Objets.TryGetValue(cle, out var liens))
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
+
+        var trouves = new List<uint>();
+        var portee = new List<uint>();
+        foreach (var id in ids)
+        {
+            if (!liens.TryGetValue(id, out var objet) || objet == 0) continue;
+            var ligne = objets.GetRowOrDefault(objet);
+            var numero = ligne?.AdditionalData.RowId ?? 0;
+            if (numero == 0 || numero > ushort.MaxValue) continue;
+            portee.Add(id);
+            if (ps->IsGlassesUnlocked((ushort)numero)) trouves.Add(id);
+        }
+
+        var complet = portee.Count == ids.Length;
+        return new Releve(
+            cle, trouves, complet ? null : portee, ids.Length, null, null,
+            complet ? Limite.Aucune : Limite.Capacite);
+    }
+
     private static unsafe Releve ParObjet(Catalogue cat, string cle)
     {
         if (!cat.Ids.TryGetValue(cle, out var ids) || !cat.Objets.TryGetValue(cle, out var objets))
@@ -515,14 +549,14 @@ public static class Photo
             ];
         }
 
-        // Les deux dépôts se valent : une pièce rangée à l'armoire est possédée
-        // autant qu'une pièce rangée à la coiffeuse. Ce qui les distingue tient
-        // à l'usage, pas à la possession, et c'est pour ça qu'on compte à part
-        // celles qui dorment à l'armoire : elles ne servent à aucun glamour tant
-        // qu'elles n'ont pas été déposées.
+        // Les deux dépôts se valent, dans les deux sens (PLG-R30) : une pièce
+        // rangée à l'armoire est possédée autant qu'une pièce rangée à la
+        // coiffeuse, une tenue dont l'armoire tient toutes les pièces est
+        // entière, et une pièce vue à la coiffeuse coche sa case d'armoire.
+        // Ce qui distingue les deux dépôts tient à l'usage, pas à la possession,
+        // et l'usage n'est pas l'affaire du plugin.
         var pieces = new List<uint>();
         var entieres = new List<uint>();
-        var aDeposer = new List<uint>();
         foreach (var tenue in cat.Tenues)
         {
             var complete = true;
@@ -532,7 +566,6 @@ public static class Photo
                 var enArmoire = coffre.Armoire.Contains(p.Objet);
                 if (enCoiffeuse || enArmoire) pieces.Add(p.Objet);
                 else complete = false;
-                if (enArmoire && !enCoiffeuse) aDeposer.Add(p.Objet);
             }
             if (complete) entieres.Add(tenue.Id);
         }
@@ -546,7 +579,6 @@ public static class Photo
         [
             new Releve("outfitpieces", vues, [.. vues], totalPieces, null, vu, Limite.Depot),
             new Releve("outfits", entieres, [.. entieres], cat.Tenues.Count, null, null, Limite.Depot),
-            new Releve("adeposer", [.. aDeposer.Distinct()], null, totalPieces),
         ];
     }
 }
