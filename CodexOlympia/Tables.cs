@@ -70,6 +70,31 @@ public static class Tables
         Poser(sortie, "bardings", donnees.GetExcelSheet<BuddyEquip>(), r =>
             r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), (uint)r.IconHead));
 
+        // Les sorts bleus : la table les numerote a part, et chaque ligne
+        // renvoie a l'action qui porte le nom du sort. L'icone du grimoire
+        // vient de la table jumelle, celle qui sert la fenetre du jeu.
+        var grimoire = donnees.GetExcelSheet<AozActionTransient>();
+        Poser(sortie, "spells", donnees.GetExcelSheet<AozAction>(), r =>
+        {
+            var nom = r.Action.ValueNullable?.Name.ExtractText() ?? string.Empty;
+            return nom.Length == 0
+                ? null
+                : new Entree(r.RowId, nom, (uint)(grimoire.GetRowOrDefault(r.RowId)?.Icon ?? 0));
+        });
+
+        // Le bestiaire du dresseur. Le schema public ne nomme pas encore les
+        // colonnes de sa table : la quatrieme porte l'icone, la cinquieme le
+        // numero de la bete dans la feuille des familiers, qui a son nom. Ce
+        // nom est un nom commun, que le jeu ecrit en minuscule ; la galerie le
+        // montre seul, avec sa capitale.
+        var familiers = donnees.GetExcelSheet<Pet>();
+        Poser(sortie, "beastmaster", donnees.GetExcelSheet<XBMPet>(), r =>
+        {
+            if (r.Unknown4 <= 0) return null;
+            var nom = familiers.GetRowOrDefault((uint)r.Unknown4)?.Name.ExtractText() ?? string.Empty;
+            return nom.Length == 0 ? null : new Entree(r.RowId, Majuscule(nom), r.Unknown3);
+        });
+
         // Les lunettes : la table en compte une ligne par teinte, douze par
         // modèle. Seule la première de chaque groupe est un modèle, et c'est
         // elle que le jeu sait dire débloquée ou non. Soixante et une, le

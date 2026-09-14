@@ -61,7 +61,7 @@ public sealed partial class Plugin : IDalamudPlugin
     public HashSet<uint>? GalerieAMoi(string cle)
     {
         if (galerie.TryGetValue(cle, out var deja)) return deja;
-        var vu = Tables.TryGetValue(cle, out var entrees) ? Photo.Possedes(cle, entrees) : null;
+        var vu = Tables.TryGetValue(cle, out var entrees) ? Photo.Possedes(cle, entrees, donnees) : null;
         galerie[cle] = vu;
         return vu;
     }

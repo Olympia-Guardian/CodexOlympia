@@ -1,3 +1,4 @@
+using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -237,7 +238,8 @@ public static class Photo
     /// Rien pour une collection dont le jeu n'a pas de question à numéro : la
     /// galerie retombe alors sur ce que la photo a trouvé.
     /// </summary>
-    public static unsafe HashSet<uint>? Possedes(string cle, IReadOnlyList<Entree> entrees)
+    public static unsafe HashSet<uint>? Possedes(
+        string cle, IReadOnlyList<Entree> entrees, IDataManager donnees)
     {
         var ps = PlayerState.Instance();
         var ui = UIState.Instance();
@@ -274,6 +276,33 @@ public static class Photo
                 foreach (var x in entrees)
                     if (x.Id <= ushort.MaxValue && ps->IsGlassesUnlocked((ushort)x.Id)) vus.Add(x.Id);
                 return vus;
+
+            case "spells":
+            {
+                // Un sort bleu s'apprend, et le jeu le note comme n'importe quel
+                // deverrouillage d'action : c'est ce lien-la qu'on interroge.
+                var sorts = donnees.GetExcelSheet<AozAction>();
+                foreach (var x in entrees)
+                {
+                    var lien = sorts.GetRowOrDefault(x.Id)?.Action.ValueNullable?.UnlockLink.RowId ?? 0;
+                    if (lien != 0 && ui->IsUnlockLinkUnlocked(lien)) vus.Add(x.Id);
+                }
+                return vus;
+            }
+
+            case "beastmaster":
+            {
+                // Le bestiaire ne se demande pas bete par bete : le module tient
+                // la liste de ce qui est enregistre. Pas charge, on ne conclut
+                // rien plutot que de montrer tout manquant.
+                var octets = OctetsBestiaire();
+                if (octets is null) return null;
+                var notes = EntreesBestiaire(octets);
+                if (notes is null) return null;
+                foreach (var x in entrees)
+                    if (notes.Contains(x.Id)) vus.Add(x.Id);
+                return vus;
+            }
             default:
                 return null;
         }
