@@ -176,13 +176,35 @@ public sealed partial class Plugin
         return photo;
     }
 
-    /// <summary>Range ce qui vient d'être envoyé : collection par collection,
-    /// sans toucher à celles que cet envoi ne portait pas.</summary>
+    /// <summary>
+    /// Range ce qui vient d'être envoyé : collection par collection, sans
+    /// toucher à celles que cet envoi ne portait pas.
+    ///
+    /// La mémoire ne fait que GRANDIR (PLG-R37). Une photo n'enlève jamais
+    /// rien au serveur : ce qui est parti une fois y est pour de bon, et le
+    /// miroir qu'on garde ici doit dire la même chose. Elle remplaçait la
+    /// liste d'une collection par celle de la dernière photo ; quand le jeu
+    /// n'avait chargé qu'une partie d'une collection — les coiffures, les
+    /// lunettes, les bardes et les portraits se lisent par morceaux — la
+    /// mémoire rétrécissait, et la lecture suivante, complète, annonçait comme
+    /// nouveau ce qui était déjà envoyé depuis longtemps.
+    /// </summary>
     private void Retenir(ulong pour, Dictionary<string, List<uint>> envoye)
     {
         if (pour == 0 || envoye.Count == 0) return;
         if (!Reglages.Envoyes.TryGetValue(pour, out var d)) Reglages.Envoyes[pour] = d = new Dictionary<string, List<uint>>();
-        foreach (var (cle, ids) in envoye) d[cle] = ids;
+        foreach (var (cle, ids) in envoye)
+        {
+            if (!d.TryGetValue(cle, out var connus) || connus.Count == 0)
+            {
+                d[cle] = [.. ids];
+                continue;
+            }
+            var union = new HashSet<uint>(connus);
+            var avant = union.Count;
+            union.UnionWith(ids);
+            if (union.Count != avant) d[cle] = [.. union];
+        }
         versionEnvoyes++;
         Enregistrer();
     }
