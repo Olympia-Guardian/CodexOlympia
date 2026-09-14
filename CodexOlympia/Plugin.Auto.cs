@@ -90,6 +90,11 @@ public sealed partial class Plugin
     private void Tour(IFramework _)
     {
         var maintenant = chrono.Elapsed.TotalSeconds;
+        // Le reglage d'accessibilite se change sans relancer le jeu : la
+        // fenetre le relit a chaque image, c'est une lecture d'un booleen.
+        MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
+        // Le visage ne se demande que si quelqu'un regarde (PLG-R40).
+        if (fenetre.IsOpen) Visage.Assurer(ContentId, Jeton, maintenant);
         Avancer(maintenant);
 
         if (aRetenir is { } r)

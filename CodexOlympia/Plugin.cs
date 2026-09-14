@@ -40,6 +40,11 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     public Reglages Reglages { get; }
+
+    /// <summary>Le nom et le visage du personnage, tels que l'application les
+    /// montre (PLG-R40). Demandes a l'ouverture de la fenetre, une fois.</summary>
+    public Visage Visage { get; }
+
     public Catalogue? Catalogue { get; private set; }
     public List<Releve> Releves { get; private set; } = [];
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
@@ -119,6 +124,11 @@ public sealed partial class Plugin : IDalamudPlugin
     public string Jeton =>
         ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
 
+    /// <summary>Le joueur a demande moins de mouvement dans Dalamud : la
+    /// fenetre arrete alors ses battements et ses glissements (PLG-R41). Lu
+    /// par le dessin, qui n'a pas acces au plugin.</summary>
+    public static bool MoinsDeMouvement { get; private set; }
+
     public Plugin(
         IDalamudPluginInterface pi,
         ICommandManager commandes,
@@ -146,7 +156,9 @@ public sealed partial class Plugin : IDalamudPlugin
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
+        MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
 
+        Visage = new Visage(http, textures, journal);
         fenetre = new Fenetre(this);
         fenetres.AddWindow(fenetre);
 
@@ -184,6 +196,7 @@ public sealed partial class Plugin : IDalamudPlugin
         pi.UiBuilder.OpenConfigUi -= Ouvrir;
         fenetres.RemoveAllWindows();
         fenetre.Dispose();
+        Visage.Dispose();
         http.Dispose();
     }
 

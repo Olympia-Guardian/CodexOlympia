@@ -401,6 +401,67 @@ public static class Mots
     public static string EtAutres(int n) => D($"et {n} autre(s)", $"and {n} more");
     public static string RienDeNeuf => D("Rien de neuf depuis le dernier envoi.", "Nothing new since the last send.");
 
+    // ------------------------------------------------- la fenêtre habillée
+    // (PLG-R41 à R43 : l'état en deux mots, les étapes du geste, les compteurs.)
+
+    public static string PageAPropos => D("À propos", "About");
+    public static string Fermer => D("Fermer", "Close");
+    public static string Reduire => D("Réduire", "Collapse");
+
+    public static string EtatJeton => D("Jeton manquant", "No token");
+    public static string EtatPerso => D("Pas de personnage", "No character");
+    public static string EtatLecture => D("Lecture en cours", "Reading");
+    public static string EtatEnvoi => D("Envoi", "Sending");
+    public static string EtatPret => D("Prêt à envoyer", "Ready to send");
+    public static string EtatAJour => D("À jour", "Up to date");
+    public static string EtatARegarder => D("À regarder", "Not read yet");
+
+    public static string EtapeRegarder => D("Regarder", "Read");
+    public static string EtapeVerifier => D("Vérifier", "Check");
+    public static string EtapeEnvoyer => D("Envoyer", "Send");
+
+    public static string MotCollections => D("Collections", "Collections");
+    public static string MotNouveautes => D("Nouveautés", "New");
+    public static string MotDernierEnvoi => D("Dernier envoi", "Last send");
+    public static string MotSyncAuto => D("Synchro auto", "Auto sync");
+    public static string MotNonLues => D("Non lues", "Not read");
+
+    public static string ToutesLues => D("toutes lues", "all read");
+    public static string ResteN(int n) => n == 1 ? D("1 en attente", "1 waiting") : D($"{n} en attente", $"{n} waiting");
+    public static string DepuisEnvoi => D("depuis l'envoi", "since the send");
+    public static string ApresLecture => D("après la lecture", "after the read");
+    public static string Jamais => D("jamais", "never");
+    public static string SyncEteinte => D("éteinte", "off");
+    public static string SyncAllumee => D("allumée", "on");
+    public static string FenetreAOuvrir => D("fenêtre à ouvrir", "window to open");
+    public static string LuesSeules => D("Lues toutes seules", "Read on their own");
+    public static string CeQuiAttend => D("Ce qui attend", "What is waiting");
+    public static string NCollections(int n) => D($"{n} collection(s)", $"{n} collection(s)");
+    public static string Arreter => D("Arrêter la lecture", "Stop reading");
+    public static string RegarderCourt => D("Regarder", "Read");
+    public static string EnvoyerN(int n) => D($"Envoyer {n} nouveauté(s)", $"Send {n} new");
+
+    /// <summary>Un moment passé, dit en gros : « il y a 2 h ».</summary>
+    public static string IlYA(long? quand)
+    {
+        if (quand is null or <= 0) return Jamais;
+        var ecart = TimeSpan.FromMilliseconds(Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - quand.Value));
+        if (ecart.TotalMinutes < 1) return D("à l'instant", "just now");
+        if (ecart.TotalHours < 1) return D($"il y a {ecart.TotalMinutes:F0} min", $"{ecart.TotalMinutes:F0} min ago");
+        if (ecart.TotalDays < 1) return D($"il y a {ecart.TotalHours:F0} h", $"{ecart.TotalHours:F0} h ago");
+        return ecart.TotalDays < 30
+            ? D($"il y a {ecart.TotalDays:F0} j", $"{ecart.TotalDays:F0} d ago")
+            : D("il y a longtemps", "a long time ago");
+    }
+
+    /// <summary>Une attente courte, dite en gros : « dans 4 min ».</summary>
+    public static string Dans(double secondes)
+    {
+        if (secondes < 0) return D("à la connexion", "at login");
+        if (secondes < 60) return D($"dans {secondes:F0} s", $"in {secondes:F0} s");
+        return D($"dans {secondes / 60:F0} min", $"in {secondes / 60:F0} min");
+    }
+
     // --------------------------------------------------------------- le pied
     public static string Discord => "Discord";
     public static string Bugs => D("Signaler un bug", "Report a bug");
