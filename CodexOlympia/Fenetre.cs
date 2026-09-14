@@ -646,12 +646,16 @@ public sealed class Fenetre : Window, IDisposable
         switch (x.Limite)
         {
             case Limite.Capacite:
-                var reste = x.Total - (x.Portee?.Count ?? 0);
-                if (reste > 0)
+                // Deux raisons de sortir de la portée, et une seule se coche à
+                // la main (PLG-R44) : les dire ensemble faisait passer une
+                // lecture en retard pour du travail à faire dans l'application.
+                var hors = x.Total - (x.Portee?.Count ?? 0) - x.NonLues;
+                if (hors > 0)
                 {
-                    lignes.Add(Mots.AuJournal(reste));
+                    lignes.Add(Mots.AuJournal(hors));
                     lignes.Add(Mots.VerifiablesAide);
                 }
+                if (x.NonLues > 0) lignes.Add(Mots.PasEncoreLues(x.NonLues));
                 break;
             case Limite.Depot:
                 lignes.Add(Mots.AjoutSeulement);

@@ -87,8 +87,10 @@ public sealed partial class Plugin : IDalamudPlugin
     /// aucune n'est due.</summary>
     private double reverifieA;
 
-    /// <summary>Les collections lues objet par objet : le jeu leur répond parfois
-    /// « rien » à la première lecture après la connexion, et tout à la seconde.
+    /// <summary>Les collections auxquelles le jeu répond parfois « rien » à la
+    /// première lecture après la connexion, et tout à la seconde : celles qui
+    /// passent par l'objet qui déverrouille, dont la ligne se charge à la
+    /// demande, et les lunettes, dont la liste arrive après la connexion.
     /// Plutôt que de demander au joueur de relancer, on relit nous-mêmes.</summary>
     private static readonly string[] ParObjet = ["hairstyles", "facewear", "bardings", "frames"];
 
@@ -109,11 +111,19 @@ public sealed partial class Plugin : IDalamudPlugin
     /// part pendant ce temps, un relevé à zéro pourrait être un relevé en retard.</summary>
     public bool EnVerification { get; private set; }
 
-    /// <summary>Une collection lue à zéro alors que le jeu savait répondre : celle
-    /// que la chaîne relit.</summary>
+    /// <summary>
+    /// Une collection que la chaîne relit : lue à zéro alors que le jeu savait
+    /// répondre, ou lue avec une portée effondrée (PLG-R44).
+    ///
+    /// Le second cas manquait, et il est le plus visible : le jeu n'avait pas
+    /// encore chargé les lignes des objets, une seule entrée sur soixante-et-une
+    /// se laissait interroger, et la fenêtre annonçait fièrement « 1 / 1 » avec
+    /// un anneau plein.
+    /// </summary>
     public bool Douteuse(string cle) =>
         ParObjet.Contains(cle)
-        && Releves.Any(r => r.Cle == cle && r.Empeche is null && r.Trouves.Count == 0 && r.Total > 0);
+        && Releves.Any(r => r.Cle == cle && r.Empeche is null && r.Total > 0
+                            && (r.Trouves.Count == 0 || r.NonLues > 0));
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 

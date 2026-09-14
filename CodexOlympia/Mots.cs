@@ -435,6 +435,11 @@ public static class Mots
     public static string SyncAllumee => D("allumée", "on");
     public static string FenetreAOuvrir => D("fenêtre à ouvrir", "window to open");
     public static string LuesSeules => D("Lues toutes seules", "Read on their own");
+    public static string PasEncoreLues(int n) => n == 1
+        ? D("1 entrée que le jeu n'a pas encore chargée : on relit dans un instant.",
+            "1 entry the game has not loaded yet: we will read again in a moment.")
+        : D($"{n} entrées que le jeu n'a pas encore chargées : on relit dans un instant.",
+            $"{n} entries the game has not loaded yet: we will read again in a moment.");
     public static string CeQuiAttend => D("Ce qui attend", "What is waiting");
     public static string NCollections(int n) => D($"{n} collection(s)", $"{n} collection(s)");
     public static string Arreter => D("Arrêter la lecture", "Stop reading");

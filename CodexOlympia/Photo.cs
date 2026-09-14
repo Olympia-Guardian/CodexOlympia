@@ -42,7 +42,11 @@ public sealed record Releve(
     int Total,
     string? Empeche = null,
     string? Note = null,
-    Limite Limite = Limite.Aucune);
+    Limite Limite = Limite.Aucune,
+    /// <summary>Des entrees que le catalogue rattache bien a un objet, mais
+    /// dont le jeu n'a pas su donner la ligne : une lecture en retard, pas une
+    /// portee (PLG-R44). La chaine de reverification les reprend.</summary>
+    int NonLues = 0);
 
 /// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
 public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire, bool ArmoireLue = false);
@@ -114,11 +118,17 @@ public static class Photo
             case "cards":
                 return [Simple(cat, cle, id => id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)id))];
 
+            // Les lunettes ont leur propre question dans le jeu, posée par leur
+            // numéro : inutile de passer par l'objet qui les déverrouille, dont
+            // la ligne n'est pas toujours chargée. C'est ce détour qui donnait
+            // « 1 / 1 » sur soixante-et-une paires (PLG-R44).
+            case "facewear":
+                return [Simple(cat, cle, id => id <= ushort.MaxValue && ps->IsGlassesUnlocked((ushort)id))];
+
             // Le catalogue ne donne pas d'objet déverrouillant à toutes les
             // entrées. Celles qui n'en ont pas ne sont pas interrogeables : elles
             // sortent de la portée, et l'application ne conclut rien à leur sujet.
             case "hairstyles":
-            case "facewear":
             case "bardings":
             case "frames":
                 return [ParObjet(cat, cle)];
@@ -315,11 +325,22 @@ public static class Photo
         var ui = UIState.Instance();
         var trouves = new List<uint>();
         var portee = new List<uint>();
+        // Deux façons de sortir de la portée, qui n'ont rien à voir (PLG-R44) :
+        // le catalogue ne rattache l'entrée à aucun objet — c'est définitif, elle
+        // se coche à la main —, ou le jeu n'a pas encore chargé la ligne de cet
+        // objet — c'est une lecture en retard, et la chaîne de revérification
+        // doit la reprendre. Les confondre donnait « 1 sur 1 » avec un anneau
+        // plein sur une collection de soixante entrées.
+        var nonLues = 0;
         foreach (var id in ids)
         {
             if (!objets.TryGetValue(id, out var objet) || objet == 0) continue;
             var ligne = ExdModule.GetItemRowById(objet);
-            if (ligne is null) continue;
+            if (ligne is null)
+            {
+                nonLues++;
+                continue;
+            }
             portee.Add(id);
             if (ui->IsItemActionUnlocked(ligne) == 1) trouves.Add(id);
         }
@@ -328,7 +349,7 @@ public static class Photo
         var complet = portee.Count == ids.Length;
         return new Releve(
             cle, trouves, complet ? null : portee, ids.Length, null, null,
-            complet ? Limite.Aucune : Limite.Capacite);
+            complet ? Limite.Aucune : Limite.Capacite, nonLues);
     }
 
     /// <summary>Un sort bleu s'apprend, et le jeu le note comme n'importe quel
