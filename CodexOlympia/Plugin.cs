@@ -49,6 +49,26 @@ public sealed partial class Plugin : IDalamudPlugin
 
     /// <summary>Ce qui existe, lu dans les tables du client (PLG-R46). Bati une
     /// fois au demarrage : les tables ne bougent pas d'une session a l'autre.</summary>
+    /// <summary>Ce que le jeu répond pour la galerie, collection par collection,
+    /// gardé d'une image sur l'autre : la question est brève mais il y en a neuf
+    /// cents, et la fenêtre se redessine soixante fois par seconde. Une valeur
+    /// nulle dit que le jeu n'a pas de question à numéro pour cette
+    /// collection.</summary>
+    private readonly Dictionary<string, HashSet<uint>?> galerie = new();
+
+    /// <summary>Ce que le joueur possède parmi ce que la galerie montre, ou rien
+    /// quand le jeu ne sait pas répondre par numéro.</summary>
+    public HashSet<uint>? GalerieAMoi(string cle)
+    {
+        if (galerie.TryGetValue(cle, out var deja)) return deja;
+        var vu = Tables.TryGetValue(cle, out var entrees) ? Photo.Possedes(cle, entrees) : null;
+        galerie[cle] = vu;
+        return vu;
+    }
+
+    /// <summary>Après une lecture, ce qui était gardé ne vaut plus.</summary>
+    public void OublierGalerie() => galerie.Clear();
+
     public IReadOnlyDictionary<string, List<Entree>> Tables { get; private set; } =
         new Dictionary<string, List<Entree>>();
     public List<Releve> Releves { get; private set; } = [];
@@ -114,6 +134,11 @@ public sealed partial class Plugin : IDalamudPlugin
 
     /// <summary>Relectures automatiques faites depuis la dernière lecture complète.</summary>
     private int relectures;
+
+    /// <summary>L'empreinte de la passe précédente : ce que chaque collection
+    /// douteuse avait trouvé, regardé, et n'avait pas su lire. Vide avant la
+    /// première passe.</summary>
+    private string empreinte = string.Empty;
 
     /// <summary>Vrai tant que la chaîne de revérification n'a pas conclu : rien ne
     /// part pendant ce temps, un relevé à zéro pourrait être un relevé en retard.</summary>
@@ -434,22 +459,37 @@ public sealed partial class Plugin : IDalamudPlugin
         AFaire = file.Count;
         prochaine = 0;
         relectures = 0;
+        empreinte = string.Empty;
         EnVerification = true;
         reverifieA = -1; // a programmer quand la lecture aura fini
     }
 
-    /// <summary>Relit sans geste ce qui sent le retard, jusqu'au plafond. Sur
-    /// toutes les collections : le retard n'est pas une affaire de collection
-    /// mais de moment.</summary>
+    /// <summary>
+    /// Relit sans geste ce qui sent le retard, jusqu'au plafond. Sur toutes les
+    /// collections : le retard n'est pas une affaire de collection mais de
+    /// moment.
+    ///
+    /// La chaine s'arrete aussi quand une passe ne change rien (PLG-R56). Une
+    /// revérification attend que le jeu finisse de charger ; deux passes qui
+    /// disent la meme chose, a deux secondes d'intervalle, disent qu'il ne
+    /// charge plus rien, et une troisieme ferait attendre le joueur pour la
+    /// meme reponse. Le plafond reste, pour ce qui changerait a chaque fois
+    /// sans jamais se stabiliser.
+    /// </summary>
     private void Reverifier()
     {
         RecalculerDouteuses();
-        if (douteuses.Count == 0 || relectures >= MaxRelectures)
+        var maintenant = Empreinte();
+        var fige = douteuses.Count > 0 && maintenant == empreinte;
+        empreinte = maintenant;
+
+        if (douteuses.Count == 0 || fige || relectures >= MaxRelectures)
         {
-            // Plus rien a relire, ou plus le droit : la chaine conclut.
+            // Plus rien a relire, plus rien qui bouge, ou plus le droit : la
+            // chaine conclut.
             if (douteuses.Count > 0)
-                journal.Information("revérification : lecture tenue pour bonne après {0} relectures ({1})",
-                    relectures, string.Join(", ", douteuses));
+                journal.Information("revérification : lecture tenue pour bonne après {0} relectures ({1}){2}",
+                    relectures, string.Join(", ", douteuses), fige ? ", plus rien ne bougeait" : "");
             EnVerification = false;
             return;
         }
@@ -460,6 +500,14 @@ public sealed partial class Plugin : IDalamudPlugin
         prochaine = 0;
         journal.Information("revérification {0}/{1} : {2}", relectures, MaxRelectures, string.Join(", ", douteuses));
     }
+
+    /// <summary>Ce que les collections douteuses disent en ce moment : de quoi
+    /// reconnaitre une passe qui n'a rien appris.</summary>
+    private string Empreinte() =>
+        string.Join(";", Releves
+            .Where(r => douteuses.Contains(r.Cle))
+            .OrderBy(r => r.Cle, StringComparer.Ordinal)
+            .Select(r => $"{r.Cle}:{r.Trouves.Count}:{r.NonLues}:{r.Portee?.Count ?? -1}"));
 
     /// <summary>Relit UNE collection, pour celles que le jeu ne charge qu'a
     /// l'ouverture de leur fenetre. L'armoire, les pieces et les tenues se
@@ -545,6 +593,7 @@ public sealed partial class Plugin : IDalamudPlugin
             Faites++;
             if (file.Count == 0)
             {
+                OublierGalerie();
                 RecalculerDouteuses();
                 if (EnVerification) reverifieA = -1;
             }

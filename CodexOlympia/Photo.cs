@@ -223,6 +223,62 @@ public static class Photo
         return new Coffre(coiffeuse, cases, armoireLue);
     }
 
+    /// <summary>
+    /// Ce que le joueur possède parmi les entrées des tables du jeu, pour la
+    /// galerie (PLG-R52).
+    ///
+    /// La photo interroge le jeu sur les entrées du <b>catalogue</b> ; la
+    /// galerie montre les entrées des <b>tables du client</b>, qui en comptent
+    /// davantage. Une émote de base n'est dans aucun catalogue de collection :
+    /// elle existe, le joueur l'a, et la galerie la montrerait manquante si
+    /// elle se contentait de la photo. La question se pose donc ici aussi,
+    /// entrée par entrée, avec les numéros des tables.
+    ///
+    /// Rien pour une collection dont le jeu n'a pas de question à numéro : la
+    /// galerie retombe alors sur ce que la photo a trouvé.
+    /// </summary>
+    public static unsafe HashSet<uint>? Possedes(string cle, IReadOnlyList<Entree> entrees)
+    {
+        var ps = PlayerState.Instance();
+        var ui = UIState.Instance();
+        if (ps is null || ui is null) return null;
+
+        var vus = new HashSet<uint>();
+        switch (cle)
+        {
+            case "mounts":
+                foreach (var x in entrees)
+                    if (ps->IsMountUnlocked(x.Id)) vus.Add(x.Id);
+                return vus;
+            case "minions":
+                foreach (var x in entrees)
+                    if (ui->IsCompanionUnlocked(x.Id)) vus.Add(x.Id);
+                return vus;
+            case "orchestrions":
+                foreach (var x in entrees)
+                    if (ps->IsOrchestrionRollUnlocked(x.Id)) vus.Add(x.Id);
+                return vus;
+            case "emotes":
+                foreach (var x in entrees)
+                    if (x.Id <= ushort.MaxValue && ui->IsEmoteUnlocked((ushort)x.Id)) vus.Add(x.Id);
+                return vus;
+            case "fashions":
+                foreach (var x in entrees)
+                    if (ps->IsOrnamentUnlocked(x.Id)) vus.Add(x.Id);
+                return vus;
+            case "cards":
+                foreach (var x in entrees)
+                    if (x.Id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)x.Id)) vus.Add(x.Id);
+                return vus;
+            case "facewear":
+                foreach (var x in entrees)
+                    if (x.Id <= ushort.MaxValue && ps->IsGlassesUnlocked((ushort)x.Id)) vus.Add(x.Id);
+                return vus;
+            default:
+                return null;
+        }
+    }
+
     /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille :
     /// c'est cet ordre-là que le jeu attend pour désigner un emplacement.</summary>
     private static uint[] Slots(MirageStoreSetItem s) =>

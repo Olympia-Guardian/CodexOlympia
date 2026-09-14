@@ -863,10 +863,17 @@ public sealed class Fenetre : Window, IDisposable
         if (droite) Fiche(choisi);
     }
 
-    /// <summary>Les numeros que la derniere lecture a trouves pour cette
-    /// collection.</summary>
+    /// <summary>
+    /// Ce que le joueur possède dans cette collection.
+    ///
+    /// Le jeu répond le premier, parce qu'il répond sur tout ce que la galerie
+    /// montre. La dernière lecture ne sert qu'à défaut, pour les collections
+    /// dont le jeu n'a pas de question à numéro : elle ne connaît que les
+    /// entrées du catalogue, et le reste paraîtrait manquant.
+    /// </summary>
     private HashSet<uint> Possedes(string cle)
     {
+        if (plugin.GalerieAMoi(cle) is { } vu) return vu;
         var r = plugin.Releves.FirstOrDefault(x => x.Cle == cle);
         return r is null ? [] : [.. r.Trouves];
     }

@@ -19,6 +19,17 @@ public sealed record Entree(uint Id, string Nom, uint Icone);
 /// </summary>
 public static class Tables
 {
+    /// <summary>L'icône commune à tous les rouleaux d'orchestrion.</summary>
+    private const uint IconeRouleau = 25945;
+
+    /// <summary>La première planche des cartes de Triple Triade : la carte n
+    /// porte la planche <c>PlancheCarte + n</c>.</summary>
+    private const uint PlancheCarte = 88000;
+
+    /// <summary>Douze teintes par modèle de lunettes, la première étant la
+    /// couleur d'origine.</summary>
+    private const uint PasDeTeinte = 12;
+
     /// <summary>Les collections que le jeu sait décrire tout seul.</summary>
     public static IReadOnlyDictionary<string, List<Entree>> Batir(IDataManager donnees)
     {
@@ -34,24 +45,39 @@ public static class Tables
                 ? null
                 : new Entree(r.RowId, Majuscule(r.Singular.ExtractText()), r.Icon));
 
+        // Un rouleau n'a pas d'icône à lui : les huit cent quatre-vingt-six
+        // objets qui les donnent portent tous la même, celle du rouleau.
         Poser(sortie, "orchestrions", donnees.GetExcelSheet<Orchestrion>(), r =>
-            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), 0));
+            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), IconeRouleau));
 
         Poser(sortie, "emotes", donnees.GetExcelSheet<Emote>(), r =>
             r.Icon == 0 || r.Name.ExtractText().Length == 0
                 ? null
                 : new Entree(r.RowId, Majuscule(r.Name.ExtractText()), r.Icon));
 
+        // L'icône d'une carte se déduit de son numéro : le jeu les range
+        // côte à côte, une planche par carte.
         Poser(sortie, "cards", donnees.GetExcelSheet<TripleTriadCard>(), r =>
-            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), 0));
+            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), PlancheCarte + r.RowId));
 
         Poser(sortie, "fashions", donnees.GetExcelSheet<Ornament>(), r =>
             r.Icon == 0 || r.Singular.ExtractText().Length == 0
                 ? null
                 : new Entree(r.RowId, Majuscule(r.Singular.ExtractText()), r.Icon));
 
+        // Une barde se porte en trois pièces ; la tête la représente, comme
+        // dans la fenêtre du jeu.
         Poser(sortie, "bardings", donnees.GetExcelSheet<BuddyEquip>(), r =>
-            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), 0));
+            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), (uint)r.IconHead));
+
+        // Les lunettes : la table en compte une ligne par teinte, douze par
+        // modèle. Seule la première de chaque groupe est un modèle, et c'est
+        // elle que le jeu sait dire débloquée ou non. Soixante et une, le
+        // compte exact des lunettes du jeu.
+        Poser(sortie, "facewear", donnees.GetExcelSheet<Glasses>(), r =>
+            r.RowId % PasDeTeinte != 1 || r.Name.ExtractText().Length == 0
+                ? null
+                : new Entree(r.RowId, r.Name.ExtractText(), (uint)r.Icon));
 
         return sortie;
     }
