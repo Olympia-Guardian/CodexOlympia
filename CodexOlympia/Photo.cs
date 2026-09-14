@@ -7,6 +7,22 @@ using Lumina.Excel.Sheets;
 
 namespace CodexOlympia;
 
+/// <summary>Pourquoi une portée est restreinte. Les deux raisons n'ont rien à
+/// voir.</summary>
+public enum Limite
+{
+    /// <summary>Portée entière : l'omission vaut absence.</summary>
+    Aucune,
+
+    /// <summary>Le jeu ne sait pas répondre pour toutes les entrées. Celles-là
+    /// sont laissées tranquilles.</summary>
+    Capacite,
+
+    /// <summary>Ce qui se constate par un dépôt : on voit ce qui y est, jamais
+    /// ce qui n'y est pas. La collection ne peut donc qu'ajouter.</summary>
+    Depot,
+}
+
 /// <summary>
 /// Ce qu'on a trouvé pour une collection.
 ///
@@ -19,22 +35,6 @@ namespace CodexOlympia;
 /// collection empêchée n'est pas envoyée du tout : mieux vaut une collection
 /// absente qu'une collection fausse.</para>
 /// </summary>
-/// <summary>Pourquoi une portée est restreinte. Les deux raisons n'ont rien à
-/// voir, et les dire de la même façon a induit en erreur.</summary>
-public enum Limite
-{
-    /// <summary>Portée entière : l'omission vaut absence.</summary>
-    Aucune,
-
-    /// <summary>Le jeu ne sait pas répondre pour toutes les entrées. Celles
-    /// qu'on n'a pas pu interroger sont laissées tranquilles.</summary>
-    Capacite,
-
-    /// <summary>Ce qui se constate par un dépôt : on voit ce qui y est, jamais
-    /// ce qui n'y est pas. La collection ne peut donc qu'ajouter.</summary>
-    Depot,
-}
-
 public sealed record Releve(
     string Cle,
     List<uint> Trouves,
@@ -48,34 +48,26 @@ public sealed record Releve(
     /// portee (PLG-R44). La chaine de reverification les reprend.</summary>
     int NonLues = 0);
 
-/// <summary>Ce que contiennent les deux dépôts, et un échantillon lisible.</summary>
 public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire, bool ArmoireLue = false);
 
 /// <summary>
 /// La lecture du jeu, à un instant donné.
 ///
-/// <b>Rien n'est écrit dans la mémoire du jeu, jamais.</b> Une première version
-/// posait un drapeau pour demander au client de charger la coiffeuse : le jeu
-/// croyait alors sa demande déjà partie et n'affichait plus rien tant qu'on ne
-/// changeait pas de zone. Un plugin qui lit n'a aucune raison d'écrire, et ce
-/// qui n'a pas encore été chargé se demande au joueur, pas au client.
+/// <b>Rien n'est écrit dans la mémoire du jeu, jamais.</b> Poser un drapeau
+/// pour faire charger la coiffeuse a suffi à convaincre le client que sa
+/// demande était partie : il n'affichait plus rien jusqu'au changement de
+/// zone. Ce qui n'est pas chargé se demande au joueur, pas au client.
 ///
-/// Chaque collection est lue en posant au jeu la même question pour chaque entrée
-/// du catalogue : « celle-ci, tu l'as ? ». Rien n'est deviné, rien n'est déduit
-/// d'un succès ou d'un objet trouvé ailleurs.
+/// Chaque collection se lit en posant au jeu la même question pour chaque
+/// entrée du catalogue. Rien n'est deviné ni déduit d'ailleurs.
 /// </summary>
 public static class Photo
 {
     /// <summary>Les objets marchands portent un décalage qu'on retire.</summary>
     private const uint SeuilHq = 1_000_000;
 
-    /// <summary>
-    /// L'ordre dans lequel les collections se lisent.
-    ///
-    /// C'est aussi l'ordre dans lequel elles s'affichent : une lecture qui
-    /// remplit le tableau de haut en bas se suit des yeux, une lecture qui saute
-    /// d'une ligne à l'autre donne l'impression d'un désordre.
-    /// </summary>
+    /// <summary>L'ordre de lecture, qui est aussi l'ordre d'affichage : une
+    /// lecture qui remplit de haut en bas se suit des yeux.</summary>
     public static readonly string[] Ordre =
     [
         "mounts", "minions", "orchestrions", "emotes", "hairstyles", "fashions",
@@ -83,16 +75,9 @@ public static class Photo
         "quests", "armoires", "outfitpieces",
     ];
 
-    /// <summary>Fait UNE étape de la lecture et rend ce qu'elle a produit.
-    ///
-    /// <para>Rien n'est simulé : chaque étape interroge vraiment le jeu. Elle est
-    /// seulement séparée des autres, pour que le joueur voie le tableau se
-    /// remplir au lieu de le voir apparaître tout fait.</para>
-    ///
-    /// <para>Les pointeurs du jeu sont repris à chaque étape et jamais gardés
-    /// d'une image sur l'autre : ce qui est valide maintenant ne l'est pas
-    /// forcément dans deux secondes.</para>
-    /// </summary>
+    /// <summary>Fait UNE étape de la lecture. Les pointeurs du jeu sont repris
+    /// à chaque étape et jamais gardés d'une image sur l'autre : ce qui est
+    /// valide maintenant ne l'est pas forcément dans deux secondes.</summary>
     public static unsafe List<Releve> Etape(
         string cle,
         Catalogue cat,
@@ -118,16 +103,14 @@ public static class Photo
             case "cards":
                 return [Simple(cat, cle, id => id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)id))];
 
-            // Les lunettes ont leur propre question dans le jeu, posée par leur
-            // numéro : inutile de passer par l'objet qui les déverrouille, dont
-            // la ligne n'est pas toujours chargée. C'est ce détour qui donnait
-            // « 1 / 1 » sur soixante-et-une paires (PLG-R44).
+            // Les lunettes ont leur propre question, posée par leur numéro :
+            // passer par l'objet qui les déverrouille donnait « 1 / 1 » quand
+            // sa ligne n'était pas chargée (PLG-R44).
             case "facewear":
                 return [Simple(cat, cle, id => id <= ushort.MaxValue && ps->IsGlassesUnlocked((ushort)id))];
 
-            // Le catalogue ne donne pas d'objet déverrouillant à toutes les
-            // entrées. Celles qui n'en ont pas ne sont pas interrogeables : elles
-            // sortent de la portée, et l'application ne conclut rien à leur sujet.
+            // Sans objet déverrouillant au catalogue, une entrée n'est pas
+            // interrogeable : elle sort de la portée.
             case "hairstyles":
             case "bardings":
             case "frames":
@@ -155,10 +138,8 @@ public static class Photo
 
             case "quests":
             {
-                // Le jeu tient l'achèvement des quêtes comme un déverrouillage
-                // définitif, toujours chargé : rien à ouvrir. Une quête à
-                // variantes est faite dès que l'une l'est ; un mandat se
-                // demande autrement.
+                // Une quête à variantes est faite dès que l'une l'est ; un
+                // mandat se demande autrement.
                 var qm = QuestManager.Instance();
                 var variantes = cat.Variantes.GetValueOrDefault(cle);
                 return
@@ -244,8 +225,6 @@ public static class Photo
         return new Coffre(coiffeuse, cases, armoireLue);
     }
 
-    /// <summary>Les onze emplacements d'une tenue, ou un tableau vide si le jeu
-    /// n'en connaît pas. Même ordre que ci-dessous, pour la même raison.</summary>
     /// <summary>Les onze emplacements d'un ensemble, dans l'ordre de la feuille :
     /// c'est cet ordre-là que le jeu attend pour désigner un emplacement.</summary>
     private static uint[] Slots(MirageStoreSetItem s) =>
@@ -258,13 +237,10 @@ public static class Photo
     /// <summary>
     /// L'armoire.
     ///
-    /// L'application y suit ce que le joueur <b>possède</b>, pas ce qu'il a
-    /// rangé : une pièce déposée à la coiffeuse compte donc autant qu'une pièce
-    /// déposée à l'armoire, et il faut le dire, sans quoi l'application propose
-    /// sans fin de cocher une case qu'elle sait déjà due.
-    ///
-    /// Et comme un dépôt ne prouve jamais l'absence, la portée se limite à ce
-    /// qu'on a trouvé : cette collection ne peut qu'ajouter.
+    /// L'application suit ce que le joueur <b>possède</b>, pas ce qu'il a rangé :
+    /// une pièce déposée à la coiffeuse compte autant qu'une pièce déposée à
+    /// l'armoire. Et comme un dépôt ne prouve jamais l'absence, la portée se
+    /// limite à ce qu'on a trouvé.
     /// </summary>
     private static unsafe Releve Armoire(Catalogue cat, UIState* ui, bool lue, Coffre coffre)
     {
@@ -320,11 +296,9 @@ public static class Photo
         var trouves = new List<uint>();
         var portee = new List<uint>();
         // Deux façons de sortir de la portée, qui n'ont rien à voir (PLG-R44) :
-        // le catalogue ne rattache l'entrée à aucun objet — c'est définitif, elle
-        // se coche à la main —, ou le jeu n'a pas encore chargé la ligne de cet
-        // objet — c'est une lecture en retard, et la chaîne de revérification
-        // doit la reprendre. Les confondre donnait « 1 sur 1 » avec un anneau
-        // plein sur une collection de soixante entrées.
+        // sans objet au catalogue, c'est définitif et ça se coche à la main ;
+        // objet connu mais ligne pas encore chargée, c'est une lecture en
+        // retard que la revérification reprend.
         var nonLues = 0;
         foreach (var id in ids)
         {

@@ -28,9 +28,8 @@ public static class Envoi
         foreach (var x in releves)
         {
             if (x.Empeche is not null) continue;
-            // « adeposer » est un conseil pour le joueur, pas une collection :
-            // le serveur n'en a jamais entendu parler et n'a pas a en entendre
-            // parler.
+            // « adeposer » est un conseil, pas une collection : le serveur
+            // n'en a jamais entendu parler.
             if (x.Cle == "adeposer") continue;
             collections[x.Cle] = x.Trouves;
             if (x.Portee is not null) portee[x.Cle] = x.Portee;
@@ -38,8 +37,7 @@ public static class Envoi
         if (collections.Count == 0)
             return new Retour(false, Mots.RienAEnvoyer, [], []);
 
-        // Le personnage n'est pas dit ici : le jeton le porte. Une photo ne
-        // choisit pas qui elle alimente.
+        // Le personnage n'est pas dit ici : le jeton le porte.
         var corps = new Dictionary<string, object> { ["collections"] = collections };
         if (portee.Count > 0) corps["portee"] = portee;
 

@@ -5,14 +5,10 @@ using Dalamud.Interface.Utility;
 namespace CodexOlympia.Ui;
 
 /// <summary>
-/// Ce qui se dessine à la main, sous les éléments d'ImGui : des rectangles
-/// arrondis, des dégradés, des arcs, des lueurs.
+/// Le dessin à la main, dans la liste de tracé de la fenêtre.
 ///
-/// ImGui ne sait pas dessiner une carte comme le fait un navigateur ; on la
-/// dessine donc soi-même dans la liste de tracé de la fenêtre, et on avance
-/// ensuite le curseur de la même hauteur. C'est la recette de tous les plugins
-/// qui ont une belle fenêtre, et c'est moins compliqué que ça en a l'air : une
-/// carte, c'est un rectangle plein, un trait clair en haut, un contour.
+/// ImGui ne sait pas dessiner une carte : on la dessine soi-même, puis on
+/// avance le curseur de la même hauteur pour que la mise en page suive.
 /// </summary>
 internal static class Peinture
 {
@@ -31,8 +27,6 @@ internal static class Peinture
     public static void Filet(ImDrawListPtr dl, Vector2 a, Vector2 b)
         => dl.AddLine(a, b, Col(Teintes.Filet), 1f);
 
-    /// <summary>Le trait clair du haut d'une carte : ce qui lui donne du
-    /// relief sans ombre. Une ligne à un pixel, presque transparente.</summary>
     public static void Lumiere(ImDrawListPtr dl, Vector2 min, Vector2 max, float rond, float a = 0.05f)
         => dl.AddLine(
             new Vector2(min.X + rond, min.Y + 1f),
@@ -40,8 +34,6 @@ internal static class Peinture
             Col(new Vector4(1f, 1f, 1f, a)),
             1f);
 
-    /// <summary>Une carte de l'application : le fond, le trait clair, le
-    /// contour d'un cheveu.</summary>
     public static void Carte(ImDrawListPtr dl, Vector2 min, Vector2 max, float rond,
         Vector4? fond = null, Vector4? bord = null, bool lumiere = true)
     {
@@ -50,14 +42,8 @@ internal static class Peinture
         Contour(dl, min, max, bord ?? Teintes.Filet, rond);
     }
 
-    /// <summary>
-    /// Un dégradé vertical dans un rectangle arrondi.
-    ///
-    /// ImGui a bien un rectangle à quatre couleurs, mais il ne sait pas
-    /// l'arrondir. On peint donc le rectangle arrondi en blanc, puis on
-    /// recolore les sommets qu'il vient d'écrire : c'est la recette d'ImGui
-    /// lui-même pour ses dégradés.
-    /// </summary>
+    /// <summary>Le rectangle à quatre couleurs d'ImGui ne s'arrondit pas : on
+    /// peint en blanc, puis on recolore les sommets écrits.</summary>
     public static void Degrade(ImDrawListPtr dl, Vector2 min, Vector2 max, Vector4 haut, Vector4 bas,
         float rond, ImDrawFlags coins = ImDrawFlags.RoundCornersAll)
     {
@@ -70,8 +56,6 @@ internal static class Peinture
 
     private static uint Opaque(Vector4 c) => ImGui.ColorConvertFloat4ToU32(c with { W = 1f });
 
-    /// <summary>Une tache de couleur très diluée, posée au fond de la fenêtre :
-    /// cinq cercles concentriques de plus en plus pâles.</summary>
     public static void Tache(ImDrawListPtr dl, Vector2 centre, float rayon, Vector4 c, float sommet)
     {
         for (var couche = 5; couche >= 1; couche--)
@@ -82,12 +66,9 @@ internal static class Peinture
         }
     }
 
-    /// <summary>
-    /// Une image qui remplit sa boîte sans se déformer : on rogne ce qui
-    /// dépasse, comme le fait le site. Le portrait découpé d'un personnage et
-    /// son avatar rond n'ont pas les mêmes proportions ; les étirer l'un ou
-    /// l'autre se verrait tout de suite.
-    /// </summary>
+    /// <summary>Une image qui remplit sa boîte sans se déformer : on rogne ce
+    /// qui dépasse. Un portrait et un avatar rond n'ont pas les mêmes
+    /// proportions.</summary>
     public static void ImageCouvrante(ImDrawListPtr dl, ImTextureID image, float largeurImage, float hauteurImage,
         Vector2 min, Vector2 max, float rond)
     {
@@ -97,7 +78,6 @@ internal static class Peinture
         var u1 = Vector2.One;
         if (source > boite)
         {
-            // Trop large : on garde le milieu.
             var part = boite / source;
             u0.X = (1f - part) * 0.5f;
             u1.X = 1f - u0.X;
@@ -111,13 +91,8 @@ internal static class Peinture
         dl.AddImageRounded(image, min, max, u0, u1, Col(Vector4.One), rond, ImDrawFlags.RoundCornersAll);
     }
 
-    /// <summary>
-    /// Un arc, tracé segment par segment, avec un bout rond à chaque extrémité.
-    ///
-    /// On pourrait demander l'arc à ImGui ; le tracer soi-même donne une
-    /// épaisseur constante et des bouts ronds, exactement comme les anneaux du
-    /// site, qui sont des cercles SVG à bout rond.
-    /// </summary>
+    /// <summary>Un arc tracé segment par segment : l'arc d'ImGui n'a ni
+    /// épaisseur constante ni bouts ronds, que les anneaux du site ont.</summary>
     public static void Arc(ImDrawListPtr dl, Vector2 centre, float rayon, float epaisseur,
         float depuis, float jusqua, Vector4 c)
     {
@@ -142,7 +117,6 @@ internal static class Peinture
 
     private static Vector2 Sens(float angle) => new(MathF.Cos(angle), MathF.Sin(angle));
 
-    /// <summary>L'anneau du site : le creux entier, puis la part faite.</summary>
     public static void Anneau(ImDrawListPtr dl, Vector2 centre, float rayon, float epaisseur, float part, Vector4 c)
     {
         Arc(dl, centre, rayon, epaisseur, Midi, Midi + MathF.PI * 2f, Teintes.Filet);
@@ -151,8 +125,6 @@ internal static class Peinture
         Arc(dl, centre, rayon, epaisseur, Midi, Midi + part * MathF.PI * 2f, c);
     }
 
-    /// <summary>Une comète qui tourne : ce qui dit « ça travaille » sans
-    /// chiffre. La traîne s'éteint derrière la tête.</summary>
     public static void Comete(ImDrawListPtr dl, Vector2 centre, float rayon, float epaisseur, Vector4 c,
         double periodeMs = 1400)
     {

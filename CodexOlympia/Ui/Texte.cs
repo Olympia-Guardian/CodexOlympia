@@ -5,8 +5,8 @@ namespace CodexOlympia.Ui;
 
 /// <summary>
 /// Écrire à une position choisie, plutôt que là où le curseur d'ImGui se
-/// trouve. Une carte se dessine en plaçant ses textes ; le curseur ne sert
-/// qu'à réserver la place à la fin.
+/// trouve : une carte place ses textes, le curseur ne sert qu'à réserver la
+/// place à la fin.
 /// </summary>
 internal static class Texte
 {
@@ -15,7 +15,6 @@ internal static class Texte
     public static void A(string t, Vector2 ou, Vector4 c)
         => ImGui.GetWindowDrawList().AddText(ou, Peinture.Col(c), t);
 
-    /// <summary>Centré dans une boîte, dans les deux sens.</summary>
     public static void Milieu(string t, Vector2 min, Vector2 max, Vector4 c)
     {
         var s = Mesurer(t);
@@ -25,14 +24,12 @@ internal static class Texte
     public static void Coupe(string t, Vector2 ou, float largeur, Vector4 c)
         => ImGui.GetWindowDrawList().AddText(ImGui.GetFont(), ImGui.GetFontSize(), ou, Peinture.Col(c), t, largeur);
 
-    /// <summary>Une petite capitale espacée : les intitulés des compteurs du
-    /// site, « COLLECTIONS », « NOUVEAUTÉS ».</summary>
+    /// <summary>Une petite capitale espacée, comme les intitulés du site.</summary>
     public static void PetitesCapitales(string t, Vector2 ou, Vector4 c)
     {
         var haut = t.ToUpperInvariant();
         var x = ou.X;
-        // ImGui n'espace pas les lettres : on les pose une par une. Ce sont des
-        // intitulés de trois mots, le coût est nul.
+        // ImGui n'espace pas les lettres : on les pose une par une.
         foreach (var lettre in haut)
         {
             var s = lettre.ToString();
@@ -49,9 +46,8 @@ internal static class Texte
         return x;
     }
 
-    /// <summary>Le texte réduit à ce qui tient, suivi de trois points. On
-    /// cherche par dichotomie : une liste de collections se redessine à chaque
-    /// image, et mesurer lettre à lettre se paierait.</summary>
+    /// <summary>Le texte réduit à ce qui tient, suivi de trois points. Par
+    /// dichotomie : la liste se redessine à chaque image.</summary>
     public static string Tronquer(string t, float largeur)
     {
         if (largeur <= 0f) return string.Empty;
@@ -68,6 +64,5 @@ internal static class Texte
         return bas <= 0 ? "…" : t[..bas] + "…";
     }
 
-    /// <summary>La hauteur d'un texte replié dans une largeur donnée.</summary>
     public static float HauteurRepliee(string t, float largeur) => ImGui.CalcTextSize(t, false, largeur).Y;
 }

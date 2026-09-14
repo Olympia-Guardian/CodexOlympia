@@ -3,22 +3,18 @@ using Dalamud.Bindings.ImGui;
 
 namespace CodexOlympia.Ui;
 
-/// <summary>Ce qu'un geste a donné : cliqué, survolé.</summary>
 internal readonly record struct Geste(bool Clic, bool Dessus);
 
 /// <summary>
-/// Les pièces de la fenêtre : boutons, pastilles, tuiles, étapes.
-///
-/// Toutes suivent la même recette. On retient d'abord où le curseur est, on
-/// pose un bouton invisible de la taille voulue — c'est lui qui prend le clic
-/// et fait avancer la mise en page —, puis on dessine par-dessus. L'élément
-/// reste ainsi une fonction : il ne retient rien entre deux images.
+/// Les pièces de la fenêtre, toutes bâties pareil : on retient où le curseur
+/// est, on pose un bouton invisible qui prend le clic et fait avancer la mise
+/// en page, puis on dessine par-dessus. Aucune ne retient rien entre deux
+/// images.
 /// </summary>
 internal static class Pieces
 {
     private static float E => Peinture.Echelle;
 
-    /// <summary>La zone qui prend le geste, avant tout dessin.</summary>
     public static Geste Zone(string id, Vector2 taille, bool actif = true)
     {
         taille = new Vector2(MathF.Max(1f, taille.X), MathF.Max(1f, taille.Y));
@@ -39,10 +35,8 @@ internal static class Pieces
         ImGui.SetTooltip(texte);
     }
 
-    // ------------------------------------------------------------ les boutons
-
-    /// <summary>Le bouton principal : l'or du site, l'encre sombre dessus.
-    /// Un seul par écran, celui du geste du moment.</summary>
+    /// <summary>Le bouton principal, en or : un seul par écran, celui du geste
+    /// du moment.</summary>
     public static bool BoutonOr(string id, string texte, float largeur = 0f, bool actif = true, float hauteur = 34f)
     {
         var h = hauteur * E;
@@ -60,8 +54,6 @@ internal static class Pieces
         return actif && g.Clic;
     }
 
-    /// <summary>Le bouton secondaire : un contour, pas de remplissage
-    /// criard. Il accompagne, il n'appelle pas.</summary>
     public static bool BoutonFantome(string id, string texte, float largeur = 0f, bool actif = true,
         float hauteur = 34f, Vector4? teinte = null)
     {
@@ -80,10 +72,8 @@ internal static class Pieces
         return actif && g.Clic;
     }
 
-    // ----------------------------------------------------------- les pastilles
-
-    /// <summary>L'état, en deux mots, avec son point : dans la barre de titre
-    /// (PLG-R41). Le point bat quand quelque chose est en train de se faire.</summary>
+    /// <summary>L'état en deux mots, dans la barre de titre (PLG-R41). Le point
+    /// bat tant que quelque chose se fait.</summary>
     public static void Pastille(string texte, Vector4 teinte, bool bat = false)
     {
         var dl = ImGui.GetWindowDrawList();
@@ -102,10 +92,6 @@ internal static class Pieces
         ImGui.Dummy(new Vector2(l, h));
     }
 
-    // ------------------------------------------------------------ l'anneau
-
-    /// <summary>L'anneau de l'application, avec deux lignes au centre : le
-    /// compte, et le mot qui dit de quoi il parle.</summary>
     public static void Anneau(Vector2 centre, float rayon, float epaisseur, float part, Vector4 teinte,
         string valeur, string mot, bool tourne = false)
     {
@@ -127,9 +113,6 @@ internal static class Pieces
             Texte.PetitesCapitales(mot, new Vector2(centre.X - m.X * 0.5f, haut + v.Y + ecart), Teintes.Discret);
     }
 
-    // ------------------------------------------------------------ les étapes
-
-    /// <summary>L'état d'une étape du geste.</summary>
     public enum Etat
     {
         Faite,
@@ -137,8 +120,7 @@ internal static class Pieces
         AVenir,
     }
 
-    /// <summary>Les trois étapes du geste, une barre chacune et le mot
-    /// dessous : regarder, vérifier, envoyer.</summary>
+    /// <summary>Les étapes du geste, une barre chacune et le mot dessous.</summary>
     public static void Etapes(Vector2 origine, float largeur, IReadOnlyList<(string Mot, Etat Etat)> etapes)
     {
         if (etapes.Count == 0) return;
@@ -169,14 +151,9 @@ internal static class Pieces
         }
     }
 
-    /// <summary>La hauteur que prennent les étapes, pour leur réserver leur
-    /// place avant de les dessiner.</summary>
+    /// <summary>Leur hauteur, pour leur réserver la place avant de dessiner.</summary>
     public static float HauteurEtapes() => 3f * E + 5f * E + ImGui.GetTextLineHeight();
 
-    // --------------------------------------------------------- les compteurs
-
-    /// <summary>Une tuile de compteur : un point, un intitulé en petites
-    /// capitales, la valeur en gros, et l'aide alignée à droite.</summary>
     public static void TuileStat(string id, string intitule, string valeur, string aide, Vector4 teinte,
         float largeur, float hauteur = 62f)
     {
@@ -212,10 +189,6 @@ internal static class Pieces
         _ = id;
     }
 
-    // ------------------------------------------------------- l'interrupteur
-
-    /// <summary>Un interrupteur, à la place d'une case à cocher : allumé, il
-    /// porte l'or de la marque.</summary>
     public static bool Interrupteur(string id, ref bool valeur)
     {
         var l = 34f * E;

@@ -25,10 +25,8 @@ public sealed record Identite(
 /// <summary>
 /// Le visage du personnage : l'identité, et l'image une fois arrivée.
 ///
-/// Trois adresses sont essayées dans l'ordre (PLG-R43) : le portrait découpé
-/// que l'application pose dans ses cadres, le portrait du Lodestone, puis
-/// l'avatar rond. Ce qui n'arrive pas ne laisse pas de trou, on descend d'un
-/// cran ; si rien n'arrive, la fenêtre se passe d'image et n'en parle pas.
+/// Trois adresses essayées dans l'ordre (PLG-R43) : le portrait découpé, celui
+/// du Lodestone, puis l'avatar. Ce qui n'arrive pas ne laisse pas de trou.
 /// </summary>
 public sealed class Visage : IDisposable
 {
@@ -64,14 +62,9 @@ public sealed class Visage : IDisposable
         this.surLeFilDuJeu = surLeFilDuJeu;
     }
 
-    /// <summary>
-    /// Repart de zéro : changement de personnage, ou de jeton.
-    ///
-    /// L'ancienne image n'est pas jetée tout de suite : la fenêtre la dessine
-    /// peut-être à cet instant, sur un autre fil. On la met de côté, et tout
-    /// part ensemble quand le plugin se décharge. Un joueur change de
-    /// personnage quelques fois par session, jamais mille.
-    /// </summary>
+    /// <summary>Repart de zéro. L'ancienne image n'est pas jetée tout de
+    /// suite : la fenêtre la dessine peut-être, sur un autre fil. Elle part au
+    /// déchargement du plugin.</summary>
     public void Oublier()
     {
         if (Image is not null) anciennes.Add(Image);
@@ -83,10 +76,8 @@ public sealed class Visage : IDisposable
 
     private readonly List<IDalamudTextureWrap> anciennes = [];
 
-    /// <summary>
-    /// Demande l'identité si elle manque. Appelé depuis le fil du jeu, à
-    /// l'ouverture de la fenêtre : rien ne part tant que personne ne regarde.
-    /// </summary>
+    /// <summary>Demande l'identité si elle manque : rien ne part tant que
+    /// personne ne regarde.</summary>
     public void Assurer(ulong contentId, string jeton, double maintenant)
     {
         if (contentId == 0 || jeton.Length == 0) return;

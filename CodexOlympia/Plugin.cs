@@ -64,14 +64,9 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly Queue<string> file = new();
 
     /// <summary>
-    /// La boîte aux lettres du fil du jeu.
-    ///
-    /// Tout ce qui se fait au loin — un envoi, un catalogue, un portrait — finit
-    /// par vouloir toucher au plugin ou au jeu. Rien ne le fait directement :
-    /// on dépose ici, et <see cref="Tour"/> exécute sur le fil du jeu, à l'image
-    /// suivante. Trois raccourcis existaient déjà pour trois cas ; un seul
-    /// chemin vaut mieux, et il ferme le dernier trou, l'écriture dans le
-    /// journal de discussion depuis un fil de fond.
+    /// La boîte aux lettres du fil du jeu : un fil de fond ne touche jamais au
+    /// plugin ni au jeu, il dépose ici et <see cref="Tour"/> exécute à l'image
+    /// suivante. Dalamud n'accepte le journal de discussion que de là.
     /// </summary>
     private readonly System.Collections.Concurrent.ConcurrentQueue<System.Action> boite = new();
 
@@ -119,15 +114,9 @@ public sealed partial class Plugin : IDalamudPlugin
     /// part pendant ce temps, un relevé à zéro pourrait être un relevé en retard.</summary>
     public bool EnVerification { get; private set; }
 
-    /// <summary>
-    /// Les collections dont la dernière lecture sent le retard, calculées une
-    /// fois par passe et relues ensuite.
-    ///
-    /// Le calcul compare des listes de plusieurs milliers d'entrées ; la
-    /// fenêtre, elle, demande « celle-ci est douteuse ? » pour chaque tuile et
-    /// à chaque image. Le refaire soixante fois par seconde et par collection
-    /// coûtait bien plus cher que la lecture elle-même.
-    /// </summary>
+    /// <summary>Calculées une fois par passe : le tri compare des listes de
+    /// milliers d'entrées, et la fenêtre le demande pour chaque tuile et à
+    /// chaque image.</summary>
     private readonly HashSet<string> douteuses = [];
 
     public bool Douteuse(string cle) => douteuses.Contains(cle);
@@ -141,42 +130,29 @@ public sealed partial class Plugin : IDalamudPlugin
                 douteuses.Add(cle);
     }
 
-    /// <summary>
-    /// Une collection que la chaîne relit, à trois signes : lue entièrement
-    /// vide (PLG-R33), lue avec une portée effondrée (PLG-R44), ou lue sans
-    /// retrouver ce qui est déjà parti (PLG-R45).
-    ///
-    /// Les deux derniers manquaient, et le deuxième est le plus visible : le
-    /// jeu n'avait pas encore chargé les lignes des objets, une seule entrée
-    /// sur soixante-et-une se laissait interroger, et la fenêtre annonçait
-    /// fièrement « 1 / 1 » avec un anneau plein.
-    /// </summary>
+    /// <summary>Trois signes de retard : une collection lue entièrement vide
+    /// (PLG-R33), une portée effondrée (PLG-R44), ou ce qui est déjà parti qui
+    /// ne se retrouve pas (PLG-R45).</summary>
     private bool SentLeRetard(string cle)
     {
         var r = Releves.FirstOrDefault(x => x.Cle == cle);
         if (r is null || r.Empeche is not null || r.Total == 0) return false;
         // Une entrée que le jeu n'a pas su donner : lecture en retard (PLG-R44).
         if (r.NonLues > 0) return true;
-        // Une collection entièrement vide alors que le catalogue en connaît :
-        // le jeu n'avait peut-être pas fini de charger. Le doute vaut pour
-        // toutes, pas seulement pour celles qui se lisent par l'objet : une
-        // liste pas encore remplie répond zéro quelle que soit la question. Le
-        // plafond de relectures tranche pour qui n'en possède vraiment aucune.
+        // Vide alors que le catalogue en connaît : une liste pas encore
+        // remplie répond zéro quelle que soit la question.
         if (r.Trouves.Count == 0) return true;
         // Et, pour toutes : ce qui est déjà parti doit se retrouver (PLG-R45).
         return PerdDuDejaEnvoye(r);
     }
 
     /// <summary>
-    /// La lecture retrouve-t-elle tout ce qui est déjà parti pour ce
-    /// personnage ? (PLG-R45)
+    /// La lecture retrouve-t-elle ce qui est déjà parti (PLG-R45) ? Un
+    /// déverrouillage acquis le reste.
     ///
-    /// Un déverrouillage acquis le reste : si une entrée déjà envoyée manque à
-    /// l'appel, ce n'est pas le joueur qui l'a perdue, c'est le jeu qui n'avait
-    /// pas fini de charger. Le test ne regarde que ce qui a VRAIMENT été
-    /// regardé — une entrée hors de la portée déclarée ne prouve rien — et que
-    /// ce que le catalogue connaît encore, sinon une entrée retirée entre deux
-    /// patchs ferait douter pour toujours.
+    /// Deux garde-fous : une entrée hors de la portée déclarée ne prouve rien,
+    /// et une entrée retirée du catalogue entre deux patchs ferait douter pour
+    /// toujours.
     /// </summary>
     private bool PerdDuDejaEnvoye(Releve r)
     {
@@ -210,9 +186,8 @@ public sealed partial class Plugin : IDalamudPlugin
     public string Jeton =>
         ContentId != 0 && Reglages.Jetons.TryGetValue(ContentId, out var j) ? j : string.Empty;
 
-    /// <summary>Le joueur a demande moins de mouvement dans Dalamud : la
-    /// fenetre arrete alors ses battements et ses glissements (PLG-R41). Lu
-    /// par le dessin, qui n'a pas acces au plugin.</summary>
+    /// <summary>Le reglage d'accessibilite de Dalamud, lu par le dessin, qui
+    /// n'a pas acces au plugin (PLG-R41).</summary>
     public static bool MoinsDeMouvement { get; private set; }
 
     public Plugin(
@@ -252,9 +227,8 @@ public sealed partial class Plugin : IDalamudPlugin
         pi.UiBuilder.OpenMainUi += Ouvrir;
         pi.UiBuilder.OpenConfigUi += Ouvrir;
         sacs.ItemAdded += PieceArrivee;
-        // La lecture avance a chaque image du jeu, fenetre ouverte ou non : la
-        // synchro automatique ne peut pas dependre d'une fenetre qu'on n'ouvre
-        // plus une fois qu'elle est reglee.
+        // La lecture avance fenetre ouverte ou non : la synchro automatique
+        // ne peut pas dependre d'une fenetre qu'on n'ouvre plus.
         cadre.Update += Tour;
         etat.Login += SurConnexion;
         etat.Logout += SurDeconnexion;
@@ -328,8 +302,7 @@ public sealed partial class Plugin : IDalamudPlugin
         Enregistrer();
     }
 
-    /// <summary>Le nom du personnage sert d'etiquette, rien de plus : il dit au
-    /// joueur de quel jeton il est en train de parler.</summary>
+    /// <summary>Le nom du personnage sert d'etiquette, rien de plus.</summary>
     private void RetenirLeNom()
     {
         var id = ContentId;
@@ -390,17 +363,10 @@ public sealed partial class Plugin : IDalamudPlugin
     /// <summary>Vrai le temps de verifier la date du catalogue avant une lecture.</summary>
     private bool rafraichit;
 
-    /// <summary>Pose par le fil reseau, leve par le fil du jeu : la lecture
-    /// demandee peut partir, le catalogue est a jour.</summary>
-
-    /// <summary>Relit le catalogue s'il a change chez l'application, puis regarde.
-    ///
-    /// Le catalogue ne se lisait qu'au demarrage du plugin : une ronde de nuit
-    /// passee pendant la session laissait le plugin lire le jeu avec la liste de
-    /// la veille, et les succes d'un patch n'etaient ni lus ni envoyes tant
-    /// qu'on ne relancait pas. Une petite requete avant chaque lecture suffit :
-    /// la date de meta.json, et le catalogue entier seulement si elle a bouge.
-    /// La lecture elle-meme part du fil du jeu, par <c>Tour</c>.</summary>
+    /// <summary>Relit le catalogue s'il a change chez l'application, puis
+    /// regarde. La date de meta.json d'abord, le catalogue entier seulement si
+    /// elle a bouge : une ronde de nuit passee pendant la session laisserait
+    /// sinon lire le jeu avec la liste de la veille.</summary>
     public void RegarderAJour()
     {
         if (LectureEnCours || rafraichit) return;
@@ -437,8 +403,6 @@ public sealed partial class Plugin : IDalamudPlugin
         });
     }
 
-    // ------------------------------------------------------------- la lecture
-
     /// <summary>Ouvre une lecture complete. Rien ne part : on montre d'abord.</summary>
     public void Regarder()
     {
@@ -458,17 +422,9 @@ public sealed partial class Plugin : IDalamudPlugin
         reverifieA = -1; // a programmer quand la lecture aura fini
     }
 
-    /// <summary>
-    /// Relit sans geste les collections dont la lecture sent le retard, et
-    /// recommence tant qu'elles sentent le retard, jusqu'au plafond.
-    ///
-    /// Trois signes (PLG-R33, R44, R45) : une collection revenue entièrement
-    /// vide alors que le jeu savait répondre, une entrée que le jeu n'a pas su
-    /// donner, ou une entrée déjà envoyée qui manque à l'appel. La chaîne ne
-    /// regardait que les quatre collections lues par leur objet ; elle les
-    /// regarde maintenant toutes, parce que le retard n'est pas une affaire de
-    /// collection mais de moment.
-    /// </summary>
+    /// <summary>Relit sans geste ce qui sent le retard, jusqu'au plafond. Sur
+    /// toutes les collections : le retard n'est pas une affaire de collection
+    /// mais de moment.</summary>
     private void Reverifier()
     {
         RecalculerDouteuses();
@@ -489,14 +445,9 @@ public sealed partial class Plugin : IDalamudPlugin
         journal.Information("revérification {0}/{1} : {2}", relectures, MaxRelectures, string.Join(", ", douteuses));
     }
 
-    /// <summary>
-    /// Relit UNE collection, sans toucher au reste du releve.
-    ///
-    /// C'est la reponse aux collections que le jeu ne charge qu'a la demande :
-    /// le joueur ouvre la fenetre voulue (carnet de succes, coiffeuse chez un
-    /// rassembleur), puis relit juste cette carte. L'armoire, les pieces et les
-    /// tenues se relisent ensemble : les trois sortent du meme coffre.
-    /// </summary>
+    /// <summary>Relit UNE collection, pour celles que le jeu ne charge qu'a
+    /// l'ouverture de leur fenetre. L'armoire, les pieces et les tenues se
+    /// relisent ensemble : les trois sortent du meme coffre.</summary>
     public void Relire(string cle)
     {
         var cat = Catalogue;
@@ -593,8 +544,6 @@ public sealed partial class Plugin : IDalamudPlugin
         }
     }
 
-    // --------------------------------------------------------------- l'envoi
-
     public void Envoyer()
     {
         if (EnvoiEnCours || Releves.Count == 0) return;
@@ -629,8 +578,6 @@ public sealed partial class Plugin : IDalamudPlugin
             });
         });
     }
-
-    // --------------------------------------------------------------- l'alerte
 
     /// <summary>Les conteneurs ou un objet « arrive » vraiment chez le joueur :
     /// ses sacs et son arsenal. Les autres (coffre de compagnie, servants,

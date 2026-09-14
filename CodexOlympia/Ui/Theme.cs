@@ -5,12 +5,10 @@ using Dalamud.Interface.Utility.Raii;
 namespace CodexOlympia.Ui;
 
 /// <summary>
-/// Le thème de la fenêtre : ce qu'on pousse dans ImGui avant de dessiner, et
-/// qu'on retire après.
+/// Le thème poussé dans ImGui avant de dessiner, retiré après.
 ///
 /// La marge de fenêtre est à zéro : la barre de titre, le rail et le pied
-/// touchent les bords, et chaque page remet sa propre marge. C'est ce qui
-/// permet à la fenêtre d'avoir une allure à elle plutôt que celle d'ImGui.
+/// touchent les bords, et chaque page remet la sienne.
 /// </summary>
 internal static class Theme
 {
@@ -61,8 +59,8 @@ internal static class Theme
         return new Portee(styles, couleurs);
     }
 
-    /// <summary>Les deux piles, rendues dans le bon ordre : les couleurs
-    /// d'abord, les styles ensuite.</summary>
+    /// <summary>Les deux piles se rendent dans l'ordre inverse : couleurs
+    /// d'abord, styles ensuite.</summary>
     private sealed class Portee(IDisposable styles, IDisposable couleurs) : IDisposable
     {
         public void Dispose()

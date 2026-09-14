@@ -23,7 +23,7 @@ public sealed class Reglages : IPluginConfiguration
     /// </summary>
     public Dictionary<ulong, string> Jetons { get; set; } = new();
 
-    /// <summary>Un rappel lisible, pour reconnaître une ligne du tableau.</summary>
+    /// <summary>Un rappel lisible : de quel jeton on parle.</summary>
     public Dictionary<ulong, string> Noms { get; set; } = new();
 
     /// <summary>La langue de la fenêtre. Par défaut celle du client de jeu.</summary>

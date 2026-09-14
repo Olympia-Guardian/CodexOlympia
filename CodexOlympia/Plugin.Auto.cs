@@ -7,15 +7,9 @@ namespace CodexOlympia;
 /// <summary>
 /// La synchronisation automatique, et la mesure du neuf.
 ///
-/// Elle ne fait rien qu'une photo à la main ne ferait : mêmes lectures, mêmes
-/// règles, mêmes rapports. Ce qu'elle ajoute, c'est le moment : à la connexion,
-/// au changement de zone et à intervalle régulier, elle regarde ; et s'il y a
-/// du neuf par rapport au dernier envoi, elle envoie. Jamais en combat, en
-/// instance ou en cinématique, jamais deux fois en moins d'une minute.
-///
-/// Le neuf se mesure contre ce que le plugin a envoyé en dernier, retenu par
-/// personnage dans les réglages : le plugin ne lit jamais ce que l'application
-/// possède, il ne fait que déposer.
+/// Elle ne fait rien qu'une photo à la main ne ferait ; ce qu'elle ajoute,
+/// c'est le moment. Le neuf se mesure contre ce que le plugin a envoyé, retenu
+/// par personnage : il ne lit jamais ce que l'application possède.
 /// </summary>
 public sealed partial class Plugin
 {

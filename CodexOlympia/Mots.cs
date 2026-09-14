@@ -14,13 +14,9 @@ public enum Langue
 /// <summary>
 /// Tous les textes du plugin, en deux langues.
 ///
-/// Des propriétés plutôt qu'un dictionnaire de clés : le compilateur refuse
-/// alors un texte oublié, là où une clé manquante ne se voit qu'à l'exécution,
-/// et seulement si quelqu'un ouvre cet écran-là dans cette langue-là.
-///
-/// La langue suit le client de jeu par défaut. Quelqu'un qui joue en anglais
-/// depuis dix ans lit son jeu en anglais : lui imposer du français parce que sa
-/// machine est française serait un contresens.
+/// Des propriétés plutôt qu'un dictionnaire : le compilateur refuse alors un
+/// texte oublié, là où une clé manquante ne se voit qu'à l'exécution. La
+/// langue suit le client de jeu par défaut.
 /// </summary>
 public static class Mots
 {
@@ -40,8 +36,6 @@ public static class Mots
     }
 
     private static string D(string fr, string en) => Fr ? fr : en;
-
-    // ------------------------------------------------------------- la fenêtre
 
     public static string PageSync => D("Synchronisation", "Sync");
     public static string PageConfig => D("Configuration", "Settings");
@@ -118,8 +112,6 @@ public static class Mots
     public static string Ajoute => D("Ajouté", "Added");
     public static string ATrancher => D("À trancher dans l'application", "To settle in the app");
 
-    // ------------------------------------------------------ la configuration
-
     public static string PasDePerso => D("Connecte-toi avec un personnage.", "Log in with a character.");
     public static string JetonDe(string nom) => D($"Le jeton de {nom}", $"{nom}'s token");
     public static string JetonExplique => D(
@@ -140,8 +132,6 @@ public static class Mots
 
     public static string ManqueJeton => D("Il manque le jeton de ce personnage.", "This character has no token.");
     public static string ManquePerso => D("Aucun personnage connecté.", "No character logged in.");
-
-    // ------------------------------------------------------------ la lecture
 
     public static string CatalogueAbsent => D("catalogue absent", "catalogue missing");
     public static string BestiaireNonCharge => D(
@@ -176,8 +166,6 @@ public static class Mots
             $"dresser: {coiffeuse} items, armoire: {armoire}");
     public static string ArmoireNonChargee => D("non chargée", "not loaded");
     public static string ArmoirePieces(int n) => D($"{n} pièces", $"{n} pieces");
-
-    // -------------------------------------------------------------- l'envoi
 
     public static string RienAEnvoyer =>
         D("rien à envoyer : aucune collection n'a pu être lue", "nothing to send: no collection could be read");
@@ -222,7 +210,6 @@ public static class Mots
         $"\"{piece}\" belongs to the \"{tenue}\" outfit. Put it in your glamour dresser so it counts.");
     public static string AvisTitre => D("Prévenir en jeu", "Notify in game");
 
-    // ---------------------------------------------- la synchro automatique
     public static string SyncAutoTitre => D("Synchronisation automatique", "Automatic sync");
     public static string SyncAutoExplique => D(
         "Le plugin regarde tout seul à la connexion, au changement de zone et toutes les cinq " +
@@ -242,7 +229,6 @@ public static class Mots
     public static string EtAutres(int n) => D($"et {n} autre(s)", $"and {n} more");
     public static string RienDeNeuf => D("Rien de neuf depuis le dernier envoi.", "Nothing new since the last send.");
 
-    // ------------------------------------------------- la fenêtre habillée
     // (PLG-R41 à R43 : l'état en deux mots, les étapes du geste, les compteurs.)
 
     public static string PageAPropos => D("À propos", "About");
@@ -306,14 +292,11 @@ public static class Mots
         return D($"dans {secondes / 60:F0} min", $"in {secondes / 60:F0} min");
     }
 
-    // --------------------------------------------------------------- le pied
     public static string Discord => "Discord";
     public static string Bugs => D("Signaler un bug", "Report a bug");
     public static string AvisExplique => D(
         "Un mot dans le journal quand tu obtiens une pièce de tenue que tu n'as pas encore déposée.",
         "A line in the chat log when you get an outfit piece you have not deposited yet.");
-
-    // ------------------------------------------------------- les collections
 
     /// <summary>Le nom lisible de chaque collection, dans l'ordre d'affichage.
     ///

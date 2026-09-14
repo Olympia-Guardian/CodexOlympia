@@ -9,21 +9,14 @@ using Dalamud.Interface.Windowing;
 namespace CodexOlympia;
 
 /// <summary>
-/// La fenêtre du plugin, habillée comme l'application (PLG-R41 à R43).
+/// La fenêtre, habillée comme l'application (PLG-R41 à R43).
 ///
-/// Elle dessine tout elle-même : sa barre de titre, son rail de pages, ses
-/// cartes, ses anneaux, son pied. Dalamud ne lui met plus de cadre, et ImGui ne
-/// lui met plus de marge : c'est à ce prix qu'on reconnaît Codex Olympia en
-/// ouvrant le jeu.
-///
-/// Trois pages, dans le rail : <b>Synchronisation</b>, celle qu'on ouvre tous
-/// les jours ; <b>Réglages</b>, celle qu'on ouvre une fois ; <b>À propos</b>,
-/// où vivent le Discord, les bugs et le pot à café.
+/// Elle dessine tout elle-même, barre de titre comprise : Dalamud ne lui met
+/// plus de cadre et ImGui plus de marge.
 ///
 /// L'ordre de la page du jour ne change pas : on regarde, on lit, on envoie.
 /// Rien ne part tant que le joueur n'a pas vu ce qui partira, et c'est la seule
-/// protection contre une lecture qui se tromperait : lui seul reconnaît ses
-/// propres chiffres.
+/// protection contre une lecture qui se tromperait.
 /// </summary>
 public sealed class Fenetre : Window, IDisposable
 {
@@ -56,8 +49,7 @@ public sealed class Fenetre : Window, IDisposable
             MinimumSize = new Vector2(560, 420),
             MaximumSize = new Vector2(1600, 1600),
         };
-        // La barre de titre est à nous : les gadgets de Dalamud s'y
-        // poseraient par-dessus.
+        // Les gadgets de Dalamud se poseraient sur notre barre de titre.
         AllowPinning = false;
         AllowClickthrough = false;
     }
@@ -88,11 +80,6 @@ public sealed class Fenetre : Window, IDisposable
         Pied(dl, new Vector2(pos.X, pos.Y + taille.Y - HPied * E), taille.X);
     }
 
-    // ------------------------------------------------------------ l'ambiance
-
-    /// <summary>Deux taches très diluées au fond de la fenêtre, l'or de la
-    /// marque et le bleu de l'avancement. Elles ne portent aucune information :
-    /// c'est le fond du site, rien de plus.</summary>
     private static void Ambiance(ImDrawListPtr dl, Vector2 min, Vector2 max)
     {
         var l = max.X - min.X;
@@ -103,8 +90,6 @@ public sealed class Fenetre : Window, IDisposable
         dl.PopClipRect();
     }
 
-    // ------------------------------------------------------- la barre de titre
-
     private void BarreDeTitre(ImDrawListPtr dl, Vector2 pos, float largeur)
     {
         var h = HTitre * E;
@@ -112,8 +97,7 @@ public sealed class Fenetre : Window, IDisposable
         Peinture.Plein(dl, pos, fin, Teintes.Surface, Teintes.RondFenetre * E, ImDrawFlags.RoundCornersTop);
         Peinture.Filet(dl, new Vector2(pos.X, fin.Y - 0.5f), new Vector2(fin.X, fin.Y - 0.5f));
 
-        // La fenêtre se déplace en tirant sa barre, comme n'importe quelle
-        // fenêtre : sans barre de titre, ImGui ne le fait plus pour nous.
+        // Sans barre de titre, ImGui ne déplace plus la fenêtre : on le fait.
         var largeurPrise = largeur - 70f * E;
         ImGui.SetCursorScreenPos(pos);
         ImGui.InvisibleButton("##deplacer", new Vector2(MathF.Max(1f, largeurPrise), h));
@@ -123,8 +107,6 @@ public sealed class Fenetre : Window, IDisposable
             if (delta != Vector2.Zero) ImGui.SetWindowPos(ImGui.GetWindowPos() + delta, ImGuiCond.Always);
         }
 
-        // Le logo : l'icône du plugin si Dalamud nous la donne, sinon la
-        // plaque dorée avec l'initiale du codex.
         var cote = 24f * E;
         var logo = new Vector2(pos.X + 14f * E, pos.Y + (h - cote) * 0.5f);
         Peinture.Degrade(dl, logo, logo + new Vector2(cote), new Vector4(0.23f, 0.20f, 0.15f, 1f),
@@ -141,14 +123,13 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.SetCursorScreenPos(new Vector2(x, pos.Y + (h - (ImGui.GetTextLineHeight() + 6f * E)) * 0.5f));
         Pieces.Pastille(mot, teinte, bat);
 
-        // Fermer : le seul gadget qu'on garde.
         var bouton = 26f * E;
         ImGui.SetCursorScreenPos(new Vector2(fin.X - 12f * E - bouton, pos.Y + (h - bouton) * 0.5f));
         if (BoutonIcone("##fermer", FontAwesomeIcon.Times, bouton, Mots.Fermer)) IsOpen = false;
     }
 
-    /// <summary>L'état de la synchronisation, en deux mots et une couleur : ce
-    /// qui se lit sans entrer dans la fenêtre (PLG-R41).</summary>
+    /// <summary>L'état en deux mots, lisible sans entrer dans la fenêtre
+    /// (PLG-R41).</summary>
     private (string Mot, Vector4 Teinte, bool Bat) Etat()
     {
         if (plugin.ContentId == 0) return (Mots.EtatPerso, Teintes.Discret, false);
@@ -177,8 +158,6 @@ public sealed class Fenetre : Window, IDisposable
         Pieces.Infobulle(aide);
         return g.Clic;
     }
-
-    // ------------------------------------------------------------- le rail
 
     private void Rail(ImDrawListPtr dl, Vector2 pos, float hauteur)
     {
@@ -220,8 +199,6 @@ public sealed class Fenetre : Window, IDisposable
         }
     }
 
-    // ------------------------------------------------------------- le corps
-
     private void Corps(Vector2 pos, Vector2 taille)
     {
         ImGui.SetCursorScreenPos(pos);
@@ -241,8 +218,6 @@ public sealed class Fenetre : Window, IDisposable
                 break;
         }
     }
-
-    // -------------------------------------------------------- la page du jour
 
     private void PageDuJour()
     {
@@ -276,13 +251,8 @@ public sealed class Fenetre : Window, IDisposable
         Retour();
     }
 
-    /// <summary>
-    /// Le conseil des pièces qui dorment (PLG-R42).
-    ///
-    /// Une pièce rangée à l'armoire est possédée, mais elle ne sert à aucun
-    /// glamour tant qu'elle dort là-bas. C'est un conseil, pas un fait de
-    /// collection : il n'entre jamais dans la photo.
-    /// </summary>
+    /// <summary>Le conseil des pièces qui dorment (PLG-R42) : un conseil, pas
+    /// un fait de collection, il n'entre jamais dans la photo.</summary>
     private void PiecesQuiDorment()
     {
         var dort = plugin.Releves.FirstOrDefault(r => r.Cle == "adeposer");
@@ -290,8 +260,8 @@ public sealed class Fenetre : Window, IDisposable
         CarteTitree(Mots.PieceQuiDort(dort.Trouves.Count), Mots.PieceQuiDortAide, null);
     }
 
-    /// <summary>Une carte qui ne porte qu'une phrase : ce qui manque, ou ce qui
-    /// ne va pas. Toujours avec le geste qui répare, dans le pied.</summary>
+    /// <summary>Une carte qui ne porte qu'une phrase. Le geste qui répare est
+    /// dans le pied.</summary>
     private void CarteMot(string mot, Vector4 teinte)
     {
         var large = ImGui.GetContentRegionAvail().X;
@@ -303,11 +273,8 @@ public sealed class Fenetre : Window, IDisposable
         Texte.Coupe(mot, origine + new Vector2(16f * E, 14f * E), large - 32f * E, teinte);
     }
 
-    /// <summary>
-    /// La carte de tête (PLG-R42) : le portrait du personnage tel que
-    /// l'application le montre, son nom, où en est la lecture, les trois
-    /// étapes du geste, et l'anneau de l'avancement à droite.
-    /// </summary>
+    /// <summary>La carte de tête (PLG-R42) : le portrait, le nom, où en est la
+    /// lecture, les étapes, et l'anneau de l'avancement.</summary>
     private void CarteDeTete()
     {
         var large = ImGui.GetContentRegionAvail().X;
@@ -320,8 +287,7 @@ public sealed class Fenetre : Window, IDisposable
 
         var x = origine.X + 16f * E;
 
-        // Le portrait, s'il est arrivé. Sinon rien : pas de trou, pas de mot
-        // d'excuse (PLG-R43), la carte se resserre.
+        // Pas de portrait, pas de trou ni de mot d'excuse (PLG-R43).
         if (plugin.Visage.Image is { } image)
         {
             var lp = 64f * E;
@@ -333,7 +299,6 @@ public sealed class Fenetre : Window, IDisposable
             x += lp + 14f * E;
         }
 
-        // L'anneau, à droite : ce qui est lu sur ce qu'il y a à lire.
         var lues = plugin.Releves.Count(r => r.Cle != "adeposer" && r.Empeche is null);
         var total = Math.Max(1, Mots.Collections.Length);
         var rayon = 34f * E;
@@ -345,8 +310,6 @@ public sealed class Fenetre : Window, IDisposable
         var droite = centre.X - rayon - 16f * E;
         var largeurTexte = MathF.Max(60f * E, droite - x);
 
-        // Le nom du personnage : celui de l'application quand elle a répondu,
-        // celui des réglages sinon.
         var nom = plugin.Visage.Qui?.Nom
                   ?? (plugin.Reglages.Noms.TryGetValue(plugin.ContentId, out var n) ? n : string.Empty);
         var monde = plugin.Visage.Qui?.Monde;
@@ -415,8 +378,6 @@ public sealed class Fenetre : Window, IDisposable
         ];
     }
 
-    /// <summary>Les quatre compteurs : combien de collections, quoi de neuf,
-    /// quand est parti le dernier envoi, et ce qui vient ensuite.</summary>
     private void Compteurs()
     {
         var ecart = 8f * E;
@@ -458,8 +419,8 @@ public sealed class Fenetre : Window, IDisposable
         }
     }
 
-    /// <summary>Ce qui attend d'être envoyé, objet par objet (PLG-R38) : avant
-    /// le bouton qui les envoie, jamais après.</summary>
+    /// <summary>Ce qui attend d'être envoyé (PLG-R38) : avant le bouton qui
+    /// l'envoie, jamais après.</summary>
     private void CeQuiAttend()
     {
         if (plugin.LectureEnCours) return;
@@ -506,8 +467,6 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.Dummy(new Vector2(large, 6f * E));
     }
 
-    /// <summary>Un intitulé de section, en petites capitales, avec son compte
-    /// à droite du mot.</summary>
     private static void Titre(string mot, string aide)
     {
         ImGui.Dummy(new Vector2(0, 2f * E));
@@ -520,11 +479,8 @@ public sealed class Fenetre : Window, IDisposable
                 Teintes.Discret);
     }
 
-    // ---------------------------------------------------------- les collections
-
-    /// <summary>Les collections que le jeu ne charge qu'à l'ouverture de leur
-    /// fenêtre. Elles se présentent à part, sous le mot qui dit quoi ouvrir
-    /// (PLG-R34).</summary>
+    /// <summary>Celles que le jeu ne charge qu'à l'ouverture de leur fenêtre :
+    /// elles se présentent à part (PLG-R34).</summary>
     private static readonly string[] AOuvrir = ["achievements", "armoires", "outfitpieces", "outfits"];
 
     private void Collections()
@@ -554,9 +510,7 @@ public sealed class Fenetre : Window, IDisposable
         foreach (var (cle, nom) in collections)
         {
             var x = plugin.Releves.FirstOrDefault(v => v.Cle == cle);
-            // Pendant une lecture, les collections à venir gardent leur tuile :
-            // on voit ce qui reste. Hors lecture, une collection jamais lue n'a
-            // rien à montrer.
+            // En lecture, les collections à venir gardent leur tuile.
             if (x is null && !plugin.EnFile(cle)) continue;
             if (i % colonnes != 0) ImGui.SameLine(0, ecart);
             i++;
@@ -565,14 +519,9 @@ public sealed class Fenetre : Window, IDisposable
         if (i == 0) ImGui.TextColored(Teintes.Discret, Mots.EnAttente);
     }
 
-    /// <summary>
-    /// La tuile d'une collection, celle de Mon Codex : l'anneau, l'icône du
-    /// jeu au centre, le nom entier, le compte (PLG-R42).
-    ///
-    /// Une collection que le jeu n'a pas su donner porte son mot en ambre, et
-    /// la tuile entière devient le bouton qui la relit : à cette taille, un
-    /// bouton de plus ne tiendrait pas, et la tuile a déjà tout dit.
-    /// </summary>
+    /// <summary>La tuile d'une collection, celle de Mon Codex (PLG-R42). Une
+    /// collection non lue devient elle-même le bouton qui la relit : un bouton
+    /// de plus ne tiendrait pas à cette taille.</summary>
     private void Tuile(string cle, string nom, Releve? x, float largeur)
     {
         var h = 62f * E;
@@ -595,7 +544,6 @@ public sealed class Fenetre : Window, IDisposable
         Peinture.Carte(dl, origine, fin, Teintes.RondTuile * E,
             Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.06f), bord);
 
-        // L'anneau et l'icône du jeu au centre.
         var rayon = 19f * E;
         var centre = new Vector2(origine.X + 10f * E + rayon + 2f * E, origine.Y + h * 0.5f);
         var fait = x?.Trouves.Count ?? 0;
@@ -640,14 +588,13 @@ public sealed class Fenetre : Window, IDisposable
         if (relisible && g.Clic) plugin.Relire(cle);
     }
 
-    /// <summary>Ce que le plugin sait lire d'une collection : le catalogue
-    /// entier, ou la portée déclarée quand le jeu ne répond que pour une
-    /// partie. Dire « 0 / 398 » à qui possède tout ce qui se lit serait faux.</summary>
+    /// <summary>Ce que le plugin sait lire : le catalogue entier, ou la portée
+    /// déclarée. Dire « 0 / 398 » à qui possède tout ce qui se lit serait
+    /// faux.</summary>
     private static int Lisibles(Releve x) =>
         x.Limite == Limite.Capacite && x.Portee is not null ? x.Portee.Count : x.Total;
 
-    /// <summary>Tout ce que la tuile n'a pas la place de dire : la borne de la
-    /// lecture, le conseil, et ce qu'il faut ouvrir.</summary>
+    /// <summary>Ce que la tuile n'a pas la place de dire.</summary>
     private static string Aide(string cle, string nom, Releve? x, bool relisible)
     {
         var lignes = new List<string> { nom };
@@ -661,9 +608,8 @@ public sealed class Fenetre : Window, IDisposable
         switch (x.Limite)
         {
             case Limite.Capacite:
-                // Deux raisons de sortir de la portée, et une seule se coche à
-                // la main (PLG-R44) : les dire ensemble faisait passer une
-                // lecture en retard pour du travail à faire dans l'application.
+                // Deux raisons de sortir de la portée, une seule se coche à
+                // la main (PLG-R44).
                 var hors = x.Total - (x.Portee?.Count ?? 0) - x.NonLues;
                 if (hors > 0)
                 {
@@ -682,8 +628,8 @@ public sealed class Fenetre : Window, IDisposable
         return string.Join("\n\n", lignes);
     }
 
-    /// <summary>L'icône du jeu de chaque collection : les mêmes que dans
-    /// l'application, pour qu'on se repère d'un écran à l'autre.</summary>
+    /// <summary>Les mêmes icônes que l'application, pour se repérer d'un écran
+    /// à l'autre.</summary>
     private static readonly Dictionary<string, uint> Icones = new()
     {
         ["mounts"] = 58,
@@ -713,8 +659,6 @@ public sealed class Fenetre : Window, IDisposable
         dl.AddImage(image.Handle, centre - demi, centre + demi, Vector2.Zero, Vector2.One,
             Peinture.Col(new Vector4(1f, 1f, 1f, alpha)));
     }
-
-    // ------------------------------------------------------------- le retour
 
     /// <summary>Ce que le serveur a répondu au dernier envoi.</summary>
     private void Retour()
@@ -753,8 +697,6 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.SetCursorScreenPos(new Vector2(origine.X, bas));
         ImGui.Dummy(new Vector2(large, 4f * E));
     }
-
-    // --------------------------------------------------------------- le pied
 
     private void Pied(ImDrawListPtr dl, Vector2 pos, float largeur)
     {
@@ -851,8 +793,7 @@ public sealed class Fenetre : Window, IDisposable
         _ = fin;
     }
 
-    /// <summary>Le mot du pied, à droite, discret : ce qui rassure sans
-    /// demander de geste.</summary>
+    /// <summary>Le mot du pied, à droite : il rassure, il ne demande rien.</summary>
     private static void Note(Vector2 fin, string mot)
     {
         var t = Texte.Mesurer(mot);
@@ -860,8 +801,6 @@ public sealed class Fenetre : Window, IDisposable
         var y = fin.Y - (HPied * E + t.Y) * 0.5f;
         if (x > ImGui.GetCursorScreenPos().X + 12f * E) Texte.A(mot, new Vector2(x, y), Teintes.Discret);
     }
-
-    // ------------------------------------------------------------ les réglages
 
     private void PageReglages()
     {
@@ -911,9 +850,8 @@ public sealed class Fenetre : Window, IDisposable
     }
 
     /// <summary>
-    /// Une carte titrée : son titre en or, sa phrase d'explication, et ce
-    /// qu'elle porte. Les réglages, les conseils et la page « à propos » sont
-    /// tous faits de celles-là.
+    /// Une carte titrée : réglages, conseils et page « à propos » en sont tous
+    /// faits.
     ///
     /// La hauteur n'est pas connue d'avance — le texte se replie selon la
     /// largeur — alors on dessine le contenu d'abord sur un calque, on mesure,
@@ -955,8 +893,6 @@ public sealed class Fenetre : Window, IDisposable
         ImGui.Dummy(new Vector2(large, 8f * E));
     }
 
-    // ------------------------------------------------------------- à propos
-
     /// <summary>Le Discord de l'appli, où l'on pose ses questions.</summary>
     private const string Discord = "https://discord.gg/vG4sMjjHFy";
 
@@ -985,8 +921,6 @@ public sealed class Fenetre : Window, IDisposable
             ImGui.TextColored(Teintes.Discret, $"v{version.Major}.{version.Minor}.{version.Build}");
         }
     }
-
-    // -------------------------------------------------------------- outils
 
     /// <summary>« . », « .. », « ... » : une attente qui se voit, sans exiger
     /// du jeu un glyphe qu'il n'a peut-être pas.</summary>
