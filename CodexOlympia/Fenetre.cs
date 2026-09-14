@@ -1015,7 +1015,8 @@ public sealed class Fenetre : Window, IDisposable
     /// </summary>
     private void Fiche(Entree e)
     {
-        var detail = plugin.Catalogue?.Detail(galerieCle, e.Id);
+        var numero = plugin.NumeroCatalogue(galerieCle, e.Id);
+        var detail = plugin.Catalogue?.Detail(galerieCle, numero);
         var large = ImGui.GetContentRegionAvail().X;
         var origine = ImGui.GetCursorScreenPos();
         var dl = ImGui.GetWindowDrawList();
@@ -1051,7 +1052,7 @@ public sealed class Fenetre : Window, IDisposable
         }
 
         ImGui.TextColored(Teintes.Or, e.Nom);
-        var autre = plugin.Catalogue?.AutreNom(galerieCle, e.Id) ?? string.Empty;
+        var autre = plugin.Catalogue?.AutreNom(galerieCle, numero) ?? string.Empty;
         if (autre.Length > 0 && autre != e.Nom) ImGui.TextColored(Teintes.Discret, autre);
 
         if (detail is not null)

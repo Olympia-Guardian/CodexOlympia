@@ -67,7 +67,43 @@ public sealed partial class Plugin : IDalamudPlugin
     }
 
     /// <summary>Après une lecture, ce qui était gardé ne vaut plus.</summary>
-    public void OublierGalerie() => galerie.Clear();
+    public void OublierGalerie()
+    {
+        galerie.Clear();
+        pontLunettes = null;
+    }
+
+    /// <summary>Du numéro de modèle de lunettes vers le numéro du catalogue.</summary>
+    private Dictionary<uint, uint>? pontLunettes;
+
+    /// <summary>
+    /// Le numéro du catalogue pour une entrée de la galerie.
+    ///
+    /// Les deux numérotations coïncident partout, sauf pour les lunettes : le
+    /// catalogue les numérote à sa façon, la galerie par la ligne du modèle
+    /// dans la table du jeu. Sans ce pont, la fiche d'une paire de lunettes
+    /// n'aurait ni patch ni source.
+    /// </summary>
+    public uint NumeroCatalogue(string cle, uint id)
+    {
+        if (cle != "facewear") return id;
+        pontLunettes ??= BatirPontLunettes();
+        return pontLunettes.GetValueOrDefault(id, id);
+    }
+
+    private Dictionary<uint, uint> BatirPontLunettes()
+    {
+        var pont = new Dictionary<uint, uint>();
+        if (Catalogue is not { } cat || !cat.Objets.TryGetValue("facewear", out var liens)) return pont;
+        var objets = donnees.GetExcelSheet<Item>();
+        foreach (var (idCatalogue, objet) in liens)
+        {
+            if (objet == 0) continue;
+            var numero = objets.GetRowOrDefault(objet)?.AdditionalData.RowId ?? 0;
+            if (numero != 0) pont[numero] = idCatalogue;
+        }
+        return pont;
+    }
 
     public IReadOnlyDictionary<string, List<Entree>> Tables { get; private set; } =
         new Dictionary<string, List<Entree>>();
