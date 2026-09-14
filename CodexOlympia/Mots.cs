@@ -234,6 +234,8 @@ public static class Mots
     public static string GalerieToutEssayer => D("Tout essayer", "Try the whole set");
     public static string GalerieEssayer => D("Clic : essayer", "Click to try on");
     public static string GalerieClicDroit => D("Clic droit : essayer", "Right-click to try on");
+    public static string GalerieEntamee(int fait, int total) =>
+        D($"{fait} pièce(s) sur {total}", $"{fait} of {total} pieces");
 
     /// <summary>La famille d'une source, telle que l'application la nomme : les
     /// mêmes mots des deux côtés, pour qu'on s'y retrouve.</summary>

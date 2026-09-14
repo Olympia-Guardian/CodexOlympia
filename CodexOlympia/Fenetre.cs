@@ -999,6 +999,10 @@ public sealed class Fenetre : Window, IDisposable
         var colonnes = Math.Max(1, (int)((large + ecart) / (cote + ecart)));
         var dl = ImGui.GetWindowDrawList();
 
+        // Une tenue dont on a quelques pieces n'est ni possedee ni absente :
+        // elle est entamee, et le dit par une pastille bleue.
+        var morceaux = galerieCle == "outfits" ? Possedes("outfitpieces") : null;
+
         var visibles = Filtrer(entrees, mien);
         if (visibles.Count == 0)
         {
@@ -1029,6 +1033,7 @@ public sealed class Fenetre : Window, IDisposable
             if (rang >= visibles.Count) break;
             var e = visibles[rang];
             var aMoi = mien.Contains(e.Id);
+            var (entamee, jai, total) = aMoi ? (false, 0, 0) : Entamee(e, morceaux);
             if (c > 0) ImGui.SameLine(0, ecart);
 
             var origine = ImGui.GetCursorScreenPos();
@@ -1036,31 +1041,55 @@ public sealed class Fenetre : Window, IDisposable
             var fin = origine + new Vector2(cote);
             var chaud = Mouvement.Survol($"##g{e.Id}#s", g.Dessus);
             var choisi = e.Id == galerieChoisi;
+            var bord = choisi ? Teintes.Or
+                : aMoi ? Teintes.Alpha(Teintes.Vert, 0.4f)
+                : entamee ? Teintes.Alpha(Teintes.Bleu, 0.45f)
+                : Teintes.Filet;
             Peinture.Carte(dl, origine, fin, Teintes.RondTuile * E,
-                Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.08f),
-                choisi ? Teintes.Or : aMoi ? Teintes.Alpha(Teintes.Vert, 0.4f) : Teintes.Filet);
+                Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.08f), bord);
 
             if (Icone(e.Icone) is { } image)
             {
                 var marge = 5f * E;
                 dl.AddImage(image.Handle, origine + new Vector2(marge), fin - new Vector2(marge),
                     Vector2.Zero, Vector2.One,
-                    Peinture.Col(new Vector4(1f, 1f, 1f, aMoi ? 1f : 0.32f)));
+                    Peinture.Col(new Vector4(1f, 1f, 1f, aMoi ? 1f : entamee ? 0.6f : 0.32f)));
             }
             else
             {
                 Texte.Milieu(e.Nom[..1], origine, fin, aMoi ? Teintes.Encre2 : Teintes.Discret);
             }
 
-            if (aMoi)
-                dl.AddCircleFilled(fin - new Vector2(6f * E), 3.5f * E, Peinture.Col(Teintes.Vert));
+            if (aMoi || entamee)
+                dl.AddCircleFilled(fin - new Vector2(6f * E), 3.5f * E,
+                    Peinture.Col(aMoi ? Teintes.Vert : Teintes.Bleu));
 
-            Pieces.Infobulle(Essayable ? e.Nom + "\n" + Mots.GalerieClicDroit : e.Nom);
+            var bulle = e.Nom;
+            if (entamee) bulle += "\n" + Mots.GalerieEntamee(jai, total);
+            if (Essayable) bulle += "\n" + Mots.GalerieClicDroit;
+            Pieces.Infobulle(bulle);
             if (g.Clic) galerieChoisi = choisi ? 0u : e.Id;
             if (g.Droit) EssayerEntree(e);
         }
 
         if (derniere < rangees - 1) ImGui.Dummy(new Vector2(large, (rangees - 1 - derniere) * pas));
+    }
+
+    /// <summary>
+    /// Une tenue dont on possède quelques pièces, sans les avoir toutes.
+    ///
+    /// Le vert dit « je l'ai », le rien dit « je ne l'ai pas » ; entre les deux
+    /// il manque un mot, et c'est le cas le plus frequent d'une garde-robe en
+    /// cours. Le bleu le dit, et l'infobulle donne le compte.
+    /// </summary>
+    private (bool Entamee, int Jai, int Total) Entamee(Entree e, HashSet<uint>? morceaux)
+    {
+        if (morceaux is null || morceaux.Count == 0) return (false, 0, 0);
+        if (!plugin.Jeu.Ensembles.TryGetValue(e.Id, out var dedans)) return (false, 0, 0);
+        var jai = 0;
+        foreach (var objet in dedans)
+            if (morceaux.Contains(objet)) jai++;
+        return (jai > 0, jai, dedans.Length);
     }
 
     /// <summary>Vrai quand une entrée de cette collection s'essaie : la cabine
