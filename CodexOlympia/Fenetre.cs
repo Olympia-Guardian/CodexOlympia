@@ -171,6 +171,7 @@ public sealed class Fenetre : Window, IDisposable
         (FontAwesomeIcon, string)[] pages =
         [
             (FontAwesomeIcon.SyncAlt, Mots.PageSync),
+            (FontAwesomeIcon.ThLarge, Mots.PageGalerie),
             (FontAwesomeIcon.SlidersH, Mots.PageConfig),
             (FontAwesomeIcon.InfoCircle, Mots.PageAPropos),
         ];
@@ -208,9 +209,12 @@ public sealed class Fenetre : Window, IDisposable
         switch (page)
         {
             case 1:
-                PageReglages();
+                PageGalerie();
                 break;
             case 2:
+                PageReglages();
+                break;
+            case 3:
                 PageAPropos();
                 break;
             default:
@@ -710,9 +714,12 @@ public sealed class Fenetre : Window, IDisposable
         switch (page)
         {
             case 1:
-                PiedReglages();
+                PiedGalerie(fin);
                 break;
             case 2:
+                PiedReglages();
+                break;
+            case 3:
                 PiedAPropos(fin);
                 break;
             default:
@@ -730,7 +737,7 @@ public sealed class Fenetre : Window, IDisposable
         }
         if (plugin.Jeton.Length == 0)
         {
-            if (Pieces.BoutonOr("##aller-reglages", Mots.AllerConfig)) page = 1;
+            if (Pieces.BoutonOr("##aller-reglages", Mots.AllerConfig)) page = 2;
             Note(fin, Mots.ManqueJeton);
             return;
         }
@@ -800,6 +807,201 @@ public sealed class Fenetre : Window, IDisposable
         var x = fin.X - Marge * E - t.X;
         var y = fin.Y - (HPied * E + t.Y) * 0.5f;
         if (x > ImGui.GetCursorScreenPos().X + 12f * E) Texte.A(mot, new Vector2(x, y), Teintes.Discret);
+    }
+
+    // ------------------------------------------------------------ la galerie
+
+    /// <summary>La collection ouverte dans la galerie, et l'objet choisi.</summary>
+    private string galerieCle = "mounts";
+    private uint galerieChoisi;
+
+    /// <summary>Ce que le filtre laisse passer.</summary>
+    private enum Vue
+    {
+        Tout,
+        Manquants,
+        AMoi,
+    }
+
+    private Vue galerieVue = Vue.Tout;
+
+    /// <summary>
+    /// Tout ce qui existe, possede ou non (PLG-R48).
+    ///
+    /// Ce qui existe vient des tables du jeu ; ce qui est possede vient de la
+    /// derniere lecture, jamais d'ailleurs (PLG-R52). Sans lecture, tout parait
+    /// manquant, et la page le dit plutot que de laisser croire.
+    /// </summary>
+    private void PageGalerie()
+    {
+        if (plugin.Tables.Count == 0)
+        {
+            CarteMot(Mots.GalerieVide, Teintes.Ambre);
+            return;
+        }
+
+        Rangee();
+        if (!plugin.Tables.TryGetValue(galerieCle, out var entrees))
+        {
+            CarteMot(Mots.GaleriePasEncore, Teintes.Discret);
+            return;
+        }
+
+        var mien = Possedes(galerieCle);
+        if (mien.Count == 0)
+        {
+            ImGui.TextColored(Teintes.Discret, Mots.GalerieSansLecture);
+            ImGui.Dummy(new Vector2(0, 2f * E));
+        }
+
+        Filtres();
+        Grille(entrees, mien);
+        Fiche(entrees, mien);
+    }
+
+    /// <summary>Les numeros que la derniere lecture a trouves pour cette
+    /// collection.</summary>
+    private HashSet<uint> Possedes(string cle)
+    {
+        var r = plugin.Releves.FirstOrDefault(x => x.Cle == cle);
+        return r is null ? [] : [.. r.Trouves];
+    }
+
+    /// <summary>La rangee des collections, avec leur compte.</summary>
+    private void Rangee()
+    {
+        var ecart = 5f * E;
+        var large = ImGui.GetContentRegionAvail().X;
+        var x = 0f;
+        foreach (var (cle, nom) in Mots.Collections)
+        {
+            if (!plugin.Tables.TryGetValue(cle, out var entrees)) continue;
+            var mien = Possedes(cle).Count;
+            var texte = $"{nom}  {Mots.GalerieCompte(mien, entrees.Count)}";
+            var l = Texte.Mesurer(texte).X + 22f * E;
+            if (x > 0f && x + l > large)
+            {
+                x = 0f;
+            }
+            else if (x > 0f)
+            {
+                ImGui.SameLine(0, ecart);
+            }
+            x += l + ecart;
+            if (Pilule($"##coll-{cle}", texte, cle == galerieCle))
+            {
+                galerieCle = cle;
+                galerieChoisi = 0;
+            }
+        }
+        ImGui.Dummy(new Vector2(0, 2f * E));
+    }
+
+    /// <summary>Une pilule de la rangee : le nom d'une collection et son
+    /// compte, doree quand c'est celle qu'on regarde.</summary>
+    private static bool Pilule(string id, string texte, bool actif)
+    {
+        var h = ImGui.GetTextLineHeight() + 10f * E;
+        var l = Texte.Mesurer(texte).X + 22f * E;
+        var origine = ImGui.GetCursorScreenPos();
+        var g = Pieces.Zone(id, new Vector2(l, h));
+        var dl = ImGui.GetWindowDrawList();
+        var chaud = Mouvement.Survol(id + "#survol", g.Dessus);
+        var fond = actif
+            ? Teintes.Alpha(Teintes.Or, 0.14f)
+            : Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.08f);
+        var bord = actif ? Teintes.Alpha(Teintes.Or, 0.42f) : Teintes.Filet;
+        Peinture.Plein(dl, origine, origine + new Vector2(l, h), fond, h * 0.5f);
+        Peinture.Contour(dl, origine, origine + new Vector2(l, h), bord, h * 0.5f);
+        Texte.Milieu(texte, origine, origine + new Vector2(l, h), actif ? Teintes.Or : Teintes.Encre2);
+        return g.Clic;
+    }
+
+    private void Filtres()
+    {
+        var choix = new[]
+        {
+            (Vue.Tout, Mots.GalerieTout),
+            (Vue.Manquants, Mots.GalerieManquants),
+            (Vue.AMoi, Mots.GalerieAMoi),
+        };
+        for (var i = 0; i < choix.Length; i++)
+        {
+            if (i > 0) ImGui.SameLine(0, 5f * E);
+            var (v, nom) = choix[i];
+            if (Pilule($"##vue-{i}", nom, galerieVue == v)) galerieVue = v;
+        }
+        ImGui.Dummy(new Vector2(0, 2f * E));
+    }
+
+    /// <summary>La grille des icones du jeu. Ce qu'on a est net, ce qui manque
+    /// est en retrait, et la pastille verte le redit sans la couleur seule.</summary>
+    private void Grille(List<Entree> entrees, HashSet<uint> mien)
+    {
+        var cote = 46f * E;
+        var ecart = 5f * E;
+        var large = ImGui.GetContentRegionAvail().X;
+        var colonnes = Math.Max(1, (int)((large + ecart) / (cote + ecart)));
+        var dl = ImGui.GetWindowDrawList();
+        var i = 0;
+        foreach (var e in entrees)
+        {
+            var aMoi = mien.Contains(e.Id);
+            if (galerieVue == Vue.Manquants && aMoi) continue;
+            if (galerieVue == Vue.AMoi && !aMoi) continue;
+
+            if (i % colonnes != 0) ImGui.SameLine(0, ecart);
+            i++;
+
+            var origine = ImGui.GetCursorScreenPos();
+            var g = Pieces.Zone($"##g{e.Id}", new Vector2(cote));
+            var fin = origine + new Vector2(cote);
+            var chaud = Mouvement.Survol($"##g{e.Id}#s", g.Dessus);
+            var choisi = e.Id == galerieChoisi;
+            Peinture.Carte(dl, origine, fin, Teintes.RondTuile * E,
+                Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.08f),
+                choisi ? Teintes.Or : aMoi ? Teintes.Alpha(Teintes.Vert, 0.4f) : Teintes.Filet);
+
+            if (e.Icone != 0)
+            {
+                var image = plugin.Textures.GetFromGameIcon(new GameIconLookup(e.Icone)).GetWrapOrEmpty();
+                var marge = 5f * E;
+                dl.AddImage(image.Handle, origine + new Vector2(marge), fin - new Vector2(marge),
+                    Vector2.Zero, Vector2.One,
+                    Peinture.Col(new Vector4(1f, 1f, 1f, aMoi ? 1f : 0.32f)));
+            }
+            else
+            {
+                Texte.Milieu(e.Nom[..1], origine, fin, aMoi ? Teintes.Encre2 : Teintes.Discret);
+            }
+
+            if (aMoi)
+                dl.AddCircleFilled(fin - new Vector2(6f * E), 3.5f * E, Peinture.Col(Teintes.Vert));
+
+            Pieces.Infobulle(e.Nom);
+            if (g.Clic) galerieChoisi = e.Id;
+        }
+        if (i == 0) ImGui.TextColored(Teintes.Discret, Mots.RienDeNeuf);
+    }
+
+    /// <summary>La fiche de l'objet choisi (PLG-R49).</summary>
+    private void Fiche(List<Entree> entrees, HashSet<uint> mien)
+    {
+        var e = entrees.FirstOrDefault(x => x.Id == galerieChoisi);
+        if (e is null) return;
+        ImGui.Dummy(new Vector2(0, 4f * E));
+        var aMoi = mien.Contains(e.Id);
+        CarteTitree(e.Nom, aMoi ? Mots.GalerieAToi : Mots.GalerieIlTeManque, null);
+    }
+
+    private void PiedGalerie(Vector2 fin)
+    {
+        if (Pieces.BoutonOr("##galerie-regarder", Mots.Regarder)) plugin.RegarderAJour();
+        if (plugin.Tables.TryGetValue(galerieCle, out var entrees))
+        {
+            var mien = Possedes(galerieCle).Count;
+            Note(fin, Mots.GalerieCompte(mien, entrees.Count));
+        }
     }
 
     private void PageReglages()

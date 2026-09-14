@@ -46,6 +46,11 @@ public sealed partial class Plugin : IDalamudPlugin
     public Visage Visage { get; }
 
     public Catalogue? Catalogue { get; private set; }
+
+    /// <summary>Ce qui existe, lu dans les tables du client (PLG-R46). Bati une
+    /// fois au demarrage : les tables ne bougent pas d'une session a l'autre.</summary>
+    public IReadOnlyDictionary<string, List<Entree>> Tables { get; private set; } =
+        new Dictionary<string, List<Entree>>();
     public List<Releve> Releves { get; private set; } = [];
     /// <summary>Ce que la derniere lecture a vu dans les depots.</summary>
     public Coffre? Coffre { get; private set; }
@@ -220,6 +225,17 @@ public sealed partial class Plugin : IDalamudPlugin
         MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
 
         Visage = new Visage(http, textures, journal, SurLeFilDuJeu);
+        try
+        {
+            Tables = CodexOlympia.Tables.Batir(donnees);
+            journal.Information("tables du jeu : {0} collections", Tables.Count);
+        }
+        catch (Exception e)
+        {
+            // Une table illisible n'empeche pas la synchronisation : la galerie
+            // se passera de cette collection.
+            journal.Error(e, "tables du jeu illisibles");
+        }
         fenetre = new Fenetre(this);
         fenetres.AddWindow(fenetre);
 

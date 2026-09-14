@@ -231,7 +231,26 @@ public static class Mots
 
     // (PLG-R41 à R43 : l'état en deux mots, les étapes du geste, les compteurs.)
 
+    public static string PageGalerie => D("Galerie", "Gallery");
     public static string PageAPropos => D("À propos", "About");
+
+    // ------------------------------------------------------------- la galerie
+
+    public static string GalerieTout => D("Tout", "All");
+    public static string GalerieManquants => D("Manquants", "Missing");
+    public static string GalerieAMoi => D("À moi", "Mine");
+    public static string GalerieAToi => D("À toi", "Yours");
+    public static string GalerieIlTeManque => D("Il te manque", "You are missing");
+    public static string GalerieVide => D(
+        "Rien à montrer ici. Regarde d'abord ce que tu as, depuis la page de synchronisation.",
+        "Nothing to show yet. Read what you have first, from the sync page.");
+    public static string GalerieSansLecture => D(
+        "Tant que rien n'a été lu, la galerie montre tout comme manquant.",
+        "Until something has been read, the gallery shows everything as missing.");
+    public static string GaleriePasEncore => D(
+        "Cette collection n'est pas encore dans la galerie : le jeu et l'application ne numérotent pas ses entrées pareil.",
+        "This collection is not in the gallery yet: the game and the app number its entries differently.");
+    public static string GalerieCompte(int fait, int total) => $"{fait} / {total}";
     public static string Fermer => D("Fermer", "Close");
 
     public static string EtatJeton => D("Jeton manquant", "No token");
