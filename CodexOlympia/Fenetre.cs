@@ -836,13 +836,15 @@ public sealed class Fenetre : Window, IDisposable
         }
 
         Rangee();
-        if (!plugin.Tables.TryGetValue(galerieCle, out var entrees))
+        if (!plugin.Tables.ContainsKey(galerieCle))
         {
             CarteMot(Mots.GaleriePasEncore, Teintes.Discret);
             return;
         }
 
-        var mien = Possedes(galerieCle);
+        var vue = plugin.Vue(galerieCle);
+        var entrees = vue.Entrees;
+        var mien = vue.Mien;
         if (mien.Count == 0)
         {
             ImGui.TextColored(Teintes.Discret, Mots.GalerieSansLecture);
@@ -877,12 +879,7 @@ public sealed class Fenetre : Window, IDisposable
     /// dont le jeu n'a pas de question à numéro : elle ne connaît que les
     /// entrées du catalogue, et le reste paraîtrait manquant.
     /// </summary>
-    private HashSet<uint> Possedes(string cle)
-    {
-        if (plugin.GalerieAMoi(cle) is { } vu) return vu;
-        var r = plugin.Releves.FirstOrDefault(x => x.Cle == cle);
-        return r is null ? [] : [.. r.Trouves];
-    }
+    private HashSet<uint> Possedes(string cle) => plugin.Vue(cle).Mien;
 
     /// <summary>La rangee des collections, avec leur compte.</summary>
     private void Rangee()
@@ -892,9 +889,9 @@ public sealed class Fenetre : Window, IDisposable
         var x = 0f;
         foreach (var (cle, nom) in Mots.Collections)
         {
-            if (!plugin.Tables.TryGetValue(cle, out var entrees)) continue;
-            var mien = Possedes(cle).Count;
-            var texte = $"{nom}  {Mots.GalerieCompte(mien, entrees.Count)}";
+            if (!plugin.Tables.ContainsKey(cle)) continue;
+            var vue = plugin.Vue(cle);
+            var texte = $"{nom}  {Mots.GalerieCompte(vue.Mien.Count, vue.Entrees.Count)}";
             var l = Texte.Mesurer(texte).X + 22f * E;
             if (x > 0f && x + l > large)
             {
@@ -970,10 +967,12 @@ public sealed class Fenetre : Window, IDisposable
     private string filtreCle = string.Empty;
     private Vue filtreVue;
     private int filtreMien = -1;
+    private int filtreTotal = -1;
 
     private List<Entree> Filtrer(List<Entree> entrees, HashSet<uint> mien)
     {
-        if (filtreCle == galerieCle && filtreVue == galerieVue && filtreMien == mien.Count)
+        if (filtreCle == galerieCle && filtreVue == galerieVue
+            && filtreMien == mien.Count && filtreTotal == entrees.Count)
             return filtrees;
 
         var sortie = new List<Entree>(entrees.Count);
@@ -988,6 +987,7 @@ public sealed class Fenetre : Window, IDisposable
         filtreCle = galerieCle;
         filtreVue = galerieVue;
         filtreMien = mien.Count;
+        filtreTotal = entrees.Count;
         return sortie;
     }
 
@@ -1263,10 +1263,10 @@ public sealed class Fenetre : Window, IDisposable
     private void PiedGalerie(Vector2 fin)
     {
         if (Pieces.BoutonOr("##galerie-regarder", Mots.Regarder)) plugin.RegarderAJour();
-        if (plugin.Tables.TryGetValue(galerieCle, out var entrees))
+        if (plugin.Tables.ContainsKey(galerieCle))
         {
-            var mien = Possedes(galerieCle).Count;
-            Note(fin, Mots.GalerieCompte(mien, entrees.Count));
+            var vue = plugin.Vue(galerieCle);
+            Note(fin, Mots.GalerieCompte(vue.Mien.Count, vue.Entrees.Count));
         }
     }
 
@@ -1295,6 +1295,19 @@ public sealed class Fenetre : Window, IDisposable
             {
                 r.SyncAuto = auto;
                 plugin.Enregistrer();
+            }
+        });
+
+        CarteTitree(Mots.BoutiqueTitre, Mots.BoutiqueExplique, null, () =>
+        {
+            var cacher = r.CacherBoutique;
+            if (Pieces.Interrupteur("##boutique", ref cacher))
+            {
+                r.CacherBoutique = cacher;
+                plugin.Enregistrer();
+                // Les listes gardees ne valent plus : elles ont ete triees
+                // avec l'ancien reglage.
+                plugin.OublierGalerie();
             }
         });
 

@@ -228,6 +228,14 @@ public static class Mots
     public static string GaleriePatch(string n) => D($"Patch {n}", $"Patch {n}");
     public static string GaleriePlusObtenable => D("Plus obtenable", "No longer obtainable");
     public static string GalerieFermer => D("Fermer", "Close");
+    public static string BoutiqueTitre => D(
+        "Masquer la boutique en ligne",
+        "Hide online store items");
+    public static string BoutiqueExplique => D(
+        "La galerie laisse de côté ce qui ne s'obtient qu'en boutique. "
+        + "Les compteurs suivent, et l'application continue de tout suivre.",
+        "The gallery leaves out what can only be bought from the store. "
+        + "The counters follow, and the app still tracks everything.");
     public static string GaleriePieces(int n) => n == 1
         ? D("Une pièce", "One piece")
         : D($"{n} pièces", $"{n} pieces");

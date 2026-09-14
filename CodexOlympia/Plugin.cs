@@ -56,6 +56,57 @@ public sealed partial class Plugin : IDalamudPlugin
     /// collection.</summary>
     private readonly Dictionary<string, HashSet<uint>?> galerie = new();
 
+    /// <summary>Ce que la galerie montre d'une collection : les entrées
+    /// visibles, et celles que le joueur possède parmi elles.</summary>
+    public sealed record VueGalerie(List<Entree> Entrees, HashSet<uint> Mien);
+
+    private readonly Dictionary<string, VueGalerie> vues = new();
+
+    /// <summary>
+    /// Ce que la galerie a à montrer pour une collection.
+    ///
+    /// Un joueur peut demander à ne pas voir ce qui ne s'obtient qu'en boutique
+    /// en ligne. Le tri se fait ici, une fois par collection et par lecture,
+    /// pour que la grille et le compteur disent la même chose : un compteur qui
+    /// annonce plus d'entrées que la grille n'en dessine est un compteur faux.
+    /// </summary>
+    public VueGalerie Vue(string cle)
+    {
+        if (vues.TryGetValue(cle, out var deja)) return deja;
+
+        var toutes = Tables.TryGetValue(cle, out var l) ? l : [];
+        var mien = GalerieAMoi(cle) ?? DepuisReleve(cle);
+
+        VueGalerie vue;
+        if (!Reglages.CacherBoutique || Catalogue is not { } cat)
+        {
+            vue = new VueGalerie(toutes, mien);
+        }
+        else
+        {
+            var gardees = new List<Entree>(toutes.Count);
+            var aMoi = new HashSet<uint>();
+            foreach (var x in toutes)
+            {
+                if (cat.Detail(cle, NumeroCatalogue(cle, x.Id))?.Boutique == true) continue;
+                gardees.Add(x);
+                if (mien.Contains(x.Id)) aMoi.Add(x.Id);
+            }
+            vue = new VueGalerie(gardees, aMoi);
+        }
+
+        vues[cle] = vue;
+        return vue;
+    }
+
+    /// <summary>Ce que la dernière lecture a trouvé, pour les collections dont
+    /// le jeu n'a pas de question à numéro.</summary>
+    private HashSet<uint> DepuisReleve(string cle)
+    {
+        var r = Releves.FirstOrDefault(x => x.Cle == cle);
+        return r is null ? [] : [.. r.Trouves];
+    }
+
     /// <summary>Ce que le joueur possède parmi ce que la galerie montre, ou rien
     /// quand le jeu ne sait pas répondre par numéro.</summary>
     public HashSet<uint>? GalerieAMoi(string cle)
@@ -83,6 +134,7 @@ public sealed partial class Plugin : IDalamudPlugin
     public void OublierGalerie()
     {
         galerie.Clear();
+        vues.Clear();
         pontLunettes = null;
         pontCoiffures = null;
     }

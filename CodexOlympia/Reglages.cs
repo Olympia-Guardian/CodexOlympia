@@ -42,6 +42,11 @@ public sealed class Reglages : IPluginConfiguration
     /// </summary>
     public bool SyncAuto { get; set; }
 
+    /// <summary>Masquer, dans la galerie, ce qui ne s'obtient qu'en boutique en
+    /// ligne. Ces entrées comptent comme les autres pour l'application ; c'est
+    /// leur présence à l'écran que le joueur choisit.</summary>
+    public bool CacherBoutique { get; set; }
+
     /// <summary>
     /// Ce que le plugin a envoyé en dernier, par personnage puis par collection.
     ///
