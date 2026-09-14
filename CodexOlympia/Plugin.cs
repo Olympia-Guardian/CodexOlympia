@@ -87,13 +87,6 @@ public sealed partial class Plugin : IDalamudPlugin
     /// aucune n'est due.</summary>
     private double reverifieA;
 
-    /// <summary>Les collections auxquelles le jeu répond parfois « rien » à la
-    /// première lecture après la connexion, et tout à la seconde : celles qui
-    /// passent par l'objet qui déverrouille, dont la ligne se charge à la
-    /// demande, et les lunettes, dont la liste arrive après la connexion.
-    /// Plutôt que de demander au joueur de relancer, on relit nous-mêmes.</summary>
-    private static readonly string[] ParObjet = ["hairstyles", "facewear", "bardings", "frames"];
-
     /// <summary>Le délai entre deux relectures : assez pour que le jeu ait fini
     /// de charger ce qu'il chargeait, assez court pour qu'on ne l'attende pas.</summary>
     private const double DelaiReverification = 2.0;
@@ -112,18 +105,64 @@ public sealed partial class Plugin : IDalamudPlugin
     public bool EnVerification { get; private set; }
 
     /// <summary>
-    /// Une collection que la chaîne relit : lue à zéro alors que le jeu savait
-    /// répondre, ou lue avec une portée effondrée (PLG-R44).
+    /// Une collection que la chaîne relit, à trois signes : lue entièrement
+    /// vide (PLG-R33), lue avec une portée effondrée (PLG-R44), ou lue sans
+    /// retrouver ce qui est déjà parti (PLG-R45).
     ///
-    /// Le second cas manquait, et il est le plus visible : le jeu n'avait pas
-    /// encore chargé les lignes des objets, une seule entrée sur soixante-et-une
-    /// se laissait interroger, et la fenêtre annonçait fièrement « 1 / 1 » avec
-    /// un anneau plein.
+    /// Les deux derniers manquaient, et le deuxième est le plus visible : le
+    /// jeu n'avait pas encore chargé les lignes des objets, une seule entrée
+    /// sur soixante-et-une se laissait interroger, et la fenêtre annonçait
+    /// fièrement « 1 / 1 » avec un anneau plein.
     /// </summary>
-    public bool Douteuse(string cle) =>
-        ParObjet.Contains(cle)
-        && Releves.Any(r => r.Cle == cle && r.Empeche is null && r.Total > 0
-                            && (r.Trouves.Count == 0 || r.NonLues > 0));
+    public bool Douteuse(string cle)
+    {
+        var r = Releves.FirstOrDefault(x => x.Cle == cle);
+        if (r is null || r.Empeche is not null || r.Total == 0) return false;
+        // Une entrée que le jeu n'a pas su donner : lecture en retard (PLG-R44).
+        if (r.NonLues > 0) return true;
+        // Une collection entièrement vide alors que le catalogue en connaît :
+        // le jeu n'avait peut-être pas fini de charger. Le doute vaut pour
+        // toutes, pas seulement pour celles qui se lisent par l'objet : une
+        // liste pas encore remplie répond zéro quelle que soit la question. Le
+        // plafond de relectures tranche pour qui n'en possède vraiment aucune.
+        if (r.Trouves.Count == 0) return true;
+        // Et, pour toutes : ce qui est déjà parti doit se retrouver (PLG-R45).
+        return PerdDuDejaEnvoye(r);
+    }
+
+    /// <summary>
+    /// La lecture retrouve-t-elle tout ce qui est déjà parti pour ce
+    /// personnage ? (PLG-R45)
+    ///
+    /// Un déverrouillage acquis le reste : si une entrée déjà envoyée manque à
+    /// l'appel, ce n'est pas le joueur qui l'a perdue, c'est le jeu qui n'avait
+    /// pas fini de charger. Le test ne regarde que ce qui a VRAIMENT été
+    /// regardé — une entrée hors de la portée déclarée ne prouve rien — et que
+    /// ce que le catalogue connaît encore, sinon une entrée retirée entre deux
+    /// patchs ferait douter pour toujours.
+    /// </summary>
+    private bool PerdDuDejaEnvoye(Releve r)
+    {
+        if (ContentId == 0
+            || !Reglages.Envoyes.TryGetValue(ContentId, out var parCollection)
+            || !parCollection.TryGetValue(r.Cle, out var envoyes)
+            || envoyes.Count == 0)
+            return false;
+        if (Catalogue is null || !Catalogue.Ids.TryGetValue(r.Cle, out var connus)) return false;
+
+        var catalogue = new HashSet<uint>(connus);
+        var vus = new HashSet<uint>(r.Trouves);
+        var portee = r.Portee is null ? null : new HashSet<uint>(r.Portee);
+        foreach (var id in envoyes)
+        {
+            if (vus.Contains(id)) continue;
+            if (!catalogue.Contains(id)) continue;
+            if (portee is not null && !portee.Contains(id)) continue;
+            return true;
+        }
+        return false;
+    }
+
     public Retour? Dernier { get; private set; }
     public bool EnvoiEnCours { get; private set; }
 
@@ -372,14 +411,20 @@ public sealed partial class Plugin : IDalamudPlugin
         reverifieA = -1; // a programmer quand la lecture aura fini
     }
 
-    /// <summary>Relit sans geste les collections lues vides alors que le jeu
-    /// savait répondre, et recommence tant qu'elles reviennent vides, jusqu'au
-    /// plafond. Le cas rapporté est celui où la portée revient VIDE : la table
-    /// des objets du jeu n'était pas encore en mémoire, aucune entrée n'a pu
-    /// être lue, et une lecture plus tard les trouve toutes.</summary>
+    /// <summary>
+    /// Relit sans geste les collections dont la lecture sent le retard, et
+    /// recommence tant qu'elles sentent le retard, jusqu'au plafond.
+    ///
+    /// Trois signes (PLG-R33, R44, R45) : une collection revenue entièrement
+    /// vide alors que le jeu savait répondre, une entrée que le jeu n'a pas su
+    /// donner, ou une entrée déjà envoyée qui manque à l'appel. La chaîne ne
+    /// regardait que les quatre collections lues par leur objet ; elle les
+    /// regarde maintenant toutes, parce que le retard n'est pas une affaire de
+    /// collection mais de moment.
+    /// </summary>
     private void Reverifier()
     {
-        var douteuses = ParObjet.Where(Douteuse).ToList();
+        var douteuses = Photo.Ordre.Where(Douteuse).ToList();
         if (douteuses.Count == 0 || relectures >= MaxRelectures)
         {
             // Plus rien a relire, ou plus le droit : la chaine conclut.
