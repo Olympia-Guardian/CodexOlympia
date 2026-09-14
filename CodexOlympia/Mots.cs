@@ -62,17 +62,6 @@ public static class Mots
     public static string RelireAide => D(
         "Ouvre d'abord la fenêtre demandée en jeu, puis relis cette collection seule. Le reste du relevé ne bouge pas.",
         "Open the required game window first, then rescan just this collection. The rest of the report stays.");
-
-    public static string AuJournal(int n) => n == 1
-        ? D("1 autre se coche dans l'application", "1 more is ticked in the app")
-        : D($"{n} autres se cochent dans l'application", $"{n} more are ticked in the app");
-    public static string VerifiablesAide => D(
-        "Le jeu ne sait répondre que pour les entrées liées à un objet de déblocage.\n" +
-        "Les autres ne sont ni ajoutées ni signalées manquantes : elles se cochent\n" +
-        "à la main dans l'application, comme avant.",
-        "The game can only answer for entries tied to an unlock item.\n" +
-        "The others are neither added nor reported missing: tick them by hand\n" +
-        "in the app, as before.");
     public static string Verification => D("vérification", "double-checking");
     public static string VerificationAttente => D(
         "vérification en cours, l'envoi attend",

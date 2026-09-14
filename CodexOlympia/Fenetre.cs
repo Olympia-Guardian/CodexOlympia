@@ -612,14 +612,10 @@ public sealed class Fenetre : Window, IDisposable
         switch (x.Limite)
         {
             case Limite.Capacite:
-                // Deux raisons de sortir de la portée, une seule se coche à
-                // la main (PLG-R44).
-                var hors = x.Total - (x.Portee?.Count ?? 0) - x.NonLues;
-                if (hors > 0)
-                {
-                    lignes.Add(Mots.AuJournal(hors));
-                    lignes.Add(Mots.VerifiablesAide);
-                }
+                // Une lecture en retard se dit : elle va se rattraper toute
+                // seule. Ce que le jeu ne saura jamais donner ne se dit plus :
+                // une entrée sur cinquante expliquée en trois lignes n'aidait
+                // personne, et l'application les coche de toute façon.
                 if (x.NonLues > 0) lignes.Add(Mots.PasEncoreLues(x.NonLues));
                 break;
             case Limite.Depot:

@@ -103,15 +103,18 @@ public static class Photo
             case "cards":
                 return [Simple(cat, cle, id => id <= ushort.MaxValue && ui->IsTripleTriadCardUnlocked((ushort)id))];
 
-            // Les lunettes ont leur propre question, posée par leur numéro :
-            // passer par l'objet qui les déverrouille donnait « 1 / 1 » quand
-            // sa ligne n'était pas chargée (PLG-R44).
-            case "facewear":
-                return [Simple(cat, cle, id => id <= ushort.MaxValue && ps->IsGlassesUnlocked((ushort)id))];
-
             // Sans objet déverrouillant au catalogue, une entrée n'est pas
             // interrogeable : elle sort de la portée.
+            //
+            // Les lunettes y reviennent : le jeu a bien sa propre question,
+            // posée par le numéro de sa table, mais cette table compte une
+            // ligne par teinte, sept cent quarante-cinq pour soixante et une
+            // entrées au catalogue. Les deux numérotations n'ont rien à voir,
+            // et la question portait sur d'autres lunettes que celles qu'on
+            // croyait. Le « 1 / 1 » qui avait motivé le raccourci se soigne
+            // autrement, par la revérification d'une portée effondrée (PLG-R44).
             case "hairstyles":
+            case "facewear":
             case "bardings":
             case "frames":
                 return [ParObjet(cat, cle)];
