@@ -328,14 +328,15 @@ public sealed partial class Plugin : IDalamudPlugin
         Visage = new Visage(http, textures, journal, SurLeFilDuJeu);
         try
         {
-            Jeu = CodexOlympia.Tables.Batir(donnees);
+            // Chaque collection se batit pour son compte : une table que le
+            // client ne decrit plus pareil ne doit emporter qu'elle (PLG-R59).
+            Jeu = CodexOlympia.Tables.Batir(donnees, journal);
             Tables = Jeu.Collections;
-            journal.Information("tables du jeu : {0} collections", Tables.Count);
         }
         catch (Exception e)
         {
-            // Une table illisible n'empeche pas la synchronisation : la galerie
-            // se passera de cette collection.
+            // Le filet de securite : meme un echec que la construction n'a pas
+            // su rattraper n'empeche pas la synchronisation.
             journal.Error(e, "tables du jeu illisibles");
         }
         fenetre = new Fenetre(this);
