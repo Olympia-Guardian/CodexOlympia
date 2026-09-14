@@ -242,6 +242,7 @@ public static class Mots
         : D($"{n} pièces", $"{n} pieces");
     public static string GalerieToutEssayer => D("Tout essayer", "Try the whole set");
     public static string GalerieEssayer => D("Clic : essayer", "Click to try on");
+    public static string GalerieClicDroit => D("Clic droit : essayer", "Right-click to try on");
 
     /// <summary>La famille d'une source, telle que l'application la nomme : les
     /// mêmes mots des deux côtés, pour qu'on s'y retrouve.</summary>

@@ -143,7 +143,8 @@ public sealed partial class Plugin : IDalamudPlugin
     public Jeu Jeu { get; private set; } = new(
         new Dictionary<string, List<Entree>>(),
         new Dictionary<uint, uint[]>(),
-        new Dictionary<uint, Entree>());
+        new Dictionary<uint, Entree>(),
+        new Dictionary<uint, uint>());
 
     public IReadOnlyDictionary<string, List<Entree>> Tables { get; private set; } =
         new Dictionary<string, List<Entree>>();
@@ -454,6 +455,9 @@ public sealed partial class Plugin : IDalamudPlugin
                 SurLeFilDuJeu(() =>
                 {
                     Catalogue = neuf;
+                    // Ce que les tables du jeu n'ont pas su batir, le catalogue
+                    // le complete maintenant qu'il est la.
+                    Tables = CodexOlympia.Tables.Completer(Jeu.Collections, neuf);
                     journal.Information("catalogue charge ({0})", neuf.Date);
                 });
             }

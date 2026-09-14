@@ -3,7 +3,9 @@ using Dalamud.Bindings.ImGui;
 
 namespace CodexOlympia.Ui;
 
-internal readonly record struct Geste(bool Clic, bool Dessus);
+/// <summary>Ce qu'une zone a reçu : le clic gauche, le clic droit, et si le
+/// curseur est dessus.</summary>
+internal readonly record struct Geste(bool Clic, bool Dessus, bool Droit = false);
 
 /// <summary>
 /// Les pièces de la fenêtre, toutes bâties pareil : on retient où le curseur
@@ -26,7 +28,8 @@ internal static class Pieces
         var clic = ImGui.InvisibleButton(id, taille);
         var dessus = ImGui.IsItemHovered();
         if (dessus) ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-        return new Geste(clic, dessus);
+        var droit = dessus && ImGui.IsMouseClicked(ImGuiMouseButton.Right);
+        return new Geste(clic, dessus, droit);
     }
 
     public static void Infobulle(string texte)

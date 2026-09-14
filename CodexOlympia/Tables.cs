@@ -16,7 +16,8 @@ public sealed record Entree(uint Id, string Nom, uint Icone);
 public sealed record Jeu(
     IReadOnlyDictionary<string, List<Entree>> Collections,
     IReadOnlyDictionary<uint, uint[]> Ensembles,
-    IReadOnlyDictionary<uint, Entree> Pieces);
+    IReadOnlyDictionary<uint, Entree> Pieces,
+    IReadOnlyDictionary<uint, uint> ObjetsArmoire);
 
 /// <summary>
 /// Ce qui existe, lu dans les tables du client (PLG-R46).
@@ -54,6 +55,7 @@ public static class Tables
         var sortie = new Dictionary<string, List<Entree>>();
         var ensembles = new Dictionary<uint, uint[]>();
         var pieces = new Dictionary<uint, Entree>();
+        var armoire = new Dictionary<uint, uint>();
 
         Poser(sortie, journal, "mounts", Feuille<Mount>(donnees, journal), r =>
             r.Icon == 0 || r.Singular.ExtractText().Length == 0
@@ -143,7 +145,7 @@ public static class Tables
                 : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
 
         var objets = Feuille<Item>(donnees, journal);
-        if (objets is null) return new Jeu(sortie, ensembles, pieces);
+        if (objets is null) return new Jeu(sortie, ensembles, pieces, armoire);
 
         // Les coiffures. La table des apparences en compte une ligne par race et
         // par sexe ; ce qui distingue une coiffure, c'est la brochure qui
@@ -196,10 +198,40 @@ public static class Tables
         // partir de zéro : la galerie suit le catalogue, pour que les deux
         // comptes parlent des mêmes cases.
         Poser(sortie, journal, "armoires", Feuille<Cabinet>(donnees, journal), r =>
-            Objet(objets, r.Item.RowId) is { } o ? o with { Id = r.RowId + 1 } : null);
+        {
+            if (Objet(objets, r.Item.RowId) is not { } o) return null;
+            armoire[r.RowId + 1] = r.Item.RowId;
+            return o with { Id = r.RowId + 1 };
+        });
 
         journal.Information("tables du jeu : {0} collections", sortie.Count);
-        return new Jeu(sortie, ensembles, pieces);
+        return new Jeu(sortie, ensembles, pieces, armoire);
+    }
+
+    /// <summary>L'icône d'une bête du dresseur : le jeu les range côte à côte,
+    /// une par numéro.</summary>
+    private const uint PlancheBete = 242000;
+
+    /// <summary>
+    /// Ce que le catalogue ajoute à la galerie une fois chargé.
+    ///
+    /// Le bestiaire du dresseur y passe : sa table est décrite dans Lumina d'une
+    /// façon que le client ne reconnaît plus, et la demander échoue. Le catalogue
+    /// en connaît les cinquante entrées, avec le même numéro que le jeu, et leur
+    /// icône se déduit de ce numéro.
+    /// </summary>
+    public static IReadOnlyDictionary<string, List<Entree>> Completer(
+        IReadOnlyDictionary<string, List<Entree>> deja, Catalogue cat)
+    {
+        if (deja.ContainsKey("beastmaster")) return deja;
+        if (!cat.Ids.TryGetValue("beastmaster", out var ids) || ids.Length == 0) return deja;
+
+        var betes = new List<Entree>(ids.Length);
+        foreach (var id in ids)
+            betes.Add(new Entree(id, cat.Nom("beastmaster", id), PlancheBete + id));
+
+        var sortie = new Dictionary<string, List<Entree>>(deja) { ["beastmaster"] = betes };
+        return sortie;
     }
 
     /// <summary>

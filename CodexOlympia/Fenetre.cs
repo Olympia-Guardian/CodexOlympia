@@ -1054,11 +1054,36 @@ public sealed class Fenetre : Window, IDisposable
             if (aMoi)
                 dl.AddCircleFilled(fin - new Vector2(6f * E), 3.5f * E, Peinture.Col(Teintes.Vert));
 
-            Pieces.Infobulle(e.Nom);
+            Pieces.Infobulle(Essayable ? e.Nom + "\n" + Mots.GalerieClicDroit : e.Nom);
             if (g.Clic) galerieChoisi = choisi ? 0u : e.Id;
+            if (g.Droit) EssayerEntree(e);
         }
 
         if (derniere < rangees - 1) ImGui.Dummy(new Vector2(large, (rangees - 1 - derniere) * pas));
+    }
+
+    /// <summary>Vrai quand une entrée de cette collection s'essaie : la cabine
+    /// du jeu accepte de l'équipement, et rien d'autre.</summary>
+    private bool Essayable => galerieCle is "outfits" or "outfitpieces" or "armoires";
+
+    /// <summary>Le clic droit essaie ce qu'on montre : une tenue entière, une
+    /// pièce, ou l'objet que range une case d'armoire (PLG-R51).</summary>
+    private void EssayerEntree(Entree e)
+    {
+        switch (galerieCle)
+        {
+            case "outfits":
+                if (plugin.Jeu.Ensembles.TryGetValue(e.Id, out var dedans))
+                    foreach (var objet in dedans) plugin.Essayer(objet);
+                break;
+            case "outfitpieces":
+                plugin.Essayer(e.Id);
+                break;
+            case "armoires":
+                if (plugin.Jeu.ObjetsArmoire.TryGetValue(e.Id, out var range))
+                    plugin.Essayer(range);
+                break;
+        }
     }
 
     /// <summary>
