@@ -84,6 +84,7 @@ public sealed partial class Plugin : IDalamudPlugin
     {
         galerie.Clear();
         pontLunettes = null;
+        pontCoiffures = null;
     }
 
     /// <summary>Du numéro de modèle de lunettes vers le numéro du catalogue.</summary>
@@ -99,9 +100,29 @@ public sealed partial class Plugin : IDalamudPlugin
     /// </summary>
     public uint NumeroCatalogue(string cle, uint id)
     {
-        if (cle != "facewear") return id;
-        pontLunettes ??= BatirPontLunettes();
-        return pontLunettes.GetValueOrDefault(id, id);
+        if (cle == "facewear")
+        {
+            pontLunettes ??= BatirPontLunettes();
+            return pontLunettes.GetValueOrDefault(id, id);
+        }
+        if (cle == "hairstyles")
+        {
+            pontCoiffures ??= BatirPontCoiffures();
+            return pontCoiffures.GetValueOrDefault(id, id);
+        }
+        return id;
+    }
+
+    /// <summary>Du numero de brochure vers le numero du catalogue.</summary>
+    private Dictionary<uint, uint>? pontCoiffures;
+
+    private Dictionary<uint, uint> BatirPontCoiffures()
+    {
+        var pont = new Dictionary<uint, uint>();
+        if (Catalogue is not { } cat || !cat.Objets.TryGetValue("hairstyles", out var liens)) return pont;
+        foreach (var (idCatalogue, objet) in liens)
+            if (objet != 0) pont[objet] = idCatalogue;
+        return pont;
     }
 
     private Dictionary<uint, uint> BatirPontLunettes()

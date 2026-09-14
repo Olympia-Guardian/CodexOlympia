@@ -116,13 +116,34 @@ public static class Tables
                 ? null
                 : new Entree(r.RowId, r.Name.ExtractText(), (uint)r.Icon));
 
+        var objets = donnees.GetExcelSheet<Item>();
+
+        // Les succes et les quetes. Deux tables enormes, quatre mille et vingt
+        // mille lignes : la grille n'en dessine que ce qu'on voit, et les
+        // lignes sans nom ne sont pas des entrees.
+        Poser(sortie, "achievements", donnees.GetExcelSheet<Achievement>(), r =>
+            r.Name.ExtractText().Length == 0 ? null : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
+
+        Poser(sortie, "quests", donnees.GetExcelSheet<Quest>(), r =>
+            r.Name.ExtractText().Length == 0
+                ? null
+                : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
+
+        // Les coiffures. La table des apparences en compte une ligne par race
+        // et par sexe ; ce qui distingue une coiffure, c'est la brochure qui
+        // l'enseigne, et toutes ses lignes portent le meme lien de
+        // deverrouillage. Le nom du jeu est celui de la brochure, et la
+        // coiffure se lit entre ses guillemets.
+        var coiffures = new Dictionary<uint, Entree>();
+        LiensCoiffures = BatirLiensCoiffures(donnees, coiffures, objets);
+        if (coiffures.Count > 0) sortie["hairstyles"] = [.. coiffures.Values];
+
         // Les tenues, leurs pièces et l'armoire. Le jeu porte les trois : une
         // ligne d'ensemble mirage est un objet, et ses onze emplacements sont
         // les objets qui la composent ; une ligne d'armoire désigne l'objet
         // qu'elle range. Le catalogue numerote l'armoire a partir de un, le jeu
         // a partir de zero : la galerie suit le catalogue, pour que les deux
         // comptes parlent des memes cases.
-        var objets = donnees.GetExcelSheet<Item>();
         var ensembles = new Dictionary<uint, uint[]>();
         var pieces = new Dictionary<uint, Entree>();
 
@@ -149,6 +170,38 @@ public static class Tables
             Objet(objets, r.Item.RowId) is { } o ? o with { Id = r.RowId + 1 } : null);
 
         return new Jeu(sortie, ensembles, pieces);
+    }
+
+    /// <summary>Du numéro de brochure vers le lien de déverrouillage que le jeu
+    /// sait interroger. Vide tant que les tables ne sont pas bâties.</summary>
+    public static IReadOnlyDictionary<uint, uint> LiensCoiffures { get; private set; } =
+        new Dictionary<uint, uint>();
+
+    private static Dictionary<uint, uint> BatirLiensCoiffures(
+        IDataManager donnees,
+        Dictionary<uint, Entree> coiffures,
+        Lumina.Excel.ExcelSheet<Item> objets)
+    {
+        var liens = new Dictionary<uint, uint>();
+        foreach (var ligne in donnees.GetExcelSheet<CharaMakeCustomize>())
+        {
+            var brochure = ligne.HintItem.RowId;
+            if (brochure == 0 || ligne.UnlockLink == 0 || liens.ContainsKey(brochure)) continue;
+            if (Objet(objets, brochure) is not { } objet) continue;
+            liens[brochure] = ligne.UnlockLink;
+            coiffures[brochure] = objet with { Nom = EntreGuillemets(objet.Nom), Icone = ligne.Icon };
+        }
+        return liens;
+    }
+
+    /// <summary>Ce que le jeu met entre guillemets dans le nom d'une brochure :
+    /// le nom de la coiffure, sans « Méthode de coiffure ».</summary>
+    private static string EntreGuillemets(string nom)
+    {
+        var debut = nom.IndexOf('\u00ab');
+        var fin = nom.LastIndexOf('\u00bb');
+        if (debut < 0 || fin <= debut) return nom;
+        return nom[(debut + 1)..fin].Trim();
     }
 
     /// <summary>Un objet du jeu en entrée de galerie, ou rien quand il n'a ni

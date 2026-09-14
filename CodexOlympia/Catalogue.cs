@@ -104,7 +104,7 @@ public sealed class Catalogue
     private static readonly HashSet<string> Detaillees =
     [
         "mounts", "minions", "orchestrions", "emotes", "fashions", "bardings", "cards",
-        "facewear", "spells", "beastmaster", "outfits", "armoires",
+        "facewear", "spells", "beastmaster", "outfits", "armoires", "hairstyles", "frames",
     ];
 
     /// <summary>Ce que l'application sait d'une entrée, ou rien.</summary>

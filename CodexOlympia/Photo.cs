@@ -108,9 +108,11 @@ public static class Photo
             case "facewear":
                 return [Lunettes(cat, objets, ps)];
 
+            case "hairstyles":
+                return [Coiffures(cat, ui)];
+
             // Sans objet déverrouillant au catalogue, une entrée n'est pas
             // interrogeable : elle sort de la portée.
-            case "hairstyles":
             case "bardings":
             case "frames":
                 return [ParObjet(cat, cle)];
@@ -290,6 +292,33 @@ public static class Photo
                 return vus;
             }
 
+            case "hairstyles":
+            {
+                // Une coiffure s'apprend d'une brochure, et le jeu note ce
+                // deverrouillage comme les autres.
+                foreach (var x in entrees)
+                    if (Tables.LiensCoiffures.TryGetValue(x.Id, out var lien)
+                        && ui->IsUnlockLinkUnlocked(lien))
+                        vus.Add(x.Id);
+                return vus;
+            }
+
+            case "achievements":
+            {
+                var succes = FFXIVClientStructs.FFXIV.Client.Game.UI.Achievement.Instance();
+                if (succes is null || !succes->IsLoaded()) return null;
+                foreach (var x in entrees)
+                    if (x.Id <= int.MaxValue && succes->IsComplete((int)x.Id)) vus.Add(x.Id);
+                return vus;
+            }
+
+            case "quests":
+            {
+                foreach (var x in entrees)
+                    if (QuestManager.IsQuestComplete(x.Id)) vus.Add(x.Id);
+                return vus;
+            }
+
             case "beastmaster":
             {
                 // Le bestiaire ne se demande pas bete par bete : le module tient
@@ -401,6 +430,36 @@ public static class Photo
             if (numero == 0 || numero > ushort.MaxValue) continue;
             portee.Add(id);
             if (ps->IsGlassesUnlocked((ushort)numero)) trouves.Add(id);
+        }
+
+        var complet = portee.Count == ids.Length;
+        return new Releve(
+            cle, trouves, complet ? null : portee, ids.Length, null, null,
+            complet ? Limite.Aucune : Limite.Capacite);
+    }
+
+    /// <summary>
+    /// Les coiffures, demandées par leur lien de déverrouillage (PLG-R55).
+    ///
+    /// Le catalogue désigne une coiffure par la brochure qui l'enseigne ; la
+    /// table des apparences rattache cette brochure à un lien, et c'est ce lien
+    /// que le jeu sait dire acquis. Chacune des cinquante-trois brochures mène
+    /// à un lien et un seul, vérifié sur la table entière.
+    /// </summary>
+    private static unsafe Releve Coiffures(Catalogue cat, UIState* ui)
+    {
+        const string cle = "hairstyles";
+        if (!cat.Ids.TryGetValue(cle, out var ids) || !cat.Objets.TryGetValue(cle, out var brochures))
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
+
+        var trouves = new List<uint>();
+        var portee = new List<uint>();
+        foreach (var id in ids)
+        {
+            if (!brochures.TryGetValue(id, out var brochure) || brochure == 0) continue;
+            if (!Tables.LiensCoiffures.TryGetValue(brochure, out var lien) || lien == 0) continue;
+            portee.Add(id);
+            if (ui->IsUnlockLinkUnlocked(lien)) trouves.Add(id);
         }
 
         var complet = portee.Count == ids.Length;
