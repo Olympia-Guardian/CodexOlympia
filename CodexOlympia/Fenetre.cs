@@ -1061,7 +1061,8 @@ public sealed class Fenetre : Window, IDisposable
             if (parDetail)
             {
                 var d = cat?.Detail(galerieCle, plugin.NumeroCatalogue(galerieCle, x.Id));
-                if (galerieObtenables && d?.Inobtenable == true) continue;
+                if (galerieObtenables && d?.Inobtenable == true
+                    && cat!.EvenementVivant(galerieCle, plugin.NumeroCatalogue(galerieCle, x.Id)) is null) continue;
                 if (galerieFamille.Length > 0 && (d is null || !d.Sources.Any(s => s.Genre == galerieFamille))) continue;
             }
             sortie.Add(x);
@@ -1179,7 +1180,7 @@ public sealed class Fenetre : Window, IDisposable
 
     /// <summary>Vrai quand l'application sait que cette entrée ne s'obtient plus.</summary>
     private bool Inobtenable(Entree e) =>
-        plugin.Catalogue?.Detail(galerieCle, plugin.NumeroCatalogue(galerieCle, e.Id))?.Inobtenable == true;
+        plugin.Catalogue?.Inobtenable(galerieCle, plugin.NumeroCatalogue(galerieCle, e.Id)) == true;
 
     /// <summary>Vrai quand une entrée de cette collection s'essaie : la cabine
     /// du jeu accepte de l'équipement, et rien d'autre.</summary>
@@ -1261,7 +1262,38 @@ public sealed class Fenetre : Window, IDisposable
         {
             ImGui.Dummy(new Vector2(0, 3f * E));
             if (detail.Patch.Length > 0) Pieces.Puce(Mots.GaleriePatch(detail.Patch), Teintes.Encre2);
-            if (detail.Inobtenable) Pieces.Puce(Mots.GaleriePlusObtenable, Teintes.Rouge);
+
+            // Un événement vivant l'emporte sur la marque du catalogue : ce qui se
+            // gagne en ce moment n'est pas perdu, et la fiche dit jusqu'à quand.
+            var vivant = plugin.Catalogue?.EvenementVivant(galerieCle, numero);
+            if (vivant is { } v)
+            {
+                var (ev, vie) = v;
+                var (mot, teinte) = vie switch
+                {
+                    Vie.EnCours => (Mots.GalerieEvenementEnCours, Teintes.Vert),
+                    Vie.Echange => (Mots.GalerieEchangeOuvert, Teintes.Ambre),
+                    _ => (Mots.GalerieEvenementAVenir, Teintes.Bleu),
+                };
+                Pieces.Puce(mot, teinte);
+                var quand = vie switch
+                {
+                    Vie.EnCours when DateTime.TryParse(ev.Fin, null,
+                        System.Globalization.DateTimeStyles.AdjustToUniversal, out var fin)
+                        => Mots.GalerieJusquau(ev.Nom, fin),
+                    Vie.EnCours when ev.FinPatch.Length > 0 => Mots.GalerieJusquauPatch(ev.Nom, ev.FinPatch),
+                    Vie.Echange => Mots.GalerieJusquauPatch(ev.Nom, ev.EchangeJusqua),
+                    Vie.AVenir when DateTime.TryParse(ev.Debut, null,
+                        System.Globalization.DateTimeStyles.AdjustToUniversal, out var debut)
+                        => Mots.GalerieDesLe(ev.Nom, debut),
+                    _ => ev.Nom,
+                };
+                ImGui.TextColored(Teintes.Encre2, quand);
+            }
+            else if (detail.Inobtenable)
+            {
+                Pieces.Puce(Mots.GaleriePlusObtenable, Teintes.Rouge);
+            }
             if (detail.Notice.Length > 0)
             {
                 ImGui.Dummy(new Vector2(0, 3f * E));

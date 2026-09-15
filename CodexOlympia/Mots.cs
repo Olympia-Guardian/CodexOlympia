@@ -230,6 +230,15 @@ public static class Mots
         "The app does not know where this one comes from.");
     public static string GaleriePatch(string n) => D($"Patch {n}", $"Patch {n}");
     public static string GaleriePlusObtenable => D("Plus obtenable", "No longer obtainable");
+    public static string GalerieEvenementEnCours => D("Événement en cours", "Event running");
+    public static string GalerieEvenementAVenir => D("Événement à venir", "Upcoming event");
+    public static string GalerieEchangeOuvert => D("Échange encore ouvert", "Exchange still open");
+    public static string GalerieJusquau(string nom, DateTime fin) =>
+        D($"{nom}, jusqu'au {fin.ToLocalTime():d MMMM}", $"{nom}, until {fin.ToLocalTime():d MMMM}");
+    public static string GalerieDesLe(string nom, DateTime debut) =>
+        D($"{nom}, dès le {debut.ToLocalTime():d MMMM}", $"{nom}, from {debut.ToLocalTime():d MMMM}");
+    public static string GalerieJusquauPatch(string nom, string patch) =>
+        D($"{nom}, jusqu'au patch {patch}", $"{nom}, until patch {patch}");
     public static string GalerieFermer => D("Fermer", "Close");
     public static string InobtenablesTitre => D(
         "Masquer ce qui ne s'obtient plus",

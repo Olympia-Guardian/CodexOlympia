@@ -49,6 +49,62 @@ public sealed record Detail(
     public bool Boutique => Sources.Any(x => x.Genre == "Premium");
 }
 
+/// <summary>Où en est un événement, à l'horloge du joueur.</summary>
+public enum Vie
+{
+    AVenir,
+    EnCours,
+    /// <summary>Fini, mais l'échange de ses récompenses reste ouvert jusqu'à un
+    /// patch qui n'est pas encore paru.</summary>
+    Echange,
+    Termine,
+}
+
+/// <summary>
+/// Un événement du jeu tel que l'application le publie : ses dates, et ce
+/// qu'il donne.
+///
+/// Le catalogue marque « plus obtenable » ce qui vient d'un événement passé,
+/// et il a raison la plupart du temps. Mais une fête revient, et une
+/// collection Mog Mog offre pendant six semaines une monture que le catalogue
+/// dit perdue. L'événement en cours l'emporte sur la marque.
+/// </summary>
+public sealed record Evenement(
+    string Slug,
+    string NomFr,
+    string NomEn,
+    string Debut,
+    string Fin,
+    string FinPatch,
+    string EchangeJusqua,
+    int? Annee)
+{
+    public string Nom => Mots.Fr ? (NomFr.Length > 0 ? NomFr : NomEn) : (NomEn.Length > 0 ? NomEn : NomFr);
+
+    /// <summary>Le statut, calculé comme le site le calcule (EVT-R7) : à l'horloge,
+    /// et aux patchs parus quand une fin ne tient pas à une date.</summary>
+    public Vie Statut(DateTime maintenant, Func<string, bool> patchParu)
+    {
+        if (Debut.Length == 0)
+            return Annee is { } a && a >= maintenant.Year ? Vie.AVenir : Vie.Termine;
+        if (!DateTime.TryParse(Debut, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var debut))
+            return Vie.Termine;
+        if (maintenant < debut) return Vie.AVenir;
+        if (Fin.Length > 0)
+        {
+            if (DateTime.TryParse(Fin, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var fin)
+                && maintenant <= fin)
+                return Vie.EnCours;
+        }
+        else if (FinPatch.Length > 0 && !patchParu(FinPatch))
+        {
+            return Vie.EnCours;
+        }
+        if (EchangeJusqua.Length > 0 && !patchParu(EchangeJusqua)) return Vie.Echange;
+        return Vie.Termine;
+    }
+}
+
 /// <summary>Une pièce de tenue : son objet, sa case d'armoire s'il y en a une,
 /// et son nom dans les deux langues.</summary>
 public sealed record Piece(uint Objet, uint Armoire, string Fr, string En)
@@ -110,6 +166,53 @@ public sealed class Catalogue
     /// <summary>Ce que l'application sait d'une entrée, ou rien.</summary>
     public Detail? Detail(string cle, uint id) =>
         Details.TryGetValue(cle, out var d) && d.TryGetValue(id, out var v) ? v : null;
+
+    /// <summary>Les événements que l'application connaît, et ce que chacun donne.</summary>
+    public List<Evenement> Evenements { get; } = [];
+
+    private readonly Dictionary<(string Cle, uint Id), List<Evenement>> donnePar = new();
+
+    /// <summary>Les patchs que le catalogue connaît : un patch y figure dès qu'une
+    /// entrée le porte, et c'est ainsi que le site juge qu'un patch est paru.</summary>
+    private readonly HashSet<string> patchs = [];
+
+    private bool PatchParu(string patch)
+    {
+        if (!double.TryParse(patch, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var cible))
+            return false;
+        foreach (var p in patchs)
+            if (double.TryParse(p, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v >= cible)
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// L'événement vivant qui donne cette entrée, ou rien : en cours d'abord, puis
+    /// l'échange encore ouvert, puis celui qui vient. Un événement terminé ne
+    /// compte pas, c'est justement lui que la marque « plus obtenable » vise.
+    /// </summary>
+    public (Evenement Ev, Vie Vie)? EvenementVivant(string cle, uint id)
+    {
+        if (!donnePar.TryGetValue((cle, id), out var liste)) return null;
+        var maintenant = DateTime.UtcNow;
+        (Evenement, Vie)? meilleur = null;
+        foreach (var ev in liste)
+        {
+            var vie = ev.Statut(maintenant, PatchParu);
+            if (vie == Vie.Termine) continue;
+            if (meilleur is null || Rang(vie) < Rang(meilleur.Value.Item2)) meilleur = (ev, vie);
+        }
+        return meilleur;
+
+        static int Rang(Vie v) => v switch { Vie.EnCours => 0, Vie.Echange => 1, _ => 2 };
+    }
+
+    /// <summary>Vrai quand l'entrée ne s'obtient plus pour de bon : la marque du
+    /// catalogue, moins ce qu'un événement vivant redonne.</summary>
+    public bool Inobtenable(string cle, uint id) =>
+        Detail(cle, id)?.Inobtenable == true && EvenementVivant(cle, id) is null;
 
     /// <summary>Le nom de chaque entrée, dans les deux langues, par collection :
     /// pour dire « Colibri callado » plutôt que « monture 435 » quand on liste
@@ -207,6 +310,40 @@ public sealed class Catalogue
             cat.Lire(cle, texte);
         }
 
+        // Les événements, à part : leur absence n'empêche rien, la galerie s'en
+        // tient alors à la marque du catalogue.
+        {
+            var fichier = Path.Combine(cache, "events.json");
+            string? texte = null;
+            if (!perime && File.Exists(fichier))
+            {
+                texte = await File.ReadAllTextAsync(fichier);
+            }
+            else
+            {
+                try
+                {
+                    texte = await http.GetStringAsync($"{racine}/events.json");
+                    await File.WriteAllTextAsync(fichier, texte);
+                }
+                catch
+                {
+                    if (File.Exists(fichier)) texte = await File.ReadAllTextAsync(fichier);
+                }
+            }
+            if (texte is not null)
+            {
+                try
+                {
+                    cat.LireEvenements(texte);
+                }
+                catch
+                {
+                    // Un fichier qui a changé de forme ne fait pas tomber le catalogue.
+                }
+            }
+        }
+
         if (perime && cat.Pret) File.WriteAllText(marque, distant);
         cat.Date = distant.Length > 0 ? distant : local;
         return cat;
@@ -248,7 +385,12 @@ public sealed class Catalogue
             }
             if (e.TryGetProperty("leve", out var jl) && jl.ValueKind == JsonValueKind.True) Mandats.Add(id);
 
-            if (details is not null) details[id] = LireDetail(e);
+            if (details is not null)
+            {
+                var d = LireDetail(e);
+                details[id] = d;
+                if (d.Patch.Length > 0) patchs.Add(d.Patch);
+            }
 
             if (cle != "outfits") continue;
             if (!e.TryGetProperty("pieces", out var jp) || jp.ValueKind != JsonValueKind.Array) continue;
@@ -279,6 +421,40 @@ public sealed class Catalogue
                     pieces[p.Objet] = (p.Fr, p.En);
             Noms["outfitpieces"] = pieces;
         }
+    }
+
+    private void LireEvenements(string texte)
+    {
+        using var doc = JsonDocument.Parse(texte);
+        var liste = doc.RootElement.ValueKind == JsonValueKind.Array
+            ? doc.RootElement
+            : doc.RootElement.EnumerateObject().First().Value;
+        foreach (var e in liste.EnumerateArray())
+        {
+            if (e.ValueKind != JsonValueKind.Object) continue;
+            int? annee = e.TryGetProperty("annee", out var ja) && ja.ValueKind == JsonValueKind.Number
+                ? ja.GetInt32()
+                : null;
+            var ev = new Evenement(
+                Texte(e, "slug"), Texte(e, "nomFr"), Texte(e, "nomEn"),
+                Texte(e, "debut"), Texte(e, "fin"), Texte(e, "finPatch"), Texte(e, "echangeJusqua"), annee);
+            Evenements.Add(ev);
+
+            if (e.TryGetProperty("vedette", out var jv) && jv.ValueKind == JsonValueKind.Object) Donne(ev, jv);
+            if (e.TryGetProperty("recompenses", out var jr) && jr.ValueKind == JsonValueKind.Array)
+                foreach (var r in jr.EnumerateArray())
+                    if (r.ValueKind == JsonValueKind.Object) Donne(ev, r);
+        }
+    }
+
+    private void Donne(Evenement ev, JsonElement recompense)
+    {
+        var cle = Texte(recompense, "kind");
+        if (cle.Length == 0) return;
+        if (!recompense.TryGetProperty("id", out var ji) || ji.ValueKind != JsonValueKind.Number) return;
+        var id = ji.GetUInt32();
+        if (!donnePar.TryGetValue((cle, id), out var liste)) donnePar[(cle, id)] = liste = [];
+        liste.Add(ev);
     }
 
     private static Detail LireDetail(JsonElement e)

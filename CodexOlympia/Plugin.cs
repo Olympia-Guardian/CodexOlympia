@@ -94,7 +94,7 @@ public sealed partial class Plugin : IDalamudPlugin
             {
                 var d = cat.Detail(cle, NumeroCatalogue(cle, x.Id));
                 if (sansBoutique && d?.Boutique == true) continue;
-                if (sansInobtenable && d?.Inobtenable == true) continue;
+                if (sansInobtenable && d?.Inobtenable == true && cat.EvenementVivant(cle, NumeroCatalogue(cle, x.Id)) is null) continue;
                 gardees.Add(x);
                 if (mien.Contains(x.Id)) aMoi.Add(x.Id);
             }
