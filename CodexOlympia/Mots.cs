@@ -231,6 +231,14 @@ public static class Mots
     public static string GaleriePatch(string n) => D($"Patch {n}", $"Patch {n}");
     public static string GaleriePlusObtenable => D("Plus obtenable", "No longer obtainable");
     public static string GalerieFermer => D("Fermer", "Close");
+    public static string InobtenablesTitre => D(
+        "Masquer ce qui ne s'obtient plus",
+        "Hide what can no longer be obtained");
+    public static string InobtenablesExplique => D(
+        "Les montures d'avant la refonte, les récompenses des saisons JcJ passées, "
+        + "les fêtes d'il y a dix ans : la galerie les laisse de côté, et les compteurs suivent.",
+        "Legacy mounts, rewards from past PvP seasons, events from ten years ago: "
+        + "the gallery leaves them out, and the counters follow.");
     public static string BoutiqueTitre => D(
         "Masquer la boutique en ligne",
         "Hide online store items");

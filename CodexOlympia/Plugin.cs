@@ -77,8 +77,12 @@ public sealed partial class Plugin : IDalamudPlugin
         var toutes = Tables.TryGetValue(cle, out var l) ? l : [];
         var mien = GalerieAMoi(cle) ?? DepuisReleve(cle);
 
+        // Deux reglages ecartent des entrees, la boutique et l'inobtenable ; le
+        // tri est le meme, et les compteurs le suivent.
+        var sansBoutique = Reglages.CacherBoutique;
+        var sansInobtenable = Reglages.CacherInobtenables;
         VueGalerie vue;
-        if (!Reglages.CacherBoutique || Catalogue is not { } cat)
+        if ((!sansBoutique && !sansInobtenable) || Catalogue is not { } cat)
         {
             vue = new VueGalerie(toutes, mien);
         }
@@ -88,7 +92,9 @@ public sealed partial class Plugin : IDalamudPlugin
             var aMoi = new HashSet<uint>();
             foreach (var x in toutes)
             {
-                if (cat.Detail(cle, NumeroCatalogue(cle, x.Id))?.Boutique == true) continue;
+                var d = cat.Detail(cle, NumeroCatalogue(cle, x.Id));
+                if (sansBoutique && d?.Boutique == true) continue;
+                if (sansInobtenable && d?.Inobtenable == true) continue;
                 gardees.Add(x);
                 if (mien.Contains(x.Id)) aMoi.Add(x.Id);
             }

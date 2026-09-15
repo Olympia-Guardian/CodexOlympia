@@ -47,6 +47,12 @@ public sealed class Reglages : IPluginConfiguration
     /// leur présence à l'écran que le joueur choisit.</summary>
     public bool CacherBoutique { get; set; }
 
+    /// <summary>Masquer, dans la galerie, ce qui ne s'obtient plus : les
+    /// montures d'avant la refonte, les récompenses de saisons JcJ passées, les
+    /// fêtes d'il y a dix ans. Elles comptent pour l'application ; c'est leur
+    /// présence à l'écran que le joueur choisit.</summary>
+    public bool CacherInobtenables { get; set; }
+
     /// <summary>
     /// Ce que le plugin a envoyé en dernier, par personnage puis par collection.
     ///

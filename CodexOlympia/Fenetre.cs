@@ -1431,6 +1431,17 @@ public sealed class Fenetre : Window, IDisposable
             }
         });
 
+        CarteTitree(Mots.InobtenablesTitre, Mots.InobtenablesExplique, null, () =>
+        {
+            var cacher = r.CacherInobtenables;
+            if (Pieces.Interrupteur("##inobtenables", ref cacher))
+            {
+                r.CacherInobtenables = cacher;
+                plugin.Enregistrer();
+                plugin.OublierGalerie();
+            }
+        });
+
         CarteTitree(Mots.BoutiqueTitre, Mots.BoutiqueExplique, null, () =>
         {
             var cacher = r.CacherBoutique;
