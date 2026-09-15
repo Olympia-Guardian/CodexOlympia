@@ -191,6 +191,9 @@ public sealed partial class Plugin : IDalamudPlugin
         return pont;
     }
 
+    /// <summary>Où se trouve ce qui s'obtient, quand le jeu le sait (PLG-R50).</summary>
+    public Lieux Lieux { get; }
+
     /// <summary>Ce que les tables du client savent dire.</summary>
     public Jeu Jeu { get; private set; } = new(
         new Dictionary<string, List<Entree>>(),
@@ -379,6 +382,8 @@ public sealed partial class Plugin : IDalamudPlugin
         MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
 
         Visage = new Visage(http, textures, journal, SurLeFilDuJeu);
+        Lieux = new Lieux(donnees, journal);
+        Lieux.Batir();
         try
         {
             // Chaque collection se batit pour son compte : une table que le

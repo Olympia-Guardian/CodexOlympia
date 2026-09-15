@@ -1198,6 +1198,16 @@ public sealed class Fenetre : Window, IDisposable
             }
         }
 
+        if (LieuDe(e) is { } lieu)
+        {
+            ImGui.Dummy(new Vector2(0, 3f * E));
+            var chez = Mots.GalerieChez(lieu.Qui, lieu.Ou);
+            if (chez.Length > 0) ImGui.TextColored(Teintes.Encre2, chez);
+            ImGui.Dummy(new Vector2(0, 2f * E));
+            if (Pieces.BoutonOr("##voir-carte", Mots.GalerieVoirCarte, dedans, true, 30f))
+                Lieux.Montrer(lieu);
+        }
+
         ImGui.PopTextWrapPos();
         ImGui.EndGroup();
         var bas = ImGui.GetItemRectMax().Y + 10f * E;
@@ -1206,6 +1216,40 @@ public sealed class Fenetre : Window, IDisposable
         dl.ChannelsMerge();
         ImGui.SetCursorScreenPos(new Vector2(origine.X, bas));
         ImGui.Dummy(new Vector2(large, 4f * E));
+    }
+
+    /// <summary>Le lieu de l'entrée choisie, gardé tant qu'on regarde la même :
+    /// la question traverse trois tables, et la fiche se redessine à chaque image.</summary>
+    private (string Cle, uint Id, bool Pret) lieuPour;
+    private Lieu? lieuTrouve;
+
+    private Lieu? LieuDe(Entree e)
+    {
+        var clef = (galerieCle, e.Id, plugin.Lieux.Pret);
+        if (lieuPour == clef) return lieuTrouve;
+        lieuPour = clef;
+        lieuTrouve = plugin.Lieux.Pour(galerieCle, e.Id, ObjetDe(galerieCle, e.Id));
+        return lieuTrouve;
+    }
+
+    /// <summary>L'objet qui déverrouille une entrée, ou zéro. Une pièce, une
+    /// tenue et une brochure sont des objets ; une case d'armoire en range un ;
+    /// le reste passe par le catalogue, qui sait quel objet enseigne quoi.</summary>
+    private uint ObjetDe(string cle, uint id)
+    {
+        switch (cle)
+        {
+            case "outfitpieces":
+            case "outfits":
+            case "hairstyles":
+                return id;
+            case "armoires":
+                return plugin.Jeu.ObjetsArmoire.GetValueOrDefault(id);
+            default:
+                var cat = plugin.Catalogue;
+                if (cat is null || !cat.Objets.TryGetValue(cle, out var objets)) return 0;
+                return objets.GetValueOrDefault(plugin.NumeroCatalogue(cle, id));
+        }
     }
 
     /// <summary>

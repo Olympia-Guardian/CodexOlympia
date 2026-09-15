@@ -242,6 +242,11 @@ public static class Mots
     public static string GalerieToutEssayer => D("Tout essayer", "Try the whole set");
     public static string GalerieEssayer => D("Clic : essayer", "Click to try on");
     public static string GalerieClicDroit => D("Clic droit : essayer", "Right-click to try on");
+    public static string GalerieVoirCarte => D("Voir sur la carte", "Show on the map");
+    public static string GalerieChez(string qui, string ou) =>
+        qui.Length > 0 && ou.Length > 0 ? D($"{qui}, {ou}", $"{qui}, {ou}")
+        : qui.Length > 0 ? qui
+        : ou;
     public static string GalerieEntamee(int fait, int total) =>
         D($"{fait} pièce(s) sur {total}", $"{fait} of {total} pieces");
 
