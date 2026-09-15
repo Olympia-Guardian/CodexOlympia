@@ -211,6 +211,9 @@ public static class Mots
     public static string GalerieTout => D("Tout", "All");
     public static string GalerieManquants => D("Manquants", "Missing");
     public static string GalerieAMoi => D("À moi", "Mine");
+    public static string GalerieObtenables => D("Obtenables", "Obtainable");
+    public static string GalerieRechercher => D("Rechercher…", "Search…");
+    public static string GalerieToutesSources => D("Toutes les sources", "All sources");
     public static string GalerieVide => D(
         "Rien à montrer ici. Regarde d'abord ce que tu as, depuis la page de synchronisation.",
         "Nothing to show yet. Read what you have first, from the sync page.");

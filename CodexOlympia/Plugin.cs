@@ -137,6 +137,7 @@ public sealed partial class Plugin : IDalamudPlugin
         vues.Clear();
         pontLunettes = null;
         pontCoiffures = null;
+        fenetre?.OublierGalerie();
     }
 
     /// <summary>Du numéro de modèle de lunettes vers le numéro du catalogue.</summary>

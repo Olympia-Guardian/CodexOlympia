@@ -820,6 +820,12 @@ public sealed class Fenetre : Window, IDisposable
 
     private Vue galerieVue = Vue.Tout;
 
+    /// <summary>Les trois autres filtres : ne montrer que l'obtenable, ne
+    /// montrer qu'une façon d'obtenir, et le texte cherché dans les noms.</summary>
+    private bool galerieObtenables;
+    private string galerieFamille = string.Empty;
+    private string galerieRecherche = string.Empty;
+
     /// <summary>
     /// Tout ce qui existe, possede ou non (PLG-R48).
     ///
@@ -881,6 +887,10 @@ public sealed class Fenetre : Window, IDisposable
     /// </summary>
     private HashSet<uint> Possedes(string cle) => plugin.Vue(cle).Mien;
 
+    /// <summary>Ce que la fenêtre garde de la galerie ne vaut plus : les listes
+    /// se sont refaites de l'autre côté.</summary>
+    public void OublierGalerie() => familles.Clear();
+
     /// <summary>La rangee des collections, avec leur compte.</summary>
     private void Rangee()
     {
@@ -906,6 +916,7 @@ public sealed class Fenetre : Window, IDisposable
             {
                 galerieCle = cle;
                 galerieChoisi = 0;
+                galerieFamille = string.Empty;
             }
         }
         ImGui.Dummy(new Vector2(0, 2f * E));
@@ -945,7 +956,71 @@ public sealed class Fenetre : Window, IDisposable
             var (v, nom) = choix[i];
             if (Pilule($"##vue-{i}", nom, galerieVue == v)) galerieVue = v;
         }
+        // L'obtenable se cumule avec les trois autres : « ce qui me manque et
+        // que je peux encore avoir » est la question qu'on se pose vraiment.
+        ImGui.SameLine(0, 12f * E);
+        if (Pilule("##obtenables", Mots.GalerieObtenables, galerieObtenables))
+            galerieObtenables = !galerieObtenables;
+
+        ImGui.Dummy(new Vector2(0, 1f * E));
+
+        // La recherche et la façon d'obtenir, sur une seconde ligne. Les
+        // façons d'obtenir sont celles qu'on trouve dans la collection ouverte,
+        // pas la liste de toutes celles qui existent.
+        var large = ImGui.GetContentRegionAvail().X;
+        var moitie = MathF.Max(120f * E, (large - 8f * E) * 0.5f);
+        ImGui.SetNextItemWidth(moitie);
+        ImGui.InputTextWithHint("##recherche", Mots.GalerieRechercher, ref galerieRecherche, 64);
+
+        var (genres, liste) = Familles(galerieCle);
+        if (genres.Length > 0)
+        {
+            ImGui.SameLine(0, 8f * E);
+            var index = Math.Max(0, Array.IndexOf(genres, galerieFamille) + 1);
+            ImGui.SetNextItemWidth(large - moitie - 8f * E);
+            if (ImGui.Combo("##famille", ref index, liste))
+                galerieFamille = index <= 0 ? string.Empty : genres[index - 1];
+        }
         ImGui.Dummy(new Vector2(0, 2f * E));
+    }
+
+    /// <summary>Les façons d'obtenir présentes dans une collection, gardées par
+    /// collection : les genres tels que le catalogue les nomme, et la liste
+    /// prête pour la liste déroulante, « toutes » en tête.</summary>
+    private readonly Dictionary<string, (string[] Genres, string Liste)> familles = new();
+
+    private (string[] Genres, string Liste) Familles(string cle)
+    {
+        if (familles.TryGetValue(cle, out var deja)) return deja;
+        var vus = new HashSet<string>();
+        var cat = plugin.Catalogue;
+        if (cat is not null)
+            foreach (var x in plugin.Vue(cle).Entrees)
+            {
+                var d = cat.Detail(cle, plugin.NumeroCatalogue(cle, x.Id));
+                if (d is null) continue;
+                foreach (var src in d.Sources)
+                    if (src.Genre.Length > 0) vus.Add(src.Genre);
+            }
+        var genres = vus.OrderBy(Mots.Famille, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        var liste = Mots.GalerieToutesSources + "\0" + string.Join("\0", genres.Select(Mots.Famille)) + "\0";
+        var sortie = (genres, liste);
+        familles[cle] = sortie;
+        return sortie;
+    }
+
+    /// <summary>Un texte sans accents ni majuscules, pour que « ecureuil »
+    /// trouve « Écureuil ».</summary>
+    private static string Plat(string t)
+    {
+        if (t.Length == 0) return t;
+        var d = t.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(d.Length);
+        foreach (var c in d)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(char.ToLowerInvariant(c));
+        return sb.ToString();
     }
 
     /// <summary>L'image d'une icône du jeu, ou rien. Toutes les tables ne
@@ -964,16 +1039,17 @@ public sealed class Fenetre : Window, IDisposable
     /// <summary>La liste filtrée, gardée d'une image sur l'autre : six mille
     /// pièces de tenue se trient vite, mais pas soixante fois par seconde.</summary>
     private List<Entree> filtrees = [];
-    private string filtreCle = string.Empty;
-    private Vue filtreVue;
-    private int filtreMien = -1;
-    private int filtreTotal = -1;
+    private (string Cle, Vue Vue, int Mien, int Total, bool Obtenables, string Famille, string Recherche) filtre =
+        (string.Empty, Vue.Tout, -1, -1, false, string.Empty, string.Empty);
 
     private List<Entree> Filtrer(List<Entree> entrees, HashSet<uint> mien)
     {
-        if (filtreCle == galerieCle && filtreVue == galerieVue
-            && filtreMien == mien.Count && filtreTotal == entrees.Count)
-            return filtrees;
+        var clef = (galerieCle, galerieVue, mien.Count, entrees.Count, galerieObtenables, galerieFamille, galerieRecherche);
+        if (filtre == clef) return filtrees;
+
+        var cat = plugin.Catalogue;
+        var cherche = Plat(galerieRecherche.Trim());
+        var parDetail = galerieObtenables || galerieFamille.Length > 0;
 
         var sortie = new List<Entree>(entrees.Count);
         foreach (var x in entrees)
@@ -981,13 +1057,17 @@ public sealed class Fenetre : Window, IDisposable
             var aMoi = mien.Contains(x.Id);
             if (galerieVue == Vue.Manquants && aMoi) continue;
             if (galerieVue == Vue.AMoi && !aMoi) continue;
+            if (cherche.Length > 0 && !Plat(x.Nom).Contains(cherche)) continue;
+            if (parDetail)
+            {
+                var d = cat?.Detail(galerieCle, plugin.NumeroCatalogue(galerieCle, x.Id));
+                if (galerieObtenables && d?.Inobtenable == true) continue;
+                if (galerieFamille.Length > 0 && (d is null || !d.Sources.Any(s => s.Genre == galerieFamille))) continue;
+            }
             sortie.Add(x);
         }
         filtrees = sortie;
-        filtreCle = galerieCle;
-        filtreVue = galerieVue;
-        filtreMien = mien.Count;
-        filtreTotal = entrees.Count;
+        filtre = clef;
         return sortie;
     }
 
@@ -1064,6 +1144,11 @@ public sealed class Fenetre : Window, IDisposable
                 dl.AddCircleFilled(fin - new Vector2(6f * E), 3.5f * E,
                     Peinture.Col(aMoi ? Teintes.Vert : Teintes.Bleu));
 
+            // Ce qui ne s'obtient plus le dit en haut a gauche, en rouge : a
+            // l'oppose de la pastille de possession, pour que les deux se lisent.
+            if (Inobtenable(e))
+                dl.AddCircleFilled(origine + new Vector2(6f * E), 3.5f * E, Peinture.Col(Teintes.Rouge));
+
             var bulle = e.Nom;
             if (entamee) bulle += "\n" + Mots.GalerieEntamee(jai, total);
             if (Essayable) bulle += "\n" + Mots.GalerieClicDroit;
@@ -1091,6 +1176,10 @@ public sealed class Fenetre : Window, IDisposable
             if (morceaux.Contains(objet)) jai++;
         return (jai > 0, jai, dedans.Length);
     }
+
+    /// <summary>Vrai quand l'application sait que cette entrée ne s'obtient plus.</summary>
+    private bool Inobtenable(Entree e) =>
+        plugin.Catalogue?.Detail(galerieCle, plugin.NumeroCatalogue(galerieCle, e.Id))?.Inobtenable == true;
 
     /// <summary>Vrai quand une entrée de cette collection s'essaie : la cabine
     /// du jeu accepte de l'équipement, et rien d'autre.</summary>
