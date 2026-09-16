@@ -12,7 +12,9 @@ namespace CodexOlympia.Ui;
 /// </summary>
 internal static class Theme
 {
-    public static IDisposable Pousser()
+    /// <summary><paramref name="tailleMin"/> remplace la taille minimale de la
+    /// fenêtre : une fenêtre réduite à sa barre descend sous celle du thème.</summary>
+    public static IDisposable Pousser(Vector2? tailleMin = null)
     {
         var e = Peinture.Echelle;
         var styles = ImRaii.PushStyle(ImGuiStyleVar.WindowRounding, Teintes.RondFenetre * e)
@@ -28,7 +30,7 @@ internal static class Theme
             .Push(ImGuiStyleVar.ScrollbarSize, 9f * e)
             .Push(ImGuiStyleVar.ScrollbarRounding, 5f * e)
             .Push(ImGuiStyleVar.PopupRounding, Teintes.RondTuile * e)
-            .Push(ImGuiStyleVar.WindowMinSize, new Vector2(420f, 320f) * e);
+            .Push(ImGuiStyleVar.WindowMinSize, (tailleMin ?? new Vector2(420f, 320f)) * e);
 
         var couleurs = ImRaii.PushColor(ImGuiCol.WindowBg, Teintes.Page)
             .Push(ImGuiCol.ChildBg, Vector4.Zero)

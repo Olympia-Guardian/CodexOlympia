@@ -73,7 +73,9 @@ public sealed class Fenetre : Window, IDisposable
 
     public void Dispose() { }
 
-    public override void PreDraw() => theme = Theme.Pousser();
+    // Réduite, la fenêtre descend à la hauteur de sa barre : la taille minimale
+    // du thème la retiendrait sinon à 320 de haut.
+    public override void PreDraw() => theme = Theme.Pousser(reduite ? new Vector2(LReduite, HTitre) : null);
 
     public override void PostDraw()
     {
