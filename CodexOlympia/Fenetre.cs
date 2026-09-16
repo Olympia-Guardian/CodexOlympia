@@ -35,6 +35,26 @@ public sealed class Fenetre : Window, IDisposable
     private const float LRail = 54f;
     private const float Marge = 14f;
 
+    /// <summary>La largeur de la fenêtre réduite : de quoi lire le nom, l'état
+    /// et les deux boutons, sans barrer l'écran.</summary>
+    private const float LReduite = 420f;
+
+    private static readonly WindowSizeConstraints Contraintes = new()
+    {
+        MinimumSize = new Vector2(560, 420),
+        MaximumSize = new Vector2(1600, 1600),
+    };
+
+    /// <summary>Réduite à sa barre de titre (PLG-R41) : le corps ne se dessine
+    /// plus, et la taille d'avant attend qu'on la redéplie.</summary>
+    private bool reduite;
+    private Vector2 tailleDepliee = new(820, 620);
+
+    /// <summary>Les dessins qui restent avant de rendre la taille libre : une
+    /// taille imposée ne vaut que le temps d'être posée, sinon le joueur ne
+    /// pourrait plus redimensionner.</summary>
+    private int tailleImposee;
+
     public Fenetre(Plugin plugin) : base(
         "Codex Olympia###codex-olympia",
         ImGuiWindowFlags.NoTitleBar
@@ -45,11 +65,7 @@ public sealed class Fenetre : Window, IDisposable
         this.plugin = plugin;
         Size = new Vector2(820, 620);
         SizeCondition = ImGuiCond.FirstUseEver;
-        SizeConstraints = new WindowSizeConstraints
-        {
-            MinimumSize = new Vector2(560, 420),
-            MaximumSize = new Vector2(1600, 1600),
-        };
+        SizeConstraints = Contraintes;
         // Les gadgets de Dalamud se poseraient sur notre barre de titre.
         AllowPinning = false;
         AllowClickthrough = false;
@@ -63,6 +79,46 @@ public sealed class Fenetre : Window, IDisposable
     {
         theme?.Dispose();
         theme = null;
+        // La taille imposée a été posée : le joueur retrouve la main.
+        if (tailleImposee > 0 && --tailleImposee == 0)
+        {
+            Size = null;
+            SizeCondition = ImGuiCond.FirstUseEver;
+        }
+    }
+
+    /// <summary>Réduit la fenêtre à sa barre, en retenant sa taille. Appelée
+    /// pendant le dessin, qui seul connaît la taille réelle.</summary>
+    private void Reduire()
+    {
+        if (reduite) return;
+        tailleDepliee = ImGui.GetWindowSize() / E;
+        reduite = true;
+        var barre = new Vector2(LReduite, HTitre);
+        // Seule la borne basse descend : la taille imposée fait le reste, et le
+        // joueur ne peut plus redimensionner une barre.
+        SizeConstraints = new WindowSizeConstraints { MinimumSize = barre, MaximumSize = Contraintes.MaximumSize };
+        Flags |= ImGuiWindowFlags.NoResize;
+        Imposer(barre);
+    }
+
+    /// <summary>Rend à la fenêtre réduite sa taille d'avant. Sans effet sur une
+    /// fenêtre dépliée : /codex s'en sert pour ramener la fenêtre entière.</summary>
+    public void Deplier()
+    {
+        if (!reduite) return;
+        reduite = false;
+        SizeConstraints = Contraintes;
+        Flags &= ~ImGuiWindowFlags.NoResize;
+        Imposer(tailleDepliee);
+    }
+
+    private void Imposer(Vector2 taille)
+    {
+        Size = taille;
+        SizeCondition = ImGuiCond.Always;
+        // Posée au dessin suivant, rendue libre après lui.
+        tailleImposee = 2;
     }
 
     public override void Draw()
@@ -73,6 +129,7 @@ public sealed class Fenetre : Window, IDisposable
 
         Ambiance(dl, pos, pos + taille);
         BarreDeTitre(dl, pos, taille.X);
+        if (reduite) return;
 
         var hautCorps = pos.Y + HTitre * E;
         var hCorps = MathF.Max(40f, taille.Y - (HTitre + HPied) * E);
@@ -95,11 +152,14 @@ public sealed class Fenetre : Window, IDisposable
     {
         var h = HTitre * E;
         var fin = pos + new Vector2(largeur, h);
-        Peinture.Plein(dl, pos, fin, Teintes.Surface, Teintes.RondFenetre * E, ImDrawFlags.RoundCornersTop);
-        Peinture.Filet(dl, new Vector2(pos.X, fin.Y - 0.5f), new Vector2(fin.X, fin.Y - 0.5f));
+        // Réduite, la barre est toute la fenêtre : ses quatre coins s'arrondissent.
+        Peinture.Plein(dl, pos, fin, Teintes.Surface, Teintes.RondFenetre * E,
+            reduite ? ImDrawFlags.RoundCornersAll : ImDrawFlags.RoundCornersTop);
+        if (!reduite) Peinture.Filet(dl, new Vector2(pos.X, fin.Y - 0.5f), new Vector2(fin.X, fin.Y - 0.5f));
 
         // Sans barre de titre, ImGui ne déplace plus la fenêtre : on le fait.
-        var largeurPrise = largeur - 70f * E;
+        // Un double clic la réduit ou la redéplie, comme une fenêtre du système.
+        var largeurPrise = largeur - 84f * E;
         ImGui.SetCursorScreenPos(pos);
         ImGui.InvisibleButton("##deplacer", new Vector2(MathF.Max(1f, largeurPrise), h));
         if (ImGui.IsItemActive())
@@ -107,6 +167,7 @@ public sealed class Fenetre : Window, IDisposable
             var delta = ImGui.GetIO().MouseDelta;
             if (delta != Vector2.Zero) ImGui.SetWindowPos(ImGui.GetWindowPos() + delta, ImGuiCond.Always);
         }
+        var basculer = ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
         var cote = 24f * E;
         var logo = new Vector2(pos.X + 14f * E, pos.Y + (h - cote) * 0.5f);
@@ -125,8 +186,17 @@ public sealed class Fenetre : Window, IDisposable
         Pieces.Pastille(mot, teinte, bat);
 
         var bouton = 26f * E;
-        ImGui.SetCursorScreenPos(new Vector2(fin.X - 12f * E - bouton, pos.Y + (h - bouton) * 0.5f));
+        var hautBouton = pos.Y + (h - bouton) * 0.5f;
+        ImGui.SetCursorScreenPos(new Vector2(fin.X - 12f * E - 2f * bouton - 4f * E, hautBouton));
+        if (BoutonIcone("##reduire", reduite ? FontAwesomeIcon.WindowMaximize : FontAwesomeIcon.WindowMinimize,
+                bouton, reduite ? Mots.Deplier : Mots.Reduire))
+            basculer = true;
+        ImGui.SetCursorScreenPos(new Vector2(fin.X - 12f * E - bouton, hautBouton));
         if (BoutonIcone("##fermer", FontAwesomeIcon.Times, bouton, Mots.Fermer)) IsOpen = false;
+
+        if (!basculer) return;
+        if (reduite) Deplier();
+        else Reduire();
     }
 
     /// <summary>L'état en deux mots, lisible sans entrer dans la fenêtre

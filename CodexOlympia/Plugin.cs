@@ -439,6 +439,8 @@ public sealed partial class Plugin : IDalamudPlugin
     {
         RetenirLeNom();
         fenetre.IsOpen = true;
+        // Réduite, elle revient entière : /codex sert aussi à la retrouver.
+        fenetre.Deplier();
     }
 
     /// <summary>/codex ouvre la fenetre ; /codex bestiaire ecrit la lecture du

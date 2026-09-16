@@ -337,6 +337,8 @@ public static class Mots
         _ => genre,
     };
     public static string Fermer => D("Fermer", "Close");
+    public static string Reduire => D("Réduire", "Minimize");
+    public static string Deplier => D("Déplier", "Restore");
 
     public static string EtatJeton => D("Jeton manquant", "No token");
     public static string EtatPerso => D("Pas de personnage", "No character");
