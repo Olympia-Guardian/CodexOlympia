@@ -80,6 +80,18 @@ public static class Photo
     /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
     private const int LectureParDalamud = 2;
 
+    /// <summary>
+    /// Les collections que le client ne garde que le temps qu'une de leurs
+    /// fenêtres reste ouverte, et ces fenêtres : le plugin les relit à leur
+    /// ouverture (PLG-R65). Les conditions des portraits ne vivent qu'avec
+    /// l'éditeur de portrait et ceux de la carte d'aventurier, ce que le plugin
+    /// PlatePeek a constaté en jeu.
+    /// </summary>
+    public static readonly (string Etape, string[] Fenetres)[] RelireALOuverture =
+    [
+        ("frames", ["BannerEditor", "CharaCardEditMenu", "CharaCardDesignSetting"]),
+    ];
+
     /// <summary>Les étapes qui lisent ce qu'une autre a trouvé : les pièces de
     /// tenue se cherchent aussi dans l'armoire, qui doit donc être lue avant.</summary>
     private static readonly (string Etape, string Avant)[] Dependances = [("outfitpieces", "armoires")];
@@ -524,8 +536,15 @@ public static class Photo
     private static Releve Portraits(
         Catalogue cat, Lumina.Excel.ExcelSheet<BannerCondition> table, IUnlockState deblocages)
     {
+        const string cle = "frames";
+        var total = Total(cat, cle);
+        // Éditeurs fermés, le client n'a aucune condition : la lecture dit quoi
+        // ouvrir, et rien ne part (PLG-R65).
+        if (cat.Ids.TryGetValue(cle, out var ids) && ids.Length > 0 && !ids.Any(ConditionChargee))
+            return new Releve(cle, [], null, total, Mots.OuvrePortraits);
+
         var nonLues = 0;
-        var releve = ParLigne(cat, "frames", id =>
+        var releve = ParLigne(cat, cle, id =>
         {
             if (table.GetRowOrDefault(id) is not { } ligne) return null;
             // Dalamud répond « non » quand le client n'a pas encore la ligne de

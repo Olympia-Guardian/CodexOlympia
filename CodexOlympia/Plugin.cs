@@ -1,5 +1,7 @@
 using System.Net.Http;
 using System.Text.Json;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Command;
 using Dalamud.Game.Inventory;
 using Dalamud.Game.Inventory.InventoryEventArgTypes;
@@ -37,6 +39,9 @@ public sealed partial class Plugin : IDalamudPlugin
     /// <summary>Ce que Dalamud sait dire des déblocages, tenu à jour d'un patch
     /// à l'autre (PLG-R55).</summary>
     private readonly IUnlockState deblocages;
+
+    /// <summary>L'ouverture et la fermeture des fenêtres du jeu.</summary>
+    private readonly IAddonLifecycle cycle;
     public ITextureProvider Textures { get; }
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
@@ -374,10 +379,16 @@ public sealed partial class Plugin : IDalamudPlugin
         ITextureProvider textures,
         ICondition condition,
         IFramework cadre,
-        IUnlockState deblocages)
+        IUnlockState deblocages,
+        IAddonLifecycle cycle)
     {
         Textures = textures;
         this.deblocages = deblocages;
+        this.cycle = cycle;
+        // Ce que le client ne garde qu'avec une fenêtre ouverte se relit à son
+        // ouverture (PLG-R65).
+        foreach (var (_, noms) in Photo.RelireALOuverture)
+            cycle.RegisterListener(AddonEvent.PostSetup, noms, SurFenetreOuverte);
         this.pi = pi;
         this.commandes = commandes;
         this.etat = etat;
@@ -434,6 +445,7 @@ public sealed partial class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        cycle.UnregisterListener(SurFenetreOuverte);
         cadre.Update -= Tour;
         etat.Login -= SurConnexion;
         etat.Logout -= SurDeconnexion;
@@ -668,6 +680,15 @@ public sealed partial class Plugin : IDalamudPlugin
     /// <summary>Relit UNE collection, pour celles que le jeu ne charge qu'a
     /// l'ouverture de leur fenetre. L'armoire, les pieces et les tenues se
     /// relisent ensemble : les trois sortent du meme coffre.</summary>
+    /// <summary>Une fenêtre qui garde une collection vient de s'ouvrir : on la
+    /// relit tant que le jeu l'a (PLG-R65).</summary>
+    private void SurFenetreOuverte(AddonEvent type, AddonArgs args)
+    {
+        foreach (var (etape, noms) in Photo.RelireALOuverture)
+            if (noms.Contains(args.AddonName))
+                Relire(etape);
+    }
+
     public void Relire(string cle)
     {
         var cat = Catalogue;

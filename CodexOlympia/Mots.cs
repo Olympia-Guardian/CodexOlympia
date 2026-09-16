@@ -125,6 +125,9 @@ public static class Mots
     public static string OuvreSucces => D(
         "ouvre ton carnet de succès une fois, puis regarde à nouveau",
         "open your achievements log once, then look again");
+    public static string OuvrePortraits => D(
+        "ouvre l'éditeur de portrait ou celui de ta carte d'aventurier : la lecture se fait à son ouverture",
+        "open the portrait editor or your adventurer plate editor: it is read as it opens");
     public static string OuvreArmoire => D(
         "ouvre une fois ton armoire chez un rassembleur pour que le jeu la charge",
         "open your armoire at a Calamity Salvager once so the game loads it");
