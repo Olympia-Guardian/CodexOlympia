@@ -47,7 +47,11 @@ public sealed record Releve(
     /// <summary>Des entrees que le catalogue rattache bien a un objet, mais
     /// dont le jeu n'a pas su donner la ligne : une lecture en retard, pas une
     /// portee (PLG-R44). La chaine de reverification les reprend.</summary>
-    int NonLues = 0);
+    int NonLues = 0,
+    /// <summary>Le plugin ne sait pas encore lire cette collection dans le jeu
+    /// (PLG-R63) : elle reste nommee, rien ne part, et la relire n'y changerait
+    /// rien.</summary>
+    bool Illisible = false);
 
 public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire, bool ArmoireLue = false);
 
@@ -67,14 +71,31 @@ public static class Photo
     /// <summary>Les objets marchands portent un décalage qu'on retire.</summary>
     private const uint SeuilHq = 1_000_000;
 
-    /// <summary>L'ordre de lecture, qui est aussi l'ordre d'affichage : une
-    /// lecture qui remplit de haut en bas se suit des yeux.</summary>
-    public static readonly string[] Ordre =
-    [
-        "mounts", "minions", "orchestrions", "emotes", "hairstyles", "fashions",
-        "facewear", "bardings", "cards", "frames", "spells", "beastmaster", "achievements",
-        "quests", "armoires", "outfitpieces",
-    ];
+    /// <summary>Les étapes qui lisent ce qu'une autre a trouvé : les pièces de
+    /// tenue se cherchent aussi dans l'armoire, qui doit donc être lue avant.</summary>
+    private static readonly (string Etape, string Avant)[] Dependances = [("outfitpieces", "armoires")];
+
+    /// <summary>L'ordre de lecture : celui de l'application, qui est aussi celui
+    /// de l'affichage, pour qu'une lecture qui remplit de haut en bas se suive
+    /// des yeux. Une étape ne passe après une autre que si elle en dépend.</summary>
+    public static List<string> Ordre(Catalogue cat)
+    {
+        var etapes = new List<string>();
+        foreach (var c in cat.Affichees)
+        {
+            var e = Plugin.EtapeDe(c.Cle);
+            if (!etapes.Contains(e)) etapes.Add(e);
+        }
+        foreach (var (etape, avant) in Dependances)
+        {
+            var i = etapes.IndexOf(etape);
+            var j = etapes.IndexOf(avant);
+            if (i < 0 || j < 0 || i > j) continue;
+            etapes.RemoveAt(i);
+            etapes.Insert(etapes.IndexOf(avant) + 1, etape);
+        }
+        return etapes;
+    }
 
     /// <summary>Fait UNE étape de la lecture. Les pointeurs du jeu sont repris
     /// à chaque étape et jamais gardés d'une image sur l'autre : ce qui est
@@ -166,8 +187,10 @@ public static class Photo
                 // Les tenues se déduisent des pièces : elles arrivent ensemble.
                 return Tenues(cat, ui->Cabinet.IsCabinetLoaded(), coffre ?? new Coffre([], []));
 
+            // Une collection que l'application connaît et que le plugin ne sait
+            // pas encore lire : nommée, et dite illisible (PLG-R63).
             default:
-                return [];
+                return [new Releve(cle, [], null, Total(cat, cle), Mots.PasEncoreLisible, Illisible: true)];
         }
     }
 

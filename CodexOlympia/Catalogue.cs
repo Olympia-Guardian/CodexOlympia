@@ -119,22 +119,39 @@ public sealed record Tenue(uint Id, string Fr, string En, IReadOnlyList<Piece> P
 }
 
 /// <summary>
+/// Une collection telle que l'application la déclare (PLG-R63) : sa clé, son
+/// nom dans les deux langues, son icône, et ce que le jeu en dit.
+/// <c>AOuvrir</c> : le client ne la charge qu'à l'ouverture de sa fenêtre
+/// (PLG-R34). <c>Essayable</c> : ses entrées s'essaient (PLG-R51).
+/// </summary>
+public sealed record Declaree(string Cle, string Fr, string En, uint Icone, bool AOuvrir, bool Essayable)
+{
+    public string Nom => Mots.Fr ? Fr : En;
+}
+
+/// <summary>
 /// Le catalogue de l'application, tel qu'elle le publie.
 ///
 /// Le plugin ne tient aucune liste à lui. Il demande à l'application ce qu'elle
 /// connaît, puis interroge le jeu sur chacune de ces entrées. Un objet ajouté au
 /// catalogue est donc pris en compte sans qu'on retouche au plugin, et un
-/// identifiant que l'application ignore n'est jamais envoyé.
+/// identifiant que l'application ignore n'est jamais envoyé. Les collections
+/// elles-mêmes, leurs noms et leur ordre, viennent de la déclaration que
+/// l'application publie avec les catalogues (PLG-R63).
 /// </summary>
 public sealed class Catalogue
 {
-    /// <summary>Les collections que le plugin sait lire, et leur fichier.</summary>
-    public static readonly string[] Cles =
-    [
-        "mounts", "minions", "orchestrions", "emotes", "fashions", "facewear",
-        "hairstyles", "bardings", "cards", "frames", "spells", "beastmaster", "achievements",
-        "quests", "armoires", "outfits",
-    ];
+    /// <summary>Les collections, dans l'ordre de l'application : chacune a son
+    /// fichier au catalogue.</summary>
+    public List<Declaree> Collections { get; } = [];
+
+    /// <summary>Tout ce que le plugin montre, dans l'ordre de l'application : les
+    /// collections, et avant chacune ce qui vit dedans sans avoir de fichier à
+    /// soi, comme les pièces de tenue avant les tenues.</summary>
+    public List<Declaree> Affichees { get; } = [];
+
+    /// <summary>La déclaration d'une clé montrée, ou rien.</summary>
+    public Declaree? Declaration(string cle) => Affichees.FirstOrDefault(c => c.Cle == cle);
 
     /// <summary>Les identifiants du catalogue, par collection, dans son ordre.</summary>
     public Dictionary<string, uint[]> Ids { get; } = new();
@@ -152,16 +169,9 @@ public sealed class Catalogue
     public Dictionary<string, Dictionary<uint, uint>> Objets { get; } = new();
 
     /// <summary>Le patch, l'inobtenable et les sources, pour les collections que
-    /// la galerie montre. Les autres n'en gardent pas : un succès porte sa phrase
-    /// comme les autres, et il y en a vingt-quatre mille.</summary>
+    /// la galerie montre. Les autres n'en gardent pas : les quêtes se comptent
+    /// par milliers, et rien ne les dessine.</summary>
     public Dictionary<string, Dictionary<uint, Detail>> Details { get; } = new();
-
-    /// <summary>Les collections dont on garde le détail en mémoire.</summary>
-    private static readonly HashSet<string> Detaillees =
-    [
-        "mounts", "minions", "orchestrions", "emotes", "fashions", "bardings", "cards",
-        "facewear", "spells", "beastmaster", "outfits", "armoires", "hairstyles", "frames",
-    ];
 
     /// <summary>Ce que l'application sait d'une entrée, ou rien.</summary>
     public Detail? Detail(string cle, uint id) =>
@@ -245,17 +255,53 @@ public sealed class Catalogue
 
     public string Date { get; private set; } = "";
 
-    public bool Pret => Ids.Count == Cles.Length;
+    public bool Pret => Collections.Count > 0 && Collections.All(c => Ids.ContainsKey(c.Cle));
 
     /// <summary>
     /// Va chercher le catalogue, et le garde sur le disque. Le réseau peut
     /// manquer : dans ce cas on se sert de ce qu'on a déjà, plutôt que de refuser
     /// de fonctionner.
+    ///
+    /// <paramref name="detaillee"/> dit de quelles collections garder le détail :
+    /// celles que la galerie montre.
     /// </summary>
-    public static async Task<Catalogue> Charger(HttpClient http, string racine, string cache)
+    public static async Task<Catalogue> Charger(
+        HttpClient http, string racine, string cache, Func<string, bool> detaillee)
     {
         var cat = new Catalogue();
         Directory.CreateDirectory(cache);
+
+        // La déclaration d'abord, toujours redemandée : elle est petite, et une
+        // collection ajoutée doit se voir sans attendre la ronde de nuit.
+        {
+            var fichier = Path.Combine(cache, "collections.json");
+            string? texte = null;
+            try
+            {
+                texte = await http.GetStringAsync($"{racine}/collections.json");
+                cat.LireDeclaration(texte);
+                await File.WriteAllTextAsync(fichier, texte);
+            }
+            catch
+            {
+                // Réseau absent, ou réponse illisible : la dernière déclaration
+                // lue. Sans elle, le catalogue n'est pas prêt, et le dit.
+                cat.Collections.Clear();
+                cat.Affichees.Clear();
+                if (File.Exists(fichier))
+                {
+                    try
+                    {
+                        cat.LireDeclaration(await File.ReadAllTextAsync(fichier));
+                    }
+                    catch
+                    {
+                        cat.Collections.Clear();
+                        cat.Affichees.Clear();
+                    }
+                }
+            }
+        }
 
         // La date du catalogue distant décide si ce qu'on a en cache est périmé.
         var distant = "";
@@ -273,7 +319,7 @@ public sealed class Catalogue
         var local = File.Exists(marque) ? File.ReadAllText(marque) : "";
         var perime = distant.Length > 0 && distant != local;
 
-        foreach (var cle in Cles)
+        foreach (var cle in cat.Collections.Select(c => c.Cle))
         {
             var fichier = Path.Combine(cache, cle + ".json");
             string? texte = null;
@@ -307,7 +353,7 @@ public sealed class Catalogue
                 cat.Variantes[cle] = new();
                 continue;
             }
-            cat.Lire(cle, texte);
+            cat.Lire(cle, texte, detaillee(cle));
         }
 
         // Les événements, à part : leur absence n'empêche rien, la galerie s'en
@@ -356,7 +402,76 @@ public sealed class Catalogue
             ? v.GetString() ?? string.Empty
             : string.Empty;
 
-    private void Lire(string cle, string texte)
+    /// <summary>
+    /// Lit la déclaration des collections : leurs clés, leurs noms, leurs
+    /// icônes et ce que le jeu en dit. Ce qui vit dans une collection sans
+    /// fichier à soi (une pseudo-collection rangée <c>dans</c> une autre) se
+    /// montre juste avant elle, et se lit comme elle.
+    /// </summary>
+    private void LireDeclaration(string texte)
+    {
+        using var doc = JsonDocument.Parse(texte);
+        var racine = doc.RootElement;
+        var collections = new List<Declaree>();
+        foreach (var e in racine.GetProperty("collections").EnumerateArray())
+        {
+            var d = Declarer(e, null);
+            if (d is not null) collections.Add(d);
+        }
+        if (collections.Count == 0) throw new InvalidDataException("déclaration sans collection");
+
+        var dans = new Dictionary<string, List<Declaree>>();
+        if (racine.TryGetProperty("pseudos", out var jp) && jp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var e in jp.EnumerateArray())
+            {
+                var hote = Texte(e, "dans");
+                var h = collections.FirstOrDefault(c => c.Cle == hote);
+                if (h is null) continue;
+                var d = Declarer(e, h);
+                if (d is null) continue;
+                if (!dans.TryGetValue(hote, out var l)) dans[hote] = l = [];
+                l.Add(d);
+            }
+        }
+
+        Collections.Clear();
+        Affichees.Clear();
+        foreach (var c in collections)
+        {
+            Collections.Add(c);
+            if (dans.TryGetValue(c.Cle, out var l)) Affichees.AddRange(l);
+            Affichees.Add(c);
+        }
+    }
+
+    /// <summary>Une entrée de la déclaration, ou rien si elle n'a pas de clé.
+    /// Une pseudo-collection prend ce que le jeu dit de son hôte.</summary>
+    private static Declaree? Declarer(JsonElement e, Declaree? hote)
+    {
+        if (e.ValueKind != JsonValueKind.Object) return null;
+        var cle = Texte(e, "cle");
+        if (cle.Length == 0) return null;
+        string fr = cle, en = cle;
+        if (e.TryGetProperty("noms", out var jn) && jn.ValueKind == JsonValueKind.Object
+            && jn.TryGetProperty("label", out var jl) && jl.ValueKind == JsonValueKind.Object)
+        {
+            fr = Texte(jl, "fr");
+            en = Texte(jl, "en");
+            if (fr.Length == 0) fr = en.Length > 0 ? en : cle;
+            if (en.Length == 0) en = fr;
+        }
+        var icone = uint.TryParse(Texte(e, "icone"), out var i) ? i : 0u;
+        bool fenetre = hote?.AOuvrir ?? false, essayable = hote?.Essayable ?? false;
+        if (hote is null && e.TryGetProperty("jeu", out var jj) && jj.ValueKind == JsonValueKind.Object)
+        {
+            fenetre = jj.TryGetProperty("fenetre", out var jf) && jf.ValueKind == JsonValueKind.True;
+            essayable = jj.TryGetProperty("essayable", out var je) && je.ValueKind == JsonValueKind.True;
+        }
+        return new Declaree(cle, fr, en, icone, fenetre, essayable);
+    }
+
+    private void Lire(string cle, string texte, bool detaillee)
     {
         using var doc = JsonDocument.Parse(texte);
         var liste = doc.RootElement.ValueKind == JsonValueKind.Array
@@ -367,7 +482,7 @@ public sealed class Catalogue
         var objets = new Dictionary<uint, uint>();
         var noms = new Dictionary<uint, (string Fr, string En)>();
         var variantes = new Dictionary<uint, uint[]>();
-        var details = Detaillees.Contains(cle) ? new Dictionary<uint, Detail>() : null;
+        var details = detaillee ? new Dictionary<uint, Detail>() : null;
         foreach (var e in liste.EnumerateArray())
         {
             if (!e.TryGetProperty("id", out var ji) || ji.ValueKind != JsonValueKind.Number) continue;

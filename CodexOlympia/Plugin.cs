@@ -294,9 +294,11 @@ public sealed partial class Plugin : IDalamudPlugin
     private void RecalculerDouteuses()
     {
         douteuses.Clear();
-        foreach (var cle in Photo.Ordre)
-            if (SentLeRetard(cle))
-                douteuses.Add(cle);
+        // Une étape par relevé qu'elle porte en propre : les tenues, que l'étape
+        // des pièces émet en plus, se jugent avec elle.
+        foreach (var r in Releves)
+            if (EtapeDe(r.Cle) == r.Cle && SentLeRetard(r.Cle))
+                douteuses.Add(r.Cle);
     }
 
     /// <summary>Trois signes de retard : une collection lue entièrement vide
@@ -511,11 +513,13 @@ public sealed partial class Plugin : IDalamudPlugin
     public void RechargerCatalogue()
     {
         var cache = Path.Combine(pi.GetPluginConfigDirectory(), "catalogue");
+        var jeu = Jeu;
         _ = Task.Run(async () =>
         {
             try
             {
-                var neuf = await Catalogue.Charger(http, Site.Catalogue, cache);
+                var neuf = await Catalogue.Charger(http, Site.Catalogue, cache,
+                    cle => CodexOlympia.Tables.EnGalerie(jeu, cle));
                 SurLeFilDuJeu(() =>
                 {
                     Catalogue = neuf;
@@ -558,19 +562,22 @@ public sealed partial class Plugin : IDalamudPlugin
     {
         if (LectureEnCours || rafraichit) return;
         rafraichit = true;
+        var jeu = Jeu;
         _ = Task.Run(async () =>
         {
             try
             {
                 var cat = Catalogue;
                 var distante = await DateDistante();
-                if (cat is null || (distante.Length > 0 && distante != cat.Date))
+                if (cat is null || !cat.Pret || (distante.Length > 0 && distante != cat.Date))
                 {
                     var cache = Path.Combine(pi.GetPluginConfigDirectory(), "catalogue");
-                    var neuf = await Catalogue.Charger(http, Site.Catalogue, cache);
+                    var neuf = await Catalogue.Charger(http, Site.Catalogue, cache,
+                        cle => CodexOlympia.Tables.EnGalerie(jeu, cle));
                     SurLeFilDuJeu(() =>
                     {
                         Catalogue = neuf;
+                        Tables = CodexOlympia.Tables.Completer(jeu.Collections, neuf);
                         journal.Information("catalogue relu avant lecture ({0})", neuf.Date);
                     });
                 }
@@ -600,7 +607,7 @@ public sealed partial class Plugin : IDalamudPlugin
         Coffre = null;
         evalue = false;
         file.Clear();
-        foreach (var cle in Photo.Ordre) file.Enqueue(cle);
+        foreach (var cle in Photo.Ordre(cat)) file.Enqueue(cle);
         Faites = 0;
         AFaire = file.Count;
         prochaine = 0;

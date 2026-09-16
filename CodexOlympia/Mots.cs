@@ -32,7 +32,6 @@ public static class Mots
             Langue.Anglais => false,
             _ => jeu == ClientLanguage.French,
         };
-        collections = null;
     }
 
     private static string D(string fr, string en) => Fr ? fr : en;
@@ -58,6 +57,10 @@ public static class Mots
     public static string EnAttente => D("en attente", "waiting");
 
     public static string NonLu => D("non lu", "not read");
+    public static string NeSeLitPas => D("pas encore lue par le plugin", "not read by the plugin yet");
+    public static string PasEncoreLisible => D(
+        "Le plugin ne sait pas encore lire cette collection dans le jeu. Coche-la sur le site en attendant.",
+        "The plugin cannot read this collection in game yet. Tick it on the website in the meantime.");
     public static string Relire => D("Relire", "Rescan");
     public static string RelireAide => D(
         "Ouvre d'abord la fenêtre demandée en jeu, puis relis cette collection seule. Le reste du relevé ne bouge pas.",
@@ -383,34 +386,4 @@ public static class Mots
     public static string AvisExplique => D(
         "Un mot dans le journal quand tu obtiens une pièce de tenue que tu n'as pas encore déposée.",
         "A line in the chat log when you get an outfit piece you have not deposited yet.");
-
-    /// <summary>Le nom lisible de chaque collection, dans l'ordre d'affichage.
-    ///
-    /// Gardée d'un appel sur l'autre : cette table est parcourue à chaque image
-    /// du jeu, et la reconstruire soixante fois par seconde pour un texte qui ne
-    /// change qu'au changement de langue serait du gâchis pur.</summary>
-    public static (string Cle, string Nom)[] Collections => collections ??= Batir();
-
-    private static (string Cle, string Nom)[]? collections;
-
-    private static (string Cle, string Nom)[] Batir() =>
-    [
-        ("mounts", D("Montures", "Mounts")),
-        ("minions", D("Mascottes", "Minions")),
-        ("orchestrions", D("Rouleaux d'orchestrion", "Orchestrion rolls")),
-        ("emotes", D("Emotes", "Emotes")),
-        ("hairstyles", D("Coiffures", "Hairstyles")),
-        ("fashions", D("Accessoires de mode", "Fashion accessories")),
-        ("facewear", D("Lunettes", "Facewear")),
-        ("bardings", D("Bardes", "Bardings")),
-        ("cards", D("Cartes de Triple Triade", "Triple Triad cards")),
-        ("frames", D("Portraits", "Portrait frames")),
-        ("spells", D("Sorts bleus", "Blue magic spells")),
-        ("beastmaster", D("Bestiaire du dresseur", "Beastmaster bestiary")),
-        ("achievements", D("Succès", "Achievements")),
-        ("quests", D("Quêtes", "Quests")),
-        ("armoires", D("Armoire", "Armoire")),
-        ("outfitpieces", D("Pièces de tenue", "Outfit pieces")),
-        ("outfits", D("Tenues entières", "Complete outfits")),
-    ];
 }

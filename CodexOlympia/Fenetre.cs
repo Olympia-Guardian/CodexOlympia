@@ -297,7 +297,7 @@ public sealed class Fenetre : Window, IDisposable
         }
 
         var lues = plugin.Releves.Count(r => r.Empeche is null);
-        var total = Math.Max(1, Mots.Collections.Length);
+        var total = Math.Max(1, Affichees.Count);
         var rayon = 34f * E;
         var centre = new Vector2(fin.X - 22f * E - rayon, origine.Y + h * 0.5f);
         var part = Mouvement.Vers("##anneau-tete", Math.Clamp((float)lues / total, 0f, 1f));
@@ -332,7 +332,7 @@ public sealed class Fenetre : Window, IDisposable
         if (plugin.LectureEnCours)
         {
             var quoi = plugin.EnCours;
-            var nom = Mots.Collections.FirstOrDefault(c => Plugin.EtapeDe(c.Cle) == quoi).Nom;
+            var nom = Affichees.FirstOrDefault(c => Plugin.EtapeDe(c.Cle) == quoi)?.Nom;
             return nom is null ? Mots.OnRecupere + Points() : $"{Mots.Lecture} : {nom.ToLowerInvariant()}{Points()}";
         }
         if (plugin.EnvoiEnCours) return Mots.EnvoiEnCours;
@@ -384,7 +384,7 @@ public sealed class Fenetre : Window, IDisposable
         var l = (large - ecart * 3f) / 4f;
 
         var lues = plugin.Releves.Count(r => r.Empeche is null);
-        var total = Mots.Collections.Length;
+        var total = Affichees.Count;
         var reste = Math.Max(0, total - lues);
         Pieces.TuileStat("##c1", Mots.MotCollections, $"{lues} / {total}",
             reste == 0 ? Mots.ToutesLues : Mots.ResteN(reste),
@@ -402,7 +402,8 @@ public sealed class Fenetre : Window, IDisposable
             plugin.Visage.Qui?.Derniere is > 0 ? Teintes.Vert : Teintes.Discret, l);
         ImGui.SameLine(0, ecart);
 
-        var bloquees = plugin.Releves.Count(r => r.Empeche is not null);
+        // Une collection que le plugin ne sait pas lire n'attend aucune fenêtre.
+        var bloquees = plugin.Releves.Count(r => r.Empeche is not null && !r.Illisible);
         if (bloquees > 0)
         {
             Pieces.TuileStat("##c4", Mots.MotNonLues, bloquees.ToString(), Mots.FenetreAOuvrir, Teintes.Ambre, l);
@@ -478,14 +479,17 @@ public sealed class Fenetre : Window, IDisposable
                 Teintes.Discret);
     }
 
-    /// <summary>Celles que le jeu ne charge qu'à l'ouverture de leur fenêtre :
-    /// elles se présentent à part (PLG-R34).</summary>
-    private static readonly string[] AOuvrir = ["achievements", "armoires", "outfitpieces", "outfits"];
+    /// <summary>Ce que le plugin montre, tel que l'application le déclare
+    /// (PLG-R63), ou rien tant que le catalogue n'est pas là.</summary>
+    private IReadOnlyList<Declaree> Affichees =>
+        (IReadOnlyList<Declaree>?)plugin.Catalogue?.Affichees ?? Array.Empty<Declaree>();
 
     private void Collections()
     {
-        var directes = Mots.Collections.Where(c => !AOuvrir.Contains(c.Cle)).ToList();
-        var aOuvrir = Mots.Collections.Where(c => AOuvrir.Contains(c.Cle)).ToList();
+        // Celles que le jeu ne charge qu'à l'ouverture de leur fenêtre se
+        // présentent à part (PLG-R34).
+        var directes = Affichees.Where(c => !c.AOuvrir).ToList();
+        var aOuvrir = Affichees.Where(c => c.AOuvrir).ToList();
 
         Titre(Mots.LuesSeules, Mots.NCollections(directes.Count));
         Grille(directes);
@@ -496,7 +500,7 @@ public sealed class Fenetre : Window, IDisposable
         Grille(aOuvrir);
     }
 
-    private void Grille(IReadOnlyList<(string Cle, string Nom)> collections)
+    private void Grille(IReadOnlyList<Declaree> collections)
     {
         var ecart = 8f * E;
         var large = ImGui.GetContentRegionAvail().X;
@@ -504,8 +508,9 @@ public sealed class Fenetre : Window, IDisposable
         var l = (large - ecart * (colonnes - 1)) / colonnes;
 
         var i = 0;
-        foreach (var (cle, nom) in collections)
+        foreach (var c in collections)
         {
+            var (cle, nom) = (c.Cle, c.Nom);
             var x = plugin.Releves.FirstOrDefault(v => v.Cle == cle);
             // En lecture, les collections à venir gardent leur tuile.
             if (x is null && !plugin.EnFile(cle)) continue;
@@ -524,7 +529,9 @@ public sealed class Fenetre : Window, IDisposable
         var h = 62f * E;
         var origine = ImGui.GetCursorScreenPos();
         var empechee = x?.Empeche is not null;
-        var relisible = empechee && !plugin.LectureEnCours;
+        var illisible = x?.Illisible == true;
+        // Relire une collection que le plugin ne sait pas lire n'y changerait rien.
+        var relisible = empechee && !illisible && !plugin.LectureEnCours;
         var g = relisible
             ? Pieces.Zone($"##tuile-{cle}", new Vector2(largeur, h))
             : default;
@@ -535,7 +542,7 @@ public sealed class Fenetre : Window, IDisposable
         var attente = x is null;
         var finie = x is not null && !empechee && Lisibles(x) > 0 && x.Trouves.Count >= Lisibles(x);
         var bord = finie ? Teintes.Alpha(Teintes.Vert, 0.35f)
-            : empechee ? Teintes.Alpha(Teintes.Ambre, 0.35f)
+            : empechee && !illisible ? Teintes.Alpha(Teintes.Ambre, 0.35f)
             : Teintes.Filet;
         var chaud = relisible ? Mouvement.Survol($"##tuile-{cle}#survol", g.Dessus) : 0f;
         Peinture.Carte(dl, origine, fin, Teintes.RondTuile * E,
@@ -564,6 +571,10 @@ public sealed class Fenetre : Window, IDisposable
             Texte.A(plugin.EnFile(cle) && Plugin.EtapeDe(cle) == plugin.EnCours
                 ? Mots.Lecture + Points()
                 : Mots.EnAttente, new Vector2(x0, y), Teintes.Discret);
+        }
+        else if (illisible)
+        {
+            Texte.A(Texte.Tronquer(Mots.NeSeLitPas, largeurTexte), new Vector2(x0, y), Teintes.Discret);
         }
         else if (empechee)
         {
@@ -623,32 +634,11 @@ public sealed class Fenetre : Window, IDisposable
     }
 
     /// <summary>Les mêmes icônes que l'application, pour se repérer d'un écran
-    /// à l'autre.</summary>
-    private static readonly Dictionary<string, uint> Icones = new()
-    {
-        ["mounts"] = 58,
-        ["minions"] = 59,
-        ["orchestrions"] = 67,
-        ["emotes"] = 9,
-        ["hairstyles"] = 26178,
-        ["fashions"] = 86,
-        ["facewear"] = 92,
-        ["bardings"] = 49,
-        ["cards"] = 27661,
-        ["frames"] = 88,
-        ["spells"] = 78,
-        ["beastmaster"] = 62143,
-        ["achievements"] = 6,
-        ["quests"] = 61412,
-        ["armoires"] = 52,
-        ["outfitpieces"] = 2,
-        ["outfits"] = 32,
-    };
-
+    /// à l'autre : celle que la déclaration donne (PLG-R63).</summary>
     private void Icone(ImDrawListPtr dl, string cle, Vector2 centre, float cote, float alpha)
     {
-        if (!Icones.TryGetValue(cle, out var id)) return;
-        var image = plugin.Textures.GetFromGameIcon(new GameIconLookup(id)).GetWrapOrEmpty();
+        var image = Icone(plugin.Catalogue?.Declaration(cle)?.Icone ?? 0);
+        if (image is null) return;
         var demi = new Vector2(cote * 0.5f);
         dl.AddImage(image.Handle, centre - demi, centre + demi, Vector2.Zero, Vector2.One,
             Peinture.Col(new Vector4(1f, 1f, 1f, alpha)));
@@ -897,8 +887,9 @@ public sealed class Fenetre : Window, IDisposable
         var ecart = 5f * E;
         var large = ImGui.GetContentRegionAvail().X;
         var x = 0f;
-        foreach (var (cle, nom) in Mots.Collections)
+        foreach (var c in Affichees)
         {
+            var (cle, nom) = (c.Cle, c.Nom);
             if (!plugin.Tables.ContainsKey(cle)) continue;
             var vue = plugin.Vue(cle);
             var texte = $"{nom}  {Mots.GalerieCompte(vue.Mien.Count, vue.Entrees.Count)}";
@@ -1183,8 +1174,9 @@ public sealed class Fenetre : Window, IDisposable
         plugin.Catalogue?.Inobtenable(galerieCle, plugin.NumeroCatalogue(galerieCle, e.Id)) == true;
 
     /// <summary>Vrai quand une entrée de cette collection s'essaie : la cabine
-    /// du jeu accepte de l'équipement, et rien d'autre.</summary>
-    private bool Essayable => galerieCle is "outfits" or "outfitpieces" or "armoires";
+    /// du jeu accepte de l'équipement, et rien d'autre. La déclaration le dit
+    /// (PLG-R63).</summary>
+    private bool Essayable => plugin.Catalogue?.Declaration(galerieCle)?.Essayable == true;
 
     /// <summary>Le clic droit essaie ce qu'on montre : une tenue entière, une
     /// pièce, ou l'objet que range une case d'armoire (PLG-R51).</summary>
@@ -1591,6 +1583,6 @@ public sealed class Fenetre : Window, IDisposable
         return null;
     }
 
-    private static string Lisible(string cle) =>
-        Mots.Collections.FirstOrDefault(n => n.Cle == cle).Nom?.ToLowerInvariant() ?? cle;
+    private string Lisible(string cle) =>
+        plugin.Catalogue?.Declaration(cle)?.Nom.ToLowerInvariant() ?? cle;
 }

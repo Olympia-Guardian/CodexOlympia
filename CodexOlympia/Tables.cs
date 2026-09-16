@@ -224,16 +224,24 @@ public static class Tables
     public static IReadOnlyDictionary<string, List<Entree>> Completer(
         IReadOnlyDictionary<string, List<Entree>> deja, Catalogue cat)
     {
-        if (deja.ContainsKey("beastmaster")) return deja;
-        if (!cat.Ids.TryGetValue("beastmaster", out var ids) || ids.Length == 0) return deja;
+        if (deja.ContainsKey(ACompleter)) return deja;
+        if (!cat.Ids.TryGetValue(ACompleter, out var ids) || ids.Length == 0) return deja;
 
         var betes = new List<Entree>(ids.Length);
         foreach (var id in ids)
-            betes.Add(new Entree(id, cat.Nom("beastmaster", id), PlancheBete + id));
+            betes.Add(new Entree(id, cat.Nom(ACompleter, id), PlancheBete + id));
 
-        var sortie = new Dictionary<string, List<Entree>>(deja) { ["beastmaster"] = betes };
+        var sortie = new Dictionary<string, List<Entree>>(deja) { [ACompleter] = betes };
         return sortie;
     }
+
+    /// <summary>La collection que le catalogue complète quand le client ne sait
+    /// pas la décrire.</summary>
+    private const string ACompleter = "beastmaster";
+
+    /// <summary>Vrai si la galerie montre cette collection : le client la
+    /// décrit, ou le catalogue la complète.</summary>
+    public static bool EnGalerie(Jeu jeu, string cle) => jeu.Collections.ContainsKey(cle) || cle == ACompleter;
 
     /// <summary>
     /// Une table du client, ou rien.
