@@ -153,6 +153,16 @@ public sealed class Catalogue
     /// <summary>La déclaration d'une clé montrée, ou rien.</summary>
     public Declaree? Declaration(string cle) => Affichees.FirstOrDefault(c => c.Cle == cle);
 
+    /// <summary>Ce que la base du classement écarte, par collection (PLG-R66) :
+    /// la boutique, le limité dans le temps, le JcJ classé, la provenance
+    /// inconnue. Ces entrées se lisent et s'envoient comme les autres ; elles
+    /// ne comptent que dans le tout compris.</summary>
+    public Dictionary<string, HashSet<uint>> HorsBase { get; } = new();
+
+    /// <summary>Vrai si cette entrée compte sur la base du classement. Une
+    /// collection que la base ne connaît pas n'écarte rien.</summary>
+    public bool DansLaBase(string cle, uint id) => !HorsBase.TryGetValue(cle, out var hors) || !hors.Contains(id);
+
     /// <summary>Les identifiants du catalogue, par collection, dans son ordre.</summary>
     public Dictionary<string, uint[]> Ids { get; } = new();
 
@@ -390,9 +400,66 @@ public sealed class Catalogue
             }
         }
 
+        // La base du classement, publiée avec les catalogues. Absente, rien
+        // n'est écarté : les tuiles comptent tout, comme avant.
+        {
+            var texte = await LireOuTelecharger(http, racine, cache, "perimetre.json", perime);
+            if (texte is not null)
+            {
+                try
+                {
+                    cat.LireBase(texte);
+                }
+                catch
+                {
+                    cat.HorsBase.Clear();
+                }
+            }
+        }
+
         if (perime && cat.Pret) File.WriteAllText(marque, distant);
         cat.Date = distant.Length > 0 ? distant : local;
         return cat;
+    }
+
+    /// <summary>Un fichier du catalogue : celui du cache tant qu'il n'est pas
+    /// périmé, sinon le réseau, et le cache encore si le réseau manque.</summary>
+    private static async Task<string?> LireOuTelecharger(
+        HttpClient http, string racine, string cache, string nom, bool perime)
+    {
+        var fichier = Path.Combine(cache, nom);
+        if (!perime && File.Exists(fichier)) return await File.ReadAllTextAsync(fichier);
+        try
+        {
+            var texte = await http.GetStringAsync($"{racine}/{nom}");
+            await File.WriteAllTextAsync(fichier, texte);
+            return texte;
+        }
+        catch
+        {
+            return File.Exists(fichier) ? await File.ReadAllTextAsync(fichier) : null;
+        }
+    }
+
+    /// <summary>Lit la base du classement : pour chaque collection, les
+    /// identifiants écartés, tous motifs confondus.</summary>
+    private void LireBase(string texte)
+    {
+        using var doc = JsonDocument.Parse(texte);
+        HorsBase.Clear();
+        if (!doc.RootElement.TryGetProperty("collections", out var jc) || jc.ValueKind != JsonValueKind.Object) return;
+        foreach (var c in jc.EnumerateObject())
+        {
+            if (!c.Value.TryGetProperty("exclus", out var je) || je.ValueKind != JsonValueKind.Object) continue;
+            var hors = new HashSet<uint>();
+            foreach (var motif in je.EnumerateObject())
+            {
+                if (motif.Value.ValueKind != JsonValueKind.Array) continue;
+                foreach (var id in motif.Value.EnumerateArray())
+                    if (id.ValueKind == JsonValueKind.Number && id.TryGetUInt32(out var n)) hors.Add(n);
+            }
+            if (hors.Count > 0) HorsBase[c.Name] = hors;
+        }
     }
 
     /// <summary>Un champ texte, vide plutôt qu'absent : un nom manquant ne doit

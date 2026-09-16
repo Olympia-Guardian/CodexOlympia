@@ -539,8 +539,35 @@ public sealed class Fenetre : Window, IDisposable
         var fin = origine + new Vector2(largeur, h);
         var dl = ImGui.GetWindowDrawList();
 
+        // Les comptes sur la base du classement, comme Mon Codex (PLG-R66) ;
+        // le tout compris se lit au survol. Gardés d'une image sur l'autre :
+        // l'armoire compte trois mille cinq cents entrées.
+        CompteDeTuile? Compter()
+        {
+            if (x is null) return null;
+            var cat = plugin.Catalogue;
+            if (comptesDeTuile.TryGetValue(x, out var deja) && ReferenceEquals(deja.Cat, cat)) return deja;
+            var portee = x.Limite == Limite.Capacite ? x.Portee : null;
+            var toutFait = x.Trouves.Count;
+            var toutLisible = portee?.Count ?? x.Total;
+            int baseFait = toutFait, baseLisible = toutLisible;
+            if (cat is not null && cat.HorsBase.ContainsKey(cle))
+            {
+                baseFait = x.Trouves.Count(id => cat.DansLaBase(cle, id));
+                baseLisible = portee is not null
+                    ? portee.Count(id => cat.DansLaBase(cle, id))
+                    : cat.Ids.TryGetValue(cle, out var ids)
+                        ? ids.Count(id => cat.DansLaBase(cle, id))
+                        : toutLisible;
+            }
+            var neuf = new CompteDeTuile(cat, baseFait, baseLisible, toutFait, toutLisible);
+            comptesDeTuile.AddOrUpdate(x, neuf);
+            return neuf;
+        }
+        var compte = Compter();
+
         var attente = x is null;
-        var finie = x is not null && !empechee && Lisibles(x) > 0 && x.Trouves.Count >= Lisibles(x);
+        var finie = compte is not null && !empechee && compte.Lisibles > 0 && compte.Fait >= compte.Lisibles;
         var bord = finie ? Teintes.Alpha(Teintes.Vert, 0.35f)
             : empechee && !illisible ? Teintes.Alpha(Teintes.Ambre, 0.35f)
             : Teintes.Filet;
@@ -550,8 +577,8 @@ public sealed class Fenetre : Window, IDisposable
 
         var rayon = 19f * E;
         var centre = new Vector2(origine.X + 10f * E + rayon + 2f * E, origine.Y + h * 0.5f);
-        var fait = x?.Trouves.Count ?? 0;
-        var lisibles = x is null ? 0 : Lisibles(x);
+        var fait = compte?.Fait ?? 0;
+        var lisibles = compte?.Lisibles ?? 0;
         var teinte = attente || empechee ? Teintes.Filet : Teintes.Avancement(fait, lisibles);
         var part = lisibles > 0 && !empechee ? Math.Clamp((float)fait / lisibles, 0f, 1f) : 0f;
         Peinture.Anneau(dl, centre, rayon, 3.5f * E, part, teinte);
@@ -582,28 +609,35 @@ public sealed class Fenetre : Window, IDisposable
         }
         else
         {
-            var compte = $"{fait} / {lisibles}";
-            Texte.A(Texte.Tronquer(compte, largeurTexte), new Vector2(x0, y),
+            var ecrit = $"{fait} / {lisibles}";
+            Texte.A(Texte.Tronquer(ecrit, largeurTexte), new Vector2(x0, y),
                 fait > 0 ? Teintes.Encre2 : Teintes.Discret);
             if (plugin.EnFile(cle) || (plugin.EnVerification && plugin.Douteuse(cle)))
             {
-                var apres = x0 + Texte.Mesurer(compte).X + 8f * E;
+                var apres = x0 + Texte.Mesurer(ecrit).X + 8f * E;
                 if (apres < fin.X - 10f * E) Texte.A(Mots.Verification + Points(), new Vector2(apres, y), Teintes.Or);
             }
         }
 
-        Pieces.Infobulle(Aide(cle, nom, x, relisible));
+        Pieces.Infobulle(Aide(cle, nom, x, relisible, compte));
         if (relisible && g.Clic) plugin.Relire(cle);
     }
 
-    /// <summary>Ce que le plugin sait lire : le catalogue entier, ou la portée
-    /// déclarée. Dire « 0 / 398 » à qui possède tout ce qui se lit serait
-    /// faux.</summary>
-    private static int Lisibles(Releve x) =>
-        x.Limite == Limite.Capacite && x.Portee is not null ? x.Portee.Count : x.Total;
+    /// <summary>
+    /// Ce qu'une tuile compte, et pour quel catalogue. <c>Lisibles</c> est ce
+    /// que le plugin sait lire, le catalogue entier ou la portée déclarée :
+    /// dire « 0 / 398 » à qui possède tout ce qui se lit serait faux. Les deux
+    /// premiers nombres suivent la base du classement, les deux derniers
+    /// comptent tout.
+    /// </summary>
+    private sealed record CompteDeTuile(Catalogue? Cat, int Fait, int Lisibles, int FaitTout, int LisiblesTout);
+
+    /// <summary>Les comptes des tuiles, par relevé : un relevé ne change pas,
+    /// une lecture en produit un autre.</summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Releve, CompteDeTuile> comptesDeTuile = new();
 
     /// <summary>Ce que la tuile n'a pas la place de dire.</summary>
-    private static string Aide(string cle, string nom, Releve? x, bool relisible)
+    private static string Aide(string cle, string nom, Releve? x, bool relisible, CompteDeTuile? compte)
     {
         var lignes = new List<string> { nom };
         if (x is null) return string.Join("\n", lignes);
@@ -628,6 +662,9 @@ public sealed class Fenetre : Window, IDisposable
                 // joueur, et l'ecrire dans chaque infobulle n'aidait personne.
                 break;
         }
+        // Le tout compris, quand la base en écarte quelque chose (PLG-R66).
+        if (compte is not null && (compte.FaitTout != compte.Fait || compte.LisiblesTout != compte.Lisibles))
+            lignes.Add(Mots.ToutCompris(compte.FaitTout, compte.LisiblesTout));
         if (x.Note is not null) lignes.Add(x.Note);
         _ = cle;
         return string.Join("\n\n", lignes);

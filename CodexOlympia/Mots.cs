@@ -57,6 +57,9 @@ public static class Mots
     public static string EnAttente => D("en attente", "waiting");
 
     public static string NonLu => D("non lu", "not read");
+    public static string ToutCompris(int fait, int total) => D(
+        $"Tout compris : {fait} / {total}. Le compte suit la base du classement, comme sur le site : ni boutique, ni limité dans le temps, ni JcJ classé, ni provenance inconnue.",
+        $"Everything included: {fait} / {total}. The count follows the ranking base, as on the website: no store, no time-limited items, no ranked PvP, no unknown source.");
     public static string NeSeLitPas => D("pas encore lue par le plugin", "not read by the plugin yet");
     public static string PasEncoreLisible => D(
         "Le plugin ne sait pas encore lire cette collection dans le jeu. Coche-la sur le site en attendant.",
