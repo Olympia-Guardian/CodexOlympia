@@ -130,6 +130,7 @@ public static class Photo
         Lumina.Excel.ExcelSheet<BuddyEquip> bardes,
         Lumina.Excel.ExcelSheet<BannerCondition> conditions,
         IUnlockState deblocages,
+        Dictionary<uint, bool>? memoirePortraits,
         ref Coffre? coffre)
     {
         var ps = PlayerState.Instance();
@@ -160,7 +161,7 @@ public static class Photo
                 return [Bardes(cat, bardes, deblocages)];
 
             case "frames":
-                return [Portraits(cat, conditions, deblocages)];
+                return [Portraits(cat, conditions, deblocages, memoirePortraits)];
 
             case "spells":
                 return [Sorts(cat, sorts, ui)];
@@ -532,16 +533,31 @@ public static class Photo
     /// <summary>Les portraits, demandés à Dalamud (PLG-R55) : le numéro d'un
     /// portrait est celui de sa condition de déblocage, et le client ne sait
     /// répondre que sur la ligne de cette condition, quelle qu'en soit la
-    /// nature (kit d'encadrement, quête, raid, saison JcJ).</summary>
+    /// nature (kit d'encadrement, quête, raid, saison JcJ).
+    ///
+    /// <para>Le client ne garde ces conditions que tant qu'un éditeur de
+    /// portrait est ouvert (PLG-R65). Ce que la lecture y voit se retient pour
+    /// le personnage ; éditeurs fermés, elle reprend cette mémoire.</para></summary>
     private static Releve Portraits(
-        Catalogue cat, Lumina.Excel.ExcelSheet<BannerCondition> table, IUnlockState deblocages)
+        Catalogue cat, Lumina.Excel.ExcelSheet<BannerCondition> table, IUnlockState deblocages,
+        Dictionary<uint, bool>? memoire)
     {
         const string cle = "frames";
         var total = Total(cat, cle);
-        // Éditeurs fermés, le client n'a aucune condition : la lecture dit quoi
-        // ouvrir, et rien ne part (PLG-R65).
         if (cat.Ids.TryGetValue(cle, out var ids) && ids.Length > 0 && !ids.Any(ConditionChargee))
-            return new Releve(cle, [], null, total, Mots.OuvrePortraits);
+        {
+            // Éditeurs fermés : ce que la dernière ouverture a montré de
+            // débloqué l'est encore, mais ce qui ne l'était pas a pu l'être
+            // depuis. La mémoire se lit donc comme un dépôt, qui ne prouve que
+            // ce qu'il contient.
+            List<uint> debloques = memoire is null ? [] : [.. ids.Where(id => memoire.TryGetValue(id, out var d) && d)];
+            // Jamais vue pour ce personnage : la lecture dit quoi ouvrir, et
+            // rien ne part.
+            if (debloques.Count == 0)
+                return new Releve(cle, [], null, total, Mots.OuvrePortraits);
+            return new Releve(cle, debloques, [.. debloques], total, null, Mots.PortraitsRetenus, Limite.Depot,
+                Maniere: LectureParDalamud);
+        }
 
         var nonLues = 0;
         var releve = ParLigne(cat, cle, id =>
@@ -556,7 +572,9 @@ public static class Photo
                 nonLues++;
                 return null;
             }
-            return deblocages.IsBannerConditionUnlocked(ligne);
+            var debloque = deblocages.IsBannerConditionUnlocked(ligne);
+            if (memoire is not null) memoire[id] = debloque;
+            return debloque;
         });
         return releve with { Maniere = LectureParDalamud, NonLues = nonLues };
     }

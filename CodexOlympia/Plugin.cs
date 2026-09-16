@@ -752,6 +752,10 @@ public sealed partial class Plugin : IDalamudPlugin
         try
         {
             var coffre = Coffre;
+            // Les portraits se lisent avec ce que les éditeurs ont déjà montré
+            // à ce personnage, et l'enrichissent (PLG-R65).
+            var memoire = cle == "frames" ? MemoirePortraits() : null;
+            var avant = memoire?.ToDictionary(p => p.Key, p => p.Value);
             var produits = Photo.Etape(
                 cle,
                 cat,
@@ -761,7 +765,11 @@ public sealed partial class Plugin : IDalamudPlugin
                 donnees.GetExcelSheet<BuddyEquip>(),
                 donnees.GetExcelSheet<BannerCondition>(),
                 deblocages,
+                memoire,
                 ref coffre);
+            if (memoire is not null && avant is not null &&
+                (avant.Count != memoire.Count || avant.Any(p => memoire[p.Key] != p.Value)))
+                Enregistrer();
             // Une relecture remplace ce que l'etape avait produit la premiere
             // fois : deux releves de la meme collection seraient un mensonge.
             var anciens = EmisPar(cle);
@@ -876,6 +884,17 @@ public sealed partial class Plugin : IDalamudPlugin
         depotsRetenus = new Coffre([.. d.Coiffeuse], [.. d.Armoire], true);
         depotsPour = id;
         Enregistrer();
+    }
+
+    /// <summary>La mémoire des portraits du personnage connecté (PLG-R65), ou
+    /// rien sans personnage. Elle se remplit à chaque lecture en direct, éditeur
+    /// ouvert, et se garde dans les réglages.</summary>
+    private Dictionary<uint, bool>? MemoirePortraits()
+    {
+        var id = ContentId;
+        if (id == 0) return null;
+        if (!Reglages.Portraits.TryGetValue(id, out var m)) Reglages.Portraits[id] = m = new Dictionary<uint, bool>();
+        return m;
     }
 
     /// <summary>La memoire des depots du personnage connecte, ou rien. Relue

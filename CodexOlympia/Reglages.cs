@@ -79,6 +79,17 @@ public sealed class Reglages : IPluginConfiguration
     /// veille, dès qu'un coffre les faisait défiler.
     /// </summary>
     public Dictionary<ulong, Depots> Depots { get; set; } = new();
+
+    /// <summary>
+    /// Ce que les éditeurs de portrait ont montré, par personnage puis par
+    /// portrait : débloqué ou non (PLG-R65).
+    ///
+    /// Le client ne garde les conditions des portraits que tant qu'un de ces
+    /// éditeurs est ouvert. Fenêtre fermée, la lecture automatique reprend
+    /// cette mémoire, pour ce qui est débloqué seulement : un portrait obtenu
+    /// depuis attend la prochaine ouverture. PlatePeek fait de même.
+    /// </summary>
+    public Dictionary<ulong, Dictionary<uint, bool>> Portraits { get; set; } = new();
 }
 
 /// <summary>

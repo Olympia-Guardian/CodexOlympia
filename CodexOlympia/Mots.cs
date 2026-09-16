@@ -131,6 +131,9 @@ public static class Mots
     public static string OuvrePortraits => D(
         "ouvre l'éditeur de portrait ou celui de ta carte d'aventurier : la lecture se fait à son ouverture",
         "open the portrait editor or your adventurer plate editor: it is read as it opens");
+    public static string PortraitsRetenus => D(
+        "d'après la dernière ouverture de l'éditeur de portrait : un portrait obtenu depuis apparaîtra à la prochaine",
+        "as of the last time the portrait editor was open: a portrait earned since then shows up next time");
     public static string OuvreArmoire => D(
         "ouvre une fois ton armoire chez un rassembleur pour que le jeu la charge",
         "open your armoire at a Calamity Salvager once so the game loads it");
