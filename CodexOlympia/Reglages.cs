@@ -62,6 +62,15 @@ public sealed class Reglages : IPluginConfiguration
     public Dictionary<ulong, Dictionary<string, List<uint>>> Envoyes { get; set; } = new();
 
     /// <summary>
+    /// La façon dont chaque collection a été lue pour ce qui est parti, par
+    /// personnage puis par collection. Absente, elle vaut 1, la première.
+    ///
+    /// Une lecture corrigée en change : ce que l'ancienne avait envoyé ne sert
+    /// alors plus de référence (PLG-R64).
+    /// </summary>
+    public Dictionary<ulong, Dictionary<string, int>> Manieres { get; set; } = new();
+
+    /// <summary>
     /// Ce que la dernière photo a vu dans les dépôts, par personnage.
     ///
     /// L'avis en jeu s'en sert dès la connexion, avant toute nouvelle photo.

@@ -51,7 +51,11 @@ public sealed record Releve(
     /// <summary>Le plugin ne sait pas encore lire cette collection dans le jeu
     /// (PLG-R63) : elle reste nommee, rien ne part, et la relire n'y changerait
     /// rien.</summary>
-    bool Illisible = false);
+    bool Illisible = false,
+    /// <summary>La facon dont la collection a ete lue. Elle change quand une
+    /// lecture fausse est corrigee : ce que l'ancienne avait envoye ne sert
+    /// alors plus de reference (PLG-R64).</summary>
+    int Maniere = 1);
 
 public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire, bool ArmoireLue = false);
 
@@ -70,6 +74,11 @@ public static class Photo
 {
     /// <summary>Les objets marchands portent un décalage qu'on retire.</summary>
     private const uint SeuilHq = 1_000_000;
+
+    /// <summary>La façon de lire des collections que Dalamud sait demander
+    /// (PLG-R55). Elles se lisaient par la ligne de l'objet qui les débloque,
+    /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
+    private const int LectureParDalamud = 2;
 
     /// <summary>Les étapes qui lisent ce qu'une autre a trouvé : les pièces de
     /// tenue se cherchent aussi dans l'armoire, qui doit donc être lue avant.</summary>
@@ -106,6 +115,9 @@ public static class Photo
         Lumina.Excel.ExcelSheet<AozAction> sorts,
         Lumina.Excel.ExcelSheet<MirageStoreSetItem> ensembles,
         Lumina.Excel.ExcelSheet<Item> objets,
+        Lumina.Excel.ExcelSheet<BuddyEquip> bardes,
+        Lumina.Excel.ExcelSheet<BannerCondition> conditions,
+        IUnlockState deblocages,
         ref Coffre? coffre)
     {
         var ps = PlayerState.Instance();
@@ -132,11 +144,11 @@ public static class Photo
             case "hairstyles":
                 return [Coiffures(cat, ui)];
 
-            // Sans objet déverrouillant au catalogue, une entrée n'est pas
-            // interrogeable : elle sort de la portée.
             case "bardings":
+                return [Bardes(cat, bardes, deblocages)];
+
             case "frames":
-                return [ParObjet(cat, cle)];
+                return [Portraits(cat, conditions, deblocages)];
 
             case "spells":
                 return [Sorts(cat, sorts, ui)];
@@ -264,7 +276,7 @@ public static class Photo
     /// galerie retombe alors sur ce que la photo a trouvé.
     /// </summary>
     public static unsafe HashSet<uint>? Possedes(
-        string cle, IReadOnlyList<Entree> entrees, IDataManager donnees)
+        string cle, IReadOnlyList<Entree> entrees, IDataManager donnees, IUnlockState deblocages)
     {
         var ps = PlayerState.Instance();
         var ui = UIState.Instance();
@@ -301,6 +313,16 @@ public static class Photo
                 foreach (var x in entrees)
                     if (x.Id <= ushort.MaxValue && ps->IsGlassesUnlocked((ushort)x.Id)) vus.Add(x.Id);
                 return vus;
+
+            case "bardings":
+            {
+                // La même question que la synchronisation, à Dalamud (PLG-R55).
+                var table = donnees.GetExcelSheet<BuddyEquip>();
+                foreach (var x in entrees)
+                    if (table.GetRowOrDefault(x.Id) is { } ligne && deblocages.IsBuddyEquipUnlocked(ligne))
+                        vus.Add(x.Id);
+                return vus;
+            }
 
             case "spells":
             {
@@ -484,37 +506,67 @@ public static class Photo
             complet ? Limite.Aucune : Limite.Capacite);
     }
 
-    private static unsafe Releve ParObjet(Catalogue cat, string cle)
+    /// <summary>Les bardes, demandées à Dalamud (PLG-R55) : nos numéros sont
+    /// les lignes de leur table dans le jeu, les cent sept, nom pour nom.</summary>
+    private static Releve Bardes(
+        Catalogue cat, Lumina.Excel.ExcelSheet<BuddyEquip> table, IUnlockState deblocages)
     {
-        if (!cat.Ids.TryGetValue(cle, out var ids) || !cat.Objets.TryGetValue(cle, out var objets))
-            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
+        var releve = ParLigne(cat, "bardings", id => table.GetRowOrDefault(id) is { } ligne
+            ? deblocages.IsBuddyEquipUnlocked(ligne)
+            : null);
+        return releve with { Maniere = LectureParDalamud };
+    }
 
-        var ui = UIState.Instance();
-        var trouves = new List<uint>();
-        var portee = new List<uint>();
-        // Deux façons de sortir de la portée, qui n'ont rien à voir (PLG-R44) :
-        // sans objet au catalogue, c'est définitif et ça se coche à la main ;
-        // objet connu mais ligne pas encore chargée, c'est une lecture en
-        // retard que la revérification reprend.
+    /// <summary>Les portraits, demandés à Dalamud (PLG-R55) : le numéro d'un
+    /// portrait est celui de sa condition de déblocage, et le client ne sait
+    /// répondre que sur la ligne de cette condition, quelle qu'en soit la
+    /// nature (kit d'encadrement, quête, raid, saison JcJ).</summary>
+    private static Releve Portraits(
+        Catalogue cat, Lumina.Excel.ExcelSheet<BannerCondition> table, IUnlockState deblocages)
+    {
         var nonLues = 0;
-        foreach (var id in ids)
+        var releve = ParLigne(cat, "frames", id =>
         {
-            if (!objets.TryGetValue(id, out var objet) || objet == 0) continue;
-            var ligne = ExdModule.GetItemRowById(objet);
-            if (ligne is null)
+            if (table.GetRowOrDefault(id) is not { } ligne) return null;
+            // Dalamud répond « non » quand le client n'a pas encore la ligne de
+            // la condition : c'est une lecture en retard, pas un portrait
+            // absent (PLG-R44). Elle sort de la portée et part à la
+            // revérification.
+            if (!ConditionChargee(id))
             {
                 nonLues++;
-                continue;
+                return null;
             }
+            return deblocages.IsBannerConditionUnlocked(ligne);
+        });
+        return releve with { Maniere = LectureParDalamud, NonLues = nonLues };
+    }
+
+    /// <summary>Vrai si le client a chargé la ligne de cette condition.</summary>
+    private static unsafe bool ConditionChargee(uint id) => ExdModule.GetBannerConditionByIndex(id) != null;
+
+    /// <summary>Une question par entrée du catalogue, posée sur sa ligne de table
+    /// lue par Lumina. Une entrée que le client ne connaît pas encore (un
+    /// catalogue en avance d'un patch) répond rien, et sort de la portée.</summary>
+    private static Releve ParLigne(Catalogue cat, string cle, Func<uint, bool?> possede)
+    {
+        if (!cat.Ids.TryGetValue(cle, out var ids))
+            return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
+
+        var trouves = new List<uint>();
+        var portee = new List<uint>();
+        foreach (var id in ids)
+        {
+            if (possede(id) is not { } oui) continue;
             portee.Add(id);
-            if (ui->IsItemActionUnlocked(ligne) == 1) trouves.Add(id);
+            if (oui) trouves.Add(id);
         }
         // Portée déclarée seulement si elle est incomplète : sinon c'est du poids
         // sur le réseau pour rien.
         var complet = portee.Count == ids.Length;
         return new Releve(
             cle, trouves, complet ? null : portee, ids.Length, null, null,
-            complet ? Limite.Aucune : Limite.Capacite, nonLues);
+            complet ? Limite.Aucune : Limite.Capacite);
     }
 
     /// <summary>Un sort bleu s'apprend, et le jeu le note comme n'importe quel

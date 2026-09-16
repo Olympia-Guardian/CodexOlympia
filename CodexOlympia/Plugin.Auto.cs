@@ -142,11 +142,10 @@ public sealed partial class Plugin
         var id = ContentId;
         if (id != 0)
         {
-            Reglages.Envoyes.TryGetValue(id, out var envoyes);
             foreach (var x in Releves)
             {
                 if (x.Empeche is not null || x.Trouves.Count == 0) continue;
-                HashSet<uint>? deja = envoyes is not null && envoyes.TryGetValue(x.Cle, out var l) ? [.. l] : null;
+                HashSet<uint>? deja = DejaEnvoye(id, x) is { } l ? [.. l] : null;
                 var neuf = deja is null ? [.. x.Trouves] : x.Trouves.Where(t => !deja.Contains(t)).ToList();
                 if (neuf.Count > 0) sortie.Add((x.Cle, neuf));
             }
@@ -157,15 +156,28 @@ public sealed partial class Plugin
         return sortie;
     }
 
-    /// <summary>Les listes d'une photo telles qu'elles partent : par collection,
-    /// sans les lignes empêchées.</summary>
-    private static Dictionary<string, List<uint>> Photographie(IReadOnlyList<Releve> releves)
+    /// <summary>
+    /// Ce que le plugin a déjà envoyé de cette collection pour ce personnage,
+    /// à condition de l'avoir lue de la même façon qu'aujourd'hui ; rien sinon.
+    /// Une lecture corrigée ne se mesure pas contre ce que la fausse avait
+    /// envoyé (PLG-R64) : la façon absente des réglages vaut la première.
+    /// </summary>
+    private List<uint>? DejaEnvoye(ulong pour, Releve r)
     {
-        var photo = new Dictionary<string, List<uint>>();
+        if (!Reglages.Envoyes.TryGetValue(pour, out var d) || !d.TryGetValue(r.Cle, out var l)) return null;
+        var retenue = Reglages.Manieres.TryGetValue(pour, out var m) ? m.GetValueOrDefault(r.Cle, 1) : 1;
+        return retenue == r.Maniere ? l : null;
+    }
+
+    /// <summary>Les listes d'une photo telles qu'elles partent : par collection,
+    /// sans les lignes empêchées, avec la façon dont chacune a été lue.</summary>
+    private static Dictionary<string, (List<uint> Ids, int Maniere)> Photographie(IReadOnlyList<Releve> releves)
+    {
+        var photo = new Dictionary<string, (List<uint> Ids, int Maniere)>();
         foreach (var x in releves)
         {
             if (x.Empeche is not null) continue;
-            photo[x.Cle] = [.. x.Trouves];
+            photo[x.Cle] = ([.. x.Trouves], x.Maniere);
         }
         return photo;
     }
@@ -182,14 +194,22 @@ public sealed partial class Plugin
     /// lunettes, les bardes et les portraits se lisent par morceaux), la
     /// mémoire rétrécissait, et la lecture suivante, complète, annonçait comme
     /// nouveau ce qui était déjà envoyé depuis longtemps.
+    ///
+    /// Sauf quand la façon de lire a changé (PLG-R64) : ce que l'ancienne avait
+    /// envoyé était faux, et la liste de la lecture juste le remplace.
     /// </summary>
-    private void Retenir(ulong pour, Dictionary<string, List<uint>> envoye)
+    private void Retenir(ulong pour, Dictionary<string, (List<uint> Ids, int Maniere)> envoye)
     {
         if (pour == 0 || envoye.Count == 0) return;
         if (!Reglages.Envoyes.TryGetValue(pour, out var d)) Reglages.Envoyes[pour] = d = new Dictionary<string, List<uint>>();
-        foreach (var (cle, ids) in envoye)
+        if (!Reglages.Manieres.TryGetValue(pour, out var m)) Reglages.Manieres[pour] = m = new Dictionary<string, int>();
+        foreach (var (cle, (ids, maniere)) in envoye)
         {
-            if (!d.TryGetValue(cle, out var connus) || connus.Count == 0)
+            var memeFacon = m.GetValueOrDefault(cle, 1) == maniere;
+            // La première façon ne s'écrit pas : absente, elle vaut 1.
+            if (maniere == 1) m.Remove(cle);
+            else m[cle] = maniere;
+            if (!memeFacon || !d.TryGetValue(cle, out var connus) || connus.Count == 0)
             {
                 d[cle] = [.. ids];
                 continue;

@@ -33,6 +33,10 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly IGameInventory sacs;
     private readonly ICondition condition;
     private readonly IFramework cadre;
+
+    /// <summary>Ce que Dalamud sait dire des déblocages, tenu à jour d'un patch
+    /// à l'autre (PLG-R55).</summary>
+    private readonly IUnlockState deblocages;
     public ITextureProvider Textures { get; }
 
     private readonly WindowSystem fenetres = new("CodexOlympia");
@@ -118,7 +122,7 @@ public sealed partial class Plugin : IDalamudPlugin
     public HashSet<uint>? GalerieAMoi(string cle)
     {
         if (galerie.TryGetValue(cle, out var deja)) return deja;
-        var vu = Tables.TryGetValue(cle, out var entrees) ? Photo.Possedes(cle, entrees, donnees) : null;
+        var vu = Tables.TryGetValue(cle, out var entrees) ? Photo.Possedes(cle, entrees, donnees, deblocages) : null;
         galerie[cle] = vu;
         return vu;
     }
@@ -321,17 +325,14 @@ public sealed partial class Plugin : IDalamudPlugin
     /// La lecture retrouve-t-elle ce qui est déjà parti (PLG-R45) ? Un
     /// déverrouillage acquis le reste.
     ///
-    /// Deux garde-fous : une entrée hors de la portée déclarée ne prouve rien,
-    /// et une entrée retirée du catalogue entre deux patchs ferait douter pour
-    /// toujours.
+    /// Trois garde-fous : une entrée hors de la portée déclarée ne prouve rien,
+    /// une entrée retirée du catalogue entre deux patchs ferait douter pour
+    /// toujours, et ce qu'une lecture fausse avait envoyé ne compte plus une
+    /// fois la lecture corrigée (PLG-R64).
     /// </summary>
     private bool PerdDuDejaEnvoye(Releve r)
     {
-        if (ContentId == 0
-            || !Reglages.Envoyes.TryGetValue(ContentId, out var parCollection)
-            || !parCollection.TryGetValue(r.Cle, out var envoyes)
-            || envoyes.Count == 0)
-            return false;
+        if (ContentId == 0 || DejaEnvoye(ContentId, r) is not { Count: > 0 } envoyes) return false;
         if (Catalogue is null || !Catalogue.Ids.TryGetValue(r.Cle, out var connus)) return false;
 
         var catalogue = new HashSet<uint>(connus);
@@ -372,9 +373,11 @@ public sealed partial class Plugin : IDalamudPlugin
         IGameInventory sacs,
         ITextureProvider textures,
         ICondition condition,
-        IFramework cadre)
+        IFramework cadre,
+        IUnlockState deblocages)
     {
         Textures = textures;
+        this.deblocages = deblocages;
         this.pi = pi;
         this.commandes = commandes;
         this.etat = etat;
@@ -734,6 +737,9 @@ public sealed partial class Plugin : IDalamudPlugin
                 donnees.GetExcelSheet<AozAction>(),
                 donnees.GetExcelSheet<MirageStoreSetItem>(),
                 donnees.GetExcelSheet<Item>(),
+                donnees.GetExcelSheet<BuddyEquip>(),
+                donnees.GetExcelSheet<BannerCondition>(),
+                deblocages,
                 ref coffre);
             // Une relecture remplace ce que l'etape avait produit la premiere
             // fois : deux releves de la meme collection seraient un mensonge.
