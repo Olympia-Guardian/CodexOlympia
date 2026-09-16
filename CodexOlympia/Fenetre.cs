@@ -837,21 +837,12 @@ public sealed class Fenetre : Window, IDisposable
     private string galerieCle = "mounts";
     private uint galerieChoisi;
 
-    /// <summary>Ce que le filtre laisse passer.</summary>
-    private enum Vue
-    {
-        Tout,
-        Manquants,
-        AMoi,
-    }
-
-    private Vue galerieVue = Vue.Tout;
-
-    /// <summary>Les trois autres filtres : ne montrer que l'obtenable, ne
-    /// montrer qu'une façon d'obtenir, et le texte cherché dans les noms.</summary>
-    private bool galerieObtenables;
-    private string galerieFamille = string.Empty;
+    /// <summary>Le texte cherché dans les noms. Il ne se garde pas, comme dans
+    /// l'application ; les filtres, eux, vivent dans les réglages (PLG-R67).</summary>
     private string galerieRecherche = string.Empty;
+
+    /// <summary>Monte à chaque changement de filtre : la liste gardée se refait.</summary>
+    private int versionFiltres;
 
     /// <summary>
     /// Tout ce qui existe, possede ou non (PLG-R48).
@@ -893,7 +884,7 @@ public sealed class Fenetre : Window, IDisposable
         {
             if (gauche)
             {
-                Filtres();
+                Barre();
                 Grille(entrees, mien);
             }
         }
@@ -916,7 +907,12 @@ public sealed class Fenetre : Window, IDisposable
 
     /// <summary>Ce que la fenêtre garde de la galerie ne vaut plus : les listes
     /// se sont refaites de l'autre côté.</summary>
-    public void OublierGalerie() => familles.Clear();
+    public void OublierGalerie()
+    {
+        familles.Clear();
+        offertsParCle.Clear();
+        versionFiltres++;
+    }
 
     /// <summary>La rangee des collections, avec leur compte.</summary>
     private void Rangee()
@@ -944,7 +940,6 @@ public sealed class Fenetre : Window, IDisposable
             {
                 galerieCle = cle;
                 galerieChoisi = 0;
-                galerieFamille = string.Empty;
             }
         }
         ImGui.Dummy(new Vector2(0, 2f * E));
@@ -970,46 +965,225 @@ public sealed class Fenetre : Window, IDisposable
         return g.Clic;
     }
 
-    private void Filtres()
+    /// <summary>L'identifiant de la dialog des filtres : en ###, il reste le
+    /// même pour l'ouverture et pour la fenêtre, quel que soit son titre.</summary>
+    private const string DialogFiltres = "###filtres-galerie";
+
+    /// <summary>Ce que chaque collection propose dans la dialog (NAV-R43),
+    /// gardé jusqu'à la prochaine lecture.</summary>
+    private readonly Dictionary<string, HashSet<string>> offertsParCle = new();
+
+    private HashSet<string> Offerts(string cle)
     {
-        var choix = new[]
+        if (offertsParCle.TryGetValue(cle, out var deja)) return deja;
+        var ids = plugin.Vue(cle).Entrees.Select(x => plugin.NumeroCatalogue(cle, x.Id));
+        var offerts = Garde.Offerts(plugin.Catalogue, cle, ids, Familles(cle).Genres.Length);
+        offertsParCle[cle] = offerts;
+        return offerts;
+    }
+
+    /// <summary>
+    /// La barre de la galerie (PLG-R67) : la recherche à gauche, le bouton
+    /// arrondi des filtres à droite, avec le nombre de ceux qui agissent sur la
+    /// collection ouverte. Le reste se règle dans la dialog.
+    /// </summary>
+    private void Barre()
+    {
+        var f = plugin.Reglages.Filtres;
+        var offerts = Offerts(galerieCle);
+        var actifs = Garde.Actifs(f, offerts, galerieCle, Familles(galerieCle).Genres);
+
+        var h = ImGui.GetTextLineHeight() + 10f * E;
+        var lBouton = LargeurBoutonFiltres(actifs, h);
+        var large = ImGui.GetContentRegionAvail().X;
+        ImGui.SetNextItemWidth(MathF.Max(120f * E, large - lBouton - 10f * E));
+        ImGui.InputTextWithHint("##recherche", Mots.GalerieRechercher, ref galerieRecherche, 64);
+        ImGui.SameLine(0, 10f * E);
+        if (BoutonFiltres(actifs, lBouton, h)) ImGui.OpenPopup(DialogFiltres);
+        Dialog(f, offerts);
+        ImGui.Dummy(new Vector2(0, 2f * E));
+    }
+
+    private static float LargeurBadge(int actifs, float h) =>
+        MathF.Max(h - 8f * E, Texte.Mesurer(actifs.ToString()).X + 10f * E);
+
+    private static float LargeurBoutonFiltres(int actifs, float h) =>
+        Texte.Mesurer(Mots.Filtres).X + 26f * E + (actifs > 0 ? LargeurBadge(actifs, h) + 6f * E : 0f);
+
+    /// <summary>Le bouton des filtres : une pilule, dorée quand un filtre
+    /// agit, avec son badge. Le nombre se redit au survol, en mots.</summary>
+    private static bool BoutonFiltres(int actifs, float l, float h)
+    {
+        var origine = ImGui.GetCursorScreenPos();
+        var g = Pieces.Zone("##filtres", new Vector2(l, h));
+        var dl = ImGui.GetWindowDrawList();
+        var chaud = Mouvement.Survol("##filtres#survol", g.Dessus);
+        var actif = actifs > 0;
+        var fond = actif
+            ? Teintes.Alpha(Teintes.Or, 0.14f)
+            : Teintes.Melanger(Teintes.Surface2, Teintes.Encre, chaud * 0.08f);
+        var bord = actif ? Teintes.Alpha(Teintes.Or, 0.42f) : Teintes.Filet;
+        var fin = origine + new Vector2(l, h);
+        Peinture.Plein(dl, origine, fin, fond, h * 0.5f);
+        Peinture.Contour(dl, origine, fin, bord, h * 0.5f);
+        var t = Texte.Mesurer(Mots.Filtres);
+        var x = origine.X + 13f * E;
+        Texte.A(Mots.Filtres, new Vector2(x, origine.Y + (h - t.Y) * 0.5f), actif ? Teintes.Or : Teintes.Encre2);
+        if (actif)
         {
-            (Vue.Tout, Mots.GalerieTout),
-            (Vue.Manquants, Mots.GalerieManquants),
-            (Vue.AMoi, Mots.GalerieAMoi),
-        };
-        for (var i = 0; i < choix.Length; i++)
+            var hb = h - 8f * E;
+            var lb = LargeurBadge(actifs, h);
+            var a = new Vector2(x + t.X + 6f * E, origine.Y + 4f * E);
+            Peinture.Plein(dl, a, a + new Vector2(lb, hb), Teintes.Or, hb * 0.5f);
+            Texte.Milieu(actifs.ToString(), a, a + new Vector2(lb, hb), Teintes.SurOr);
+            Pieces.Infobulle(Mots.FiltresActifs(actifs));
+        }
+        return g.Clic;
+    }
+
+    /// <summary>
+    /// La dialog des filtres (PLG-R67) : les filtres communs que la collection
+    /// propose, puis ceux de la galerie. Chaque changement s'applique et se
+    /// garde aussitôt ; Réinitialiser remet ce qui est proposé, et vide la
+    /// recherche.
+    /// </summary>
+    private void Dialog(FiltresGalerie f, HashSet<string> offerts)
+    {
+        var cle = galerieCle;
+        ImGui.SetNextWindowSize(new Vector2(470f * E, 0f), ImGuiCond.Always);
+        var ouvert = true;
+        if (!ImGui.BeginPopupModal($"{Mots.Filtres}{DialogFiltres}", ref ouvert,
+                ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoResize))
+            return;
+        if (ImGui.IsKeyPressed(ImGuiKey.Escape)) ImGui.CloseCurrentPopup();
+
+        var change = false;
+        ImGui.TextColored(Teintes.Discret, Mots.FiltresNote);
+
+        Partie(Mots.FiltresCommuns);
+        if (offerts.Contains(Garde.Possession) && Choix("##possession", Mots.FiltresPossession, f.Possession,
+                [("tout", Mots.FiltresTout), ("possedes", Mots.FiltresPossedes), ("manquants", Mots.FiltresManquants)],
+                out var possession))
+        {
+            f.Possession = possession;
+            change = true;
+        }
+        if (offerts.Contains(Garde.Echange) && Choix("##echange", Mots.FiltresEchange, f.Echange,
+                [("tout", Mots.FiltresTout), ("echangeables", Mots.FiltresEchangeables),
+                    ("non-echangeables", Mots.FiltresNonEchangeables)],
+                out var echange))
+        {
+            f.Echange = echange;
+            change = true;
+        }
+        if (offerts.Contains(Garde.Extension))
+        {
+            NomDeFiltre(Mots.FiltresExtension);
+            var index = f.Extension is { } x ? Array.FindIndex(Garde.Extensions, y => y.Majeur == x) + 1 : 0;
+            var liste = Mots.FiltresToutesExtensions + "\0"
+                + string.Join("\0", Garde.Extensions.Select(y => y.Nom)) + "\0";
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.Combo("##extension", ref index, liste))
+            {
+                f.Extension = index <= 0 ? null : Garde.Extensions[index - 1].Majeur;
+                change = true;
+            }
+        }
+        var exclusions = Garde.Motifs.Where(offerts.Contains).ToArray();
+        if (exclusions.Length > 0)
+        {
+            NomDeFiltre(Mots.FiltresExclure);
+            var ecart = 5f * E;
+            var large = ImGui.GetContentRegionAvail().X;
+            var place = 0f;
+            foreach (var m in exclusions)
+            {
+                var texte = Mots.Exclusion(m);
+                var l = Texte.Mesurer(texte).X + 22f * E;
+                if (place > 0f && place + l <= large) ImGui.SameLine(0, ecart);
+                else place = 0f;
+                place += l + ecart;
+                var exclu = f.Exclure.Contains(m);
+                if (Pilule($"##exclure-{m}", texte, exclu))
+                {
+                    if (exclu) f.Exclure.Remove(m);
+                    else f.Exclure.Add(m);
+                    Garde.Normaliser(f);
+                    change = true;
+                }
+            }
+            ImGui.PushTextWrapPos(0f);
+            ImGui.TextColored(Teintes.Discret, Mots.FiltresExclureNote);
+            ImGui.PopTextWrapPos();
+        }
+
+        if (offerts.Contains(Garde.Source))
+        {
+            Partie(Mots.FiltresEcran);
+            var (genres, liste) = Familles(cle);
+            NomDeFiltre(Mots.FiltresSource);
+            var index = f.Source.TryGetValue(cle, out var genre) ? Array.IndexOf(genres, genre) + 1 : 0;
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.Combo("##source", ref index, liste))
+            {
+                if (index <= 0) f.Source.Remove(cle);
+                else f.Source[cle] = genres[index - 1];
+                change = true;
+            }
+        }
+
+        ImGui.Dummy(new Vector2(0, 8f * E));
+        if (Pieces.BoutonFantome("##filtres-reinit", Mots.FiltresReinitialiser, 0f, true, 30f))
+        {
+            Garde.Reinitialiser(f, offerts, cle);
+            galerieRecherche = string.Empty;
+            change = true;
+        }
+        ImGui.SameLine(0, 8f * E);
+        if (Pieces.BoutonFantome("##filtres-fermer", Mots.GalerieFermer, 0f, true, 30f))
+            ImGui.CloseCurrentPopup();
+
+        if (change)
+        {
+            versionFiltres++;
+            plugin.Enregistrer();
+        }
+        ImGui.EndPopup();
+    }
+
+    /// <summary>Le titre d'une partie de la dialog, en or.</summary>
+    private static void Partie(string titre)
+    {
+        ImGui.Dummy(new Vector2(0, 6f * E));
+        ImGui.TextColored(Teintes.Or, titre.ToUpperInvariant());
+        ImGui.Separator();
+    }
+
+    private static void NomDeFiltre(string nom)
+    {
+        ImGui.Dummy(new Vector2(0, 2f * E));
+        ImGui.TextColored(Teintes.Encre2, nom);
+    }
+
+    /// <summary>Une rangée de pilules dont une seule est choisie. Rend vrai et
+    /// la nouvelle valeur quand le choix change.</summary>
+    private static bool Choix(
+        string id, string nom, string valeur, (string Valeur, string Nom)[] options, out string choisi)
+    {
+        choisi = valeur;
+        NomDeFiltre(nom);
+        var change = false;
+        for (var i = 0; i < options.Length; i++)
         {
             if (i > 0) ImGui.SameLine(0, 5f * E);
-            var (v, nom) = choix[i];
-            if (Pilule($"##vue-{i}", nom, galerieVue == v)) galerieVue = v;
+            var (v, texte) = options[i];
+            if (Pilule($"{id}-{i}", texte, valeur == v) && valeur != v)
+            {
+                choisi = v;
+                change = true;
+            }
         }
-        // L'obtenable se cumule avec les trois autres : « ce qui me manque et
-        // que je peux encore avoir » est la question qu'on se pose vraiment.
-        ImGui.SameLine(0, 12f * E);
-        if (Pilule("##obtenables", Mots.GalerieObtenables, galerieObtenables))
-            galerieObtenables = !galerieObtenables;
-
-        ImGui.Dummy(new Vector2(0, 1f * E));
-
-        // La recherche et la façon d'obtenir, sur une seconde ligne. Les
-        // façons d'obtenir sont celles qu'on trouve dans la collection ouverte,
-        // pas la liste de toutes celles qui existent.
-        var large = ImGui.GetContentRegionAvail().X;
-        var moitie = MathF.Max(120f * E, (large - 8f * E) * 0.5f);
-        ImGui.SetNextItemWidth(moitie);
-        ImGui.InputTextWithHint("##recherche", Mots.GalerieRechercher, ref galerieRecherche, 64);
-
-        var (genres, liste) = Familles(galerieCle);
-        if (genres.Length > 0)
-        {
-            ImGui.SameLine(0, 8f * E);
-            var index = Math.Max(0, Array.IndexOf(genres, galerieFamille) + 1);
-            ImGui.SetNextItemWidth(large - moitie - 8f * E);
-            if (ImGui.Combo("##famille", ref index, liste))
-                galerieFamille = index <= 0 ? string.Empty : genres[index - 1];
-        }
-        ImGui.Dummy(new Vector2(0, 2f * E));
+        return change;
     }
 
     /// <summary>Les façons d'obtenir présentes dans une collection, gardées par
@@ -1067,32 +1241,25 @@ public sealed class Fenetre : Window, IDisposable
     /// <summary>La liste filtrée, gardée d'une image sur l'autre : six mille
     /// pièces de tenue se trient vite, mais pas soixante fois par seconde.</summary>
     private List<Entree> filtrees = [];
-    private (string Cle, Vue Vue, int Mien, int Total, bool Obtenables, string Famille, string Recherche) filtre =
-        (string.Empty, Vue.Tout, -1, -1, false, string.Empty, string.Empty);
+    private (string Cle, int Version, int Mien, int Total, string Recherche) filtre =
+        (string.Empty, -1, -1, -1, string.Empty);
 
     private List<Entree> Filtrer(List<Entree> entrees, HashSet<uint> mien)
     {
-        var clef = (galerieCle, galerieVue, mien.Count, entrees.Count, galerieObtenables, galerieFamille, galerieRecherche);
+        var clef = (galerieCle, versionFiltres, mien.Count, entrees.Count, galerieRecherche);
         if (filtre == clef) return filtrees;
 
         var cat = plugin.Catalogue;
+        var reglages = plugin.Reglages.Filtres;
+        var offerts = Offerts(galerieCle);
         var cherche = Plat(galerieRecherche.Trim());
-        var parDetail = galerieObtenables || galerieFamille.Length > 0;
 
         var sortie = new List<Entree>(entrees.Count);
         foreach (var x in entrees)
         {
-            var aMoi = mien.Contains(x.Id);
-            if (galerieVue == Vue.Manquants && aMoi) continue;
-            if (galerieVue == Vue.AMoi && !aMoi) continue;
             if (cherche.Length > 0 && !Plat(x.Nom).Contains(cherche)) continue;
-            if (parDetail)
-            {
-                var d = cat?.Detail(galerieCle, plugin.NumeroCatalogue(galerieCle, x.Id));
-                if (galerieObtenables && d?.Inobtenable == true
-                    && cat!.EvenementVivant(galerieCle, plugin.NumeroCatalogue(galerieCle, x.Id)) is null) continue;
-                if (galerieFamille.Length > 0 && (d is null || !d.Sources.Any(s => s.Genre == galerieFamille))) continue;
-            }
+            var numero = plugin.NumeroCatalogue(galerieCle, x.Id);
+            if (!Garde.Garder(reglages, offerts, cat, galerieCle, numero, mien.Contains(x.Id))) continue;
             sortie.Add(x);
         }
         filtrees = sortie;
@@ -1115,7 +1282,16 @@ public sealed class Fenetre : Window, IDisposable
         var visibles = Filtrer(entrees, mien);
         if (visibles.Count == 0)
         {
-            ImGui.TextColored(Teintes.Discret, Mots.RienDeNeuf);
+            // Une grille que les filtres ont vidée le dit, avec le geste qui
+            // les remet.
+            ImGui.TextColored(Teintes.Discret, Mots.GalerieAucune);
+            if (entrees.Count > 0 && Pieces.BoutonFantome("##vide-reinit", Mots.FiltresReinitialiser, 0f, true, 30f))
+            {
+                Garde.Reinitialiser(plugin.Reglages.Filtres, Offerts(galerieCle), galerieCle);
+                galerieRecherche = string.Empty;
+                versionFiltres++;
+                plugin.Enregistrer();
+            }
             return;
         }
 
@@ -1489,30 +1665,6 @@ public sealed class Fenetre : Window, IDisposable
             {
                 r.SyncAuto = auto;
                 plugin.Enregistrer();
-            }
-        });
-
-        CarteTitree(Mots.InobtenablesTitre, Mots.InobtenablesExplique, null, () =>
-        {
-            var cacher = r.CacherInobtenables;
-            if (Pieces.Interrupteur("##inobtenables", ref cacher))
-            {
-                r.CacherInobtenables = cacher;
-                plugin.Enregistrer();
-                plugin.OublierGalerie();
-            }
-        });
-
-        CarteTitree(Mots.BoutiqueTitre, Mots.BoutiqueExplique, null, () =>
-        {
-            var cacher = r.CacherBoutique;
-            if (Pieces.Interrupteur("##boutique", ref cacher))
-            {
-                r.CacherBoutique = cacher;
-                plugin.Enregistrer();
-                // Les listes gardees ne valent plus : elles ont ete triees
-                // avec l'ancien reglage.
-                plugin.OublierGalerie();
             }
         });
 

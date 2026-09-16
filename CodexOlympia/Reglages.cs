@@ -12,7 +12,9 @@ namespace CodexOlympia;
 /// </summary>
 public sealed class Reglages : IPluginConfiguration
 {
-    public int Version { get; set; } = 1;
+    /// <summary>2 depuis les filtres de la galerie (PLG-R67) : une
+    /// configuration plus ancienne passe par <see cref="Passer"/>.</summary>
+    public int Version { get; set; } = 2;
 
     /// <summary>
     /// Un jeton par personnage, retenu par identifiant de sauvegarde.
@@ -42,16 +44,36 @@ public sealed class Reglages : IPluginConfiguration
     /// </summary>
     public bool SyncAuto { get; set; }
 
-    /// <summary>Masquer, dans la galerie, ce qui ne s'obtient qu'en boutique en
-    /// ligne. Ces entrées comptent comme les autres pour l'application ; c'est
-    /// leur présence à l'écran que le joueur choisit.</summary>
+    /// <summary>Les filtres de la galerie (PLG-R67), gardés d'une session à
+    /// l'autre, ici et jamais dans le compte.</summary>
+    public FiltresGalerie Filtres { get; set; } = new();
+
+    /// <summary>L'ancien réglage qui cachait la boutique, lu une fois pour son
+    /// passage vers l'exclusion de la boutique.</summary>
     public bool CacherBoutique { get; set; }
 
-    /// <summary>Masquer, dans la galerie, ce qui ne s'obtient plus : les
-    /// montures d'avant la refonte, les récompenses de saisons JcJ passées, les
-    /// fêtes d'il y a dix ans. Elles comptent pour l'application ; c'est leur
-    /// présence à l'écran que le joueur choisit.</summary>
+    /// <summary>L'ancien réglage qui cachait ce qui ne s'obtient plus, lu une
+    /// fois pour son passage vers l'exclusion du limité.</summary>
     public bool CacherInobtenables { get; set; }
+
+    /// <summary>
+    /// Remet la configuration relue à la forme du jour. Qui cachait la boutique
+    /// ou ce qui ne s'obtient plus retrouve les exclusions correspondantes
+    /// (PLG-R67). Rend vrai quand quelque chose a changé et mérite d'être écrit.
+    /// </summary>
+    public bool Passer()
+    {
+        Filtres ??= new FiltresGalerie();
+        Garde.Normaliser(Filtres);
+        if (Version >= 2) return false;
+        if (CacherBoutique) Filtres.Exclure.Add("boutique");
+        if (CacherInobtenables) Filtres.Exclure.Add("limite");
+        Garde.Normaliser(Filtres);
+        CacherBoutique = false;
+        CacherInobtenables = false;
+        Version = 2;
+        return true;
+    }
 
     /// <summary>
     /// Ce que le plugin a envoyé en dernier, par personnage puis par collection.

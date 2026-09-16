@@ -32,7 +32,10 @@ public sealed record Detail(
     bool Inobtenable,
     string NoticeFr,
     string NoticeEn,
-    IReadOnlyList<Source> Sources)
+    IReadOnlyList<Source> Sources,
+    /// <summary>L'objet s'échange entre joueurs : le filtre d'échange de la
+    /// galerie le lit (PLG-R67).</summary>
+    bool Echangeable = false)
 {
     /// <summary>La notice de l'objet, dans la langue de la fenêtre.</summary>
     public string Notice
@@ -162,6 +165,15 @@ public sealed class Catalogue
     /// <summary>Vrai si cette entrée compte sur la base du classement. Une
     /// collection que la base ne connaît pas n'écarte rien.</summary>
     public bool DansLaBase(string cle, uint id) => !HorsBase.TryGetValue(cle, out var hors) || !hors.Contains(id);
+
+    /// <summary>Chaque motif de la base, et toutes les entrées qu'il touche,
+    /// par collection : une exclusion de la galerie s'applique seule, sans
+    /// dépendre des autres (PLG-R67).</summary>
+    public Dictionary<string, Dictionary<string, HashSet<uint>>> Motifs { get; } = new();
+
+    /// <summary>Vrai si ce motif de la base touche cette entrée.</summary>
+    public bool Touche(string cle, string motif, uint id) =>
+        Motifs.TryGetValue(cle, out var parMotif) && parMotif.TryGetValue(motif, out var ids) && ids.Contains(id);
 
     /// <summary>Les identifiants du catalogue, par collection, dans son ordre.</summary>
     public Dictionary<string, uint[]> Ids { get; } = new();
@@ -413,6 +425,7 @@ public sealed class Catalogue
                 catch
                 {
                     cat.HorsBase.Clear();
+                    cat.Motifs.Clear();
                 }
             }
         }
@@ -442,24 +455,44 @@ public sealed class Catalogue
     }
 
     /// <summary>Lit la base du classement : pour chaque collection, les
-    /// identifiants écartés, tous motifs confondus.</summary>
+    /// identifiants écartés, tous motifs confondus, et chaque motif avec toutes
+    /// les entrées qu'il touche.</summary>
     private void LireBase(string texte)
     {
         using var doc = JsonDocument.Parse(texte);
         HorsBase.Clear();
+        Motifs.Clear();
         if (!doc.RootElement.TryGetProperty("collections", out var jc) || jc.ValueKind != JsonValueKind.Object) return;
         foreach (var c in jc.EnumerateObject())
         {
-            if (!c.Value.TryGetProperty("exclus", out var je) || je.ValueKind != JsonValueKind.Object) continue;
-            var hors = new HashSet<uint>();
-            foreach (var motif in je.EnumerateObject())
+            if (c.Value.TryGetProperty("exclus", out var je) && je.ValueKind == JsonValueKind.Object)
             {
-                if (motif.Value.ValueKind != JsonValueKind.Array) continue;
-                foreach (var id in motif.Value.EnumerateArray())
-                    if (id.ValueKind == JsonValueKind.Number && id.TryGetUInt32(out var n)) hors.Add(n);
+                var hors = new HashSet<uint>();
+                foreach (var motif in je.EnumerateObject())
+                    hors.UnionWith(Identifiants(motif.Value));
+                if (hors.Count > 0) HorsBase[c.Name] = hors;
             }
-            if (hors.Count > 0) HorsBase[c.Name] = hors;
+            if (c.Value.TryGetProperty("motifs", out var jm) && jm.ValueKind == JsonValueKind.Object)
+            {
+                var parMotif = new Dictionary<string, HashSet<uint>>();
+                foreach (var motif in jm.EnumerateObject())
+                {
+                    var ids = Identifiants(motif.Value);
+                    if (ids.Count > 0) parMotif[motif.Name] = ids;
+                }
+                if (parMotif.Count > 0) Motifs[c.Name] = parMotif;
+            }
         }
+    }
+
+    /// <summary>Les nombres d'une liste JSON ; rien si ce n'en est pas une.</summary>
+    private static HashSet<uint> Identifiants(JsonElement liste)
+    {
+        var ids = new HashSet<uint>();
+        if (liste.ValueKind != JsonValueKind.Array) return ids;
+        foreach (var id in liste.EnumerateArray())
+            if (id.ValueKind == JsonValueKind.Number && id.TryGetUInt32(out var n)) ids.Add(n);
+        return ids;
     }
 
     /// <summary>Un champ texte, vide plutôt qu'absent : un nom manquant ne doit
@@ -656,8 +689,10 @@ public sealed class Catalogue
         }
         var inobtenable = e.TryGetProperty("unobtainable", out var ju)
             && ju.ValueKind == JsonValueKind.True;
+        var echangeable = e.TryGetProperty("tradeable", out var jt)
+            && jt.ValueKind == JsonValueKind.True;
         return new Detail(
             Texte(e, "patch"), inobtenable,
-            Texte(e, "description"), Texte(e, "descriptionEn"), sources);
+            Texte(e, "description"), Texte(e, "descriptionEn"), sources, echangeable);
     }
 }

@@ -220,11 +220,44 @@ public static class Mots
 
     // ------------------------------------------------------------- la galerie
 
-    public static string GalerieTout => D("Tout", "All");
-    public static string GalerieManquants => D("Manquants", "Missing");
-    public static string GalerieAMoi => D("À moi", "Mine");
-    public static string GalerieObtenables => D("Obtenables", "Obtainable");
     public static string GalerieRechercher => D("Rechercher…", "Search…");
+    public static string GalerieAucune => D(
+        "Aucune entrée ne correspond à ces filtres.",
+        "No entry matches these filters.");
+
+    // ------------------------------------------------ les filtres (PLG-R67)
+
+    public static string Filtres => D("Filtres", "Filters");
+    public static string FiltresActifs(int n) => n == 1
+        ? D("Un filtre agit sur cette collection", "One filter applies to this collection")
+        : D($"{n} filtres agissent sur cette collection", $"{n} filters apply to this collection");
+    public static string FiltresNote => D(
+        "Les filtres changent ce que la grille montre, jamais les compteurs.",
+        "Filters change what the grid shows, never the counters.");
+    public static string FiltresCommuns => D("Pour tous les écrans", "On every screen");
+    public static string FiltresEcran => D("Sur cet écran", "On this screen");
+    public static string FiltresPossession => D("Possession", "Ownership");
+    public static string FiltresTout => D("Tout", "All");
+    public static string FiltresPossedes => D("Possédés", "Owned");
+    public static string FiltresManquants => D("Manquants", "Missing");
+    public static string FiltresEchange => D("Échange", "Trading");
+    public static string FiltresEchangeables => D("Échangeables", "Tradeable");
+    public static string FiltresNonEchangeables => D("Non échangeables", "Not tradeable");
+    public static string FiltresExtension => D("Extension", "Expansion");
+    public static string FiltresToutesExtensions => D("Toutes les extensions", "All expansions");
+    public static string FiltresExclure => D("Exclure", "Exclude");
+    public static string Exclusion(string motif) => motif switch
+    {
+        "boutique" => D("La boutique en ligne", "The online store"),
+        "limite" => D("Ce qui est limité dans le temps", "Time-limited items"),
+        "classe" => D("Le JcJ classé", "Ranked PvP"),
+        _ => D("La provenance inconnue", "Unknown sources"),
+    };
+    public static string FiltresExclureNote => D(
+        "Ce que tu possèdes reste, et ce qu'un événement en cours donne aussi.",
+        "What you own stays, and so does what a running event gives.");
+    public static string FiltresSource => D("Façon d'obtenir", "How to get it");
+    public static string FiltresReinitialiser => D("Réinitialiser les filtres", "Reset the filters");
     public static string GalerieToutesSources => D("Toutes les sources", "All sources");
     public static string GalerieVide => D(
         "Rien à montrer ici. Regarde d'abord ce que tu as, depuis la page de synchronisation.",
@@ -252,22 +285,6 @@ public static class Mots
     public static string GalerieJusquauPatch(string nom, string patch) =>
         D($"{nom}, jusqu'au patch {patch}", $"{nom}, until patch {patch}");
     public static string GalerieFermer => D("Fermer", "Close");
-    public static string InobtenablesTitre => D(
-        "Masquer ce qui ne s'obtient plus",
-        "Hide what can no longer be obtained");
-    public static string InobtenablesExplique => D(
-        "Les montures d'avant la refonte, les récompenses des saisons JcJ passées, "
-        + "les fêtes d'il y a dix ans : la galerie les laisse de côté, et les compteurs suivent.",
-        "Legacy mounts, rewards from past PvP seasons, events from ten years ago: "
-        + "the gallery leaves them out, and the counters follow.");
-    public static string BoutiqueTitre => D(
-        "Masquer la boutique en ligne",
-        "Hide online store items");
-    public static string BoutiqueExplique => D(
-        "La galerie laisse de côté ce qui ne s'obtient qu'en boutique. "
-        + "Les compteurs suivent, et l'application continue de tout suivre.",
-        "The gallery leaves out what can only be bought from the store. "
-        + "The counters follow, and the app still tracks everything.");
     public static string GaleriePieces(int n) => n == 1
         ? D("Une pièce", "One piece")
         : D($"{n} pièces", $"{n} pieces");

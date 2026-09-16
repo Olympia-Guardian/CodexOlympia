@@ -72,44 +72,16 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly Dictionary<string, VueGalerie> vues = new();
 
     /// <summary>
-    /// Ce que la galerie a à montrer pour une collection.
-    ///
-    /// Un joueur peut demander à ne pas voir ce qui ne s'obtient qu'en boutique
-    /// en ligne. Le tri se fait ici, une fois par collection et par lecture,
-    /// pour que la grille et le compteur disent la même chose : un compteur qui
-    /// annonce plus d'entrées que la grille n'en dessine est un compteur faux.
+    /// Ce que la galerie a à montrer pour une collection : tout ce qui existe,
+    /// et ce que le joueur en possède. Les filtres n'y touchent pas : la
+    /// rangée, le pied et les tuiles comptent la collection, et seule la
+    /// grille suit les filtres (PLG-R67).
     /// </summary>
     public VueGalerie Vue(string cle)
     {
         if (vues.TryGetValue(cle, out var deja)) return deja;
-
         var toutes = Tables.TryGetValue(cle, out var l) ? l : [];
-        var mien = GalerieAMoi(cle) ?? DepuisReleve(cle);
-
-        // Deux reglages ecartent des entrees, la boutique et l'inobtenable ; le
-        // tri est le meme, et les compteurs le suivent.
-        var sansBoutique = Reglages.CacherBoutique;
-        var sansInobtenable = Reglages.CacherInobtenables;
-        VueGalerie vue;
-        if ((!sansBoutique && !sansInobtenable) || Catalogue is not { } cat)
-        {
-            vue = new VueGalerie(toutes, mien);
-        }
-        else
-        {
-            var gardees = new List<Entree>(toutes.Count);
-            var aMoi = new HashSet<uint>();
-            foreach (var x in toutes)
-            {
-                var d = cat.Detail(cle, NumeroCatalogue(cle, x.Id));
-                if (sansBoutique && d?.Boutique == true) continue;
-                if (sansInobtenable && d?.Inobtenable == true && cat.EvenementVivant(cle, NumeroCatalogue(cle, x.Id)) is null) continue;
-                gardees.Add(x);
-                if (mien.Contains(x.Id)) aMoi.Add(x.Id);
-            }
-            vue = new VueGalerie(gardees, aMoi);
-        }
-
+        var vue = new VueGalerie(toutes, GalerieAMoi(cle) ?? DepuisReleve(cle));
         vues[cle] = vue;
         return vue;
     }
@@ -401,6 +373,8 @@ public sealed partial class Plugin : IDalamudPlugin
         this.cadre = cadre;
 
         Reglages = pi.GetPluginConfig() as Reglages ?? new Reglages();
+        // Une configuration d'avant les filtres passe à la forme du jour (PLG-R67).
+        if (Reglages.Passer()) pi.SavePluginConfig(Reglages);
         Mots.Choisir(Reglages.Langue, etat.ClientLanguage);
         MoinsDeMouvement = pi.UiBuilder.ShouldUseReducedMotion;
 
