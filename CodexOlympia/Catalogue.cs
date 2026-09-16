@@ -413,9 +413,12 @@ public sealed class Catalogue
         }
 
         // La base du classement, publiée avec les catalogues. Absente, rien
-        // n'est écarté : les tuiles comptent tout, comme avant.
+        // n'est écarté : les tuiles comptent tout, comme avant. Elle se
+        // redemande à chaque chargement, comme la déclaration : elle est petite,
+        // et un exemplaire gardé d'avant les motifs laissait la galerie sans
+        // aucune exclusion tant que la date du catalogue ne bougeait pas.
         {
-            var texte = await LireOuTelecharger(http, racine, cache, "perimetre.json", perime);
+            var texte = await LireOuTelecharger(http, racine, cache, "perimetre.json", true);
             if (texte is not null)
             {
                 try
