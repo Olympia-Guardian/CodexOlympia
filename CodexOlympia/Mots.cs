@@ -113,13 +113,8 @@ public static class Mots
 
     public static string CatalogueAbsent => D("catalogue absent", "catalogue missing");
     public static string BestiaireNonCharge => D(
-        "le jeu n'a pas chargé le bestiaire : connecte un personnage, puis regarde à nouveau",
-        "the game has not loaded the bestiary: log in a character, then look again");
-    public static string BestiaireFormeInattendue => D(
-        "le bestiaire du jeu n'a pas la forme attendue, sans doute depuis un patch : rien n'est envoyé. " +
-        "/codex bestiaire écrit le détail dans le journal Dalamud.",
-        "the game's bestiary does not have the expected shape, probably since a patch: nothing is sent. " +
-        "/codex bestiaire writes the details to the Dalamud log.");
+        "le jeu n'a pas encore reçu la liste de tes bêtes : ouvre ton bestiaire une fois, puis regarde à nouveau",
+        "the game has not received your list of beasts yet: open your bestiary once, then look again");
     public static string BestiaireLu(int trouves, int total, string noms) => D(
         $"bestiaire : {trouves} bêtes lues sur {total}" + (noms.Length > 0 ? $" : {noms}" : "") +
         ". Le détail est dans le journal Dalamud (/xllog).",

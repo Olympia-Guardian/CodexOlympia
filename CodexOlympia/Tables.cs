@@ -107,20 +107,25 @@ public static class Tables
             return nom.Length == 0 ? null : new Entree(r.RowId, nom, action?.Icon ?? 0);
         });
 
-        // Le bestiaire du dresseur. Le schéma public ne nomme pas encore les
-        // colonnes de sa table : la quatrième porte l'icône, la cinquième le
-        // numéro de la bête dans la feuille des familiers, qui a son nom. Ce nom
-        // est un nom commun, que le jeu écrit en minuscule ; la galerie le montre
-        // seul, avec sa capitale.
+        // Le bestiaire du dresseur : l'icône de chaque bête, et son numéro dans
+        // la feuille des familiers, qui a son nom. Ce nom est un nom commun, que
+        // le jeu écrit en minuscule ; la galerie le montre seul, avec sa
+        // capitale. La 7.56 a ajouté cinq colonnes à la table, et la description
+        // stable de Lumina.Excel est restée celle de la 7.5 : le client la
+        // refuse. La description expérimentale, livrée dans le même Lumina.Excel,
+        // a la bonne empreinte. Si elle se désaccorde à son tour, le catalogue
+        // complète (Completer).
         var familiers = Feuille<Pet>(donnees, journal);
         if (familiers is not null)
         {
-            Poser(sortie, journal, "beastmaster", Feuille<XBMPet>(donnees, journal), r =>
+#pragma warning disable PendingExcelSchema
+            Poser(sortie, journal, "beastmaster", Feuille<Lumina.Excel.Sheets.Experimental.XBMPet>(donnees, journal), r =>
             {
-                if (r.Unknown4 <= 0) return null;
-                var nom = familiers.GetRowOrDefault((uint)r.Unknown4)?.Name.ExtractText() ?? string.Empty;
-                return nom.Length == 0 ? null : new Entree(r.RowId, Majuscule(nom), r.Unknown3);
+                if (r.Pet.RowId == 0) return null;
+                var nom = familiers.GetRowOrDefault(r.Pet.RowId)?.Name.ExtractText() ?? string.Empty;
+                return nom.Length == 0 ? null : new Entree(r.RowId, Majuscule(nom), r.Icon);
             });
+#pragma warning restore PendingExcelSchema
         }
 
         // Les lunettes : la table en compte une ligne par teinte, douze par
@@ -216,10 +221,10 @@ public static class Tables
     /// <summary>
     /// Ce que le catalogue ajoute à la galerie une fois chargé.
     ///
-    /// Le bestiaire du dresseur y passe : sa table est décrite dans Lumina d'une
-    /// façon que le client ne reconnaît plus, et la demander échoue. Le catalogue
-    /// en connaît les cinquante entrées, avec le même numéro que le jeu, et leur
-    /// icône se déduit de ce numéro.
+    /// Le bestiaire du dresseur y passe quand sa table ne se lit pas : un patch
+    /// suffit à désaccorder sa description dans Lumina, et la demander échoue.
+    /// Le catalogue en connaît les cinquante entrées, avec le même numéro que le
+    /// jeu, et leur icône se déduit de ce numéro.
     /// </summary>
     public static IReadOnlyDictionary<string, List<Entree>> Completer(
         IReadOnlyDictionary<string, List<Entree>> deja, Catalogue cat)

@@ -2,8 +2,8 @@ using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.Exd;
-using FFXIVClientStructs.STD;
 using Lumina.Excel.Sheets;
 
 namespace CodexOlympia;
@@ -90,6 +90,10 @@ public static class Photo
     public static readonly (string Etape, string[] Fenetres)[] RelireALOuverture =
     [
         ("frames", ["BannerEditor", "CharaCardEditMenu", "CharaCardDesignSetting"]),
+        // Le bestiaire, lui, reste connu une fois reçu : on le relit à
+        // l'ouverture de sa fenêtre au cas où le serveur n'enverrait sa liste
+        // qu'à ce moment-là.
+        ("beastmaster", ["XBMMonsterNotebook"]),
     ];
 
     /// <summary>Les étapes qui lisent ce qu'une autre a trouvé : les pièces de
@@ -372,15 +376,12 @@ public static class Photo
 
             case "beastmaster":
             {
-                // Le bestiaire ne se demande pas bete par bete : le module tient
-                // la liste de ce qui est enregistre. Pas charge, on ne conclut
-                // rien plutot que de montrer tout manquant.
-                var octets = OctetsBestiaire();
-                if (octets is null) return null;
-                var notes = EntreesBestiaire(octets);
-                if (notes is null) return null;
+                // La liste du serveur dit ce qui est capture. Pas recue, on ne
+                // conclut rien plutot que de montrer tout manquant.
+                var capturees = BetesCapturees(entrees.Select(x => x.Id));
+                if (capturees is null) return null;
                 foreach (var x in entrees)
-                    if (notes.Contains(x.Id)) vus.Add(x.Id);
+                    if (capturees.Contains(x.Id)) vus.Add(x.Id);
                 return vus;
             }
             default:
@@ -630,139 +631,104 @@ public static class Photo
             complet ? Limite.Aucune : Limite.Capacite);
     }
 
-    /// <summary>Où le module XBMNote range son vecteur : juste après l'en-tête
-    /// commun des fichiers de sauvegarde client (0x48), comme ses deux voisins
-    /// de même taille, MKDSupportJobNote et MKDLore, que FFXIVClientStructs
-    /// décrit.</summary>
-    private const int DecalageVecteurNote = 0x48;
-
-    /// <summary>Une entrée du bestiaire tient sur quatre octets : le numéro de la
-    /// bête (sa ligne dans XBMPet), deux octets dont on ignore le sens (vus à 0,
-    /// 1 et 2, puis toujours 1), et un octet nul.</summary>
-    private const int TailleEntreeNote = 4;
-
     /// <summary>
     /// Le bestiaire du dresseur (7.56).
     ///
-    /// Le jeu le tient dans son module XBMNote, un fichier de sauvegarde client
-    /// comme le carnet des jobs de soutien du Croissant occulte : un en-tête,
-    /// puis un vecteur d'entrées, UNE PAR BÊTE ENREGISTRÉE, dans l'ordre où
-    /// elles sont entrées. Une bête qui n'y figure pas n'a pas été capturée.
-    /// Vérifié le 9 septembre 2026 devant le bestiaire de Vincent : quarante-
-    /// quatre entrées, « 44/50 » à l'écran, les six absentes étant les bêtes
-    /// de donjon et de raid qu'il n'avait pas encore. FFXIVClientStructs ne
-    /// décrit pas ce module ; on lit là où ses voisins rangent leur vecteur.
+    /// Les bêtes capturées se lisent dans la liste que le serveur envoie au
+    /// client, comme Dalamud le fait pour son service des déblocages : le
+    /// gestionnaire du dresseur en tient un bit par bête, et sait dire si elle
+    /// est capturée. Tant que la liste n'est pas reçue, on ne conclut rien.
+    ///
+    /// La première lecture prenait le carnet du bestiaire (XBMNoteModule) pour
+    /// cette liste. Le carnet ne garde que les réglages de la fenêtre : une
+    /// ligne par bête qu'on y a survolée, ou dont on a changé la taille ou
+    /// l'apparence. Une bête capturée jamais survolée y manquait, et une seule
+    /// bête passée en apparence alternative (le quatrième octet de sa ligne, que
+    /// l'on croyait toujours nul) faisait refuser tout le bestiaire. La lecture
+    /// change de façon : ce que l'ancienne avait envoyé ne sert plus de
+    /// référence (PLG-R64).
     /// </summary>
     private static Releve Bestiaire(Catalogue cat)
     {
         const string cle = "beastmaster";
         if (!cat.Ids.TryGetValue(cle, out var ids))
             return new Releve(cle, [], null, 0, Mots.CatalogueAbsent);
-        var octets = OctetsBestiaire();
-        if (octets is null)
-            return new Releve(cle, [], null, ids.Length, Mots.BestiaireNonCharge);
-        var entrees = EntreesBestiaire(octets);
-        // Une forme qui n'est plus celle qu'on connaît (un patch a pu changer
-        // l'entrée) ne donne rien plutôt qu'une collection fausse.
-        if (entrees is null)
-            return new Releve(cle, [], null, ids.Length, Mots.BestiaireFormeInattendue);
-        var trouves = ids.Where(entrees.Contains).ToList();
-        return new Releve(cle, trouves, null, ids.Length);
+        var capturees = BetesCapturees(ids);
+        if (capturees is null)
+            return new Releve(cle, [], null, ids.Length, Mots.BestiaireNonCharge, Maniere: LectureParDalamud);
+        var trouves = ids.Where(capturees.Contains).ToList();
+        return new Releve(cle, trouves, null, ids.Length, Maniere: LectureParDalamud);
     }
 
-    /// <summary>Les numéros des bêtes enregistrées, ou rien si le vecteur n'a
-    /// pas la forme attendue : des entrées de quatre octets, un numéro non nul
-    /// et jamais répété en tête, un octet nul en queue.</summary>
-    private static HashSet<uint>? EntreesBestiaire(byte[] octets)
+    /// <summary>Les bêtes capturées parmi celles-ci, ou rien tant que le
+    /// serveur n'a pas envoyé sa liste. La même question que Dalamud pose dans
+    /// UnlockState.IsXBMPetUnlocked, qui veut une ligne de la table XBMPet,
+    /// celle que sa description stable ne sait plus lire depuis la 7.56.</summary>
+    private static unsafe HashSet<uint>? BetesCapturees(IEnumerable<uint> ids)
     {
-        if (octets.Length % TailleEntreeNote != 0) return null;
-        var ids = new HashSet<uint>();
-        for (var i = 0; i < octets.Length; i += TailleEntreeNote)
-        {
-            var id = octets[i];
-            if (id == 0 || octets[i + 3] != 0 || !ids.Add(id)) return null;
-        }
-        return ids;
+        var ps = PlayerState.Instance();
+        var xbm = XBMManager.Instance();
+        if (ps == null || !ps->IsLoaded || xbm == null || xbm->State != XBMManager.DataState.Received)
+            return null;
+        var vues = new HashSet<uint>();
+        foreach (var id in ids)
+            if (xbm->IsPetUnlocked(id)) vues.Add(id);
+        return vues;
     }
 
-    /// <summary>Le vecteur du module XBMNote, copié. Rien si le jeu ne l'a pas
-    /// chargé (personne de connecté) ou s'il n'a pas la forme attendue.</summary>
-    private static unsafe byte[]? OctetsBestiaire()
-    {
-        var ui = UIModule.Instance();
-        if (ui == null) return null;
-        var module = (byte*)ui->GetXBMNoteModule();
-        if (module == null) return null;
-        var vecteur = (StdVector<byte>*)(module + DecalageVecteurNote);
-        if (vecteur->First == null || vecteur->Last == null || vecteur->Last < vecteur->First) return null;
-        var n = vecteur->Last - vecteur->First;
-        // Cinquante bêtes tiennent dans quelques dizaines d'octets : bien
-        // au-delà, ce n'est pas le vecteur qu'on croit.
-        if (n == 0 || n > 4096) return null;
-        var copie = new byte[n];
-        for (var i = 0; i < n; i++) copie[i] = vecteur->First[i];
-        return copie;
-    }
-
-    /// <summary>Ce que /codex bestiaire écrit dans le journal Dalamud : les
-    /// octets bruts des deux modules du dresseur, puis chaque entrée du vecteur
-    /// décodée, numéro, nom et les deux octets qu'on ne sait pas lire. C'est
-    /// avec ça qu'on vérifie la forme, en jeu, devant le bestiaire.</summary>
+    /// <summary>Ce que /codex bestiaire écrit dans le journal Dalamud : la liste
+    /// du serveur, puis le carnet du bestiaire ligne par ligne, avec la taille
+    /// et l'apparence de chaque bête. Les deux ne disent pas la même chose : le
+    /// carnet n'a que les bêtes survolées ou réglées dans la fenêtre.</summary>
     public static unsafe string DiagnosticBestiaire(Catalogue cat)
     {
-        var ui = UIModule.Instance();
-        if (ui == null) return "UIModule : absent";
         var sb = new System.Text.StringBuilder();
-        var note = (byte*)ui->GetXBMNoteModule();
-        var xbm = (byte*)ui->GetXBMModule();
-        sb.AppendLine("XBMNoteModule (0x60) : " + Hex(note, 0x60));
-        sb.AppendLine("XBMModule (0x88) : " + Hex(xbm, 0x88));
-        var octets = OctetsBestiaire();
-        if (octets is null)
-        {
-            sb.AppendLine("vecteur XBMNote : absent ou vide");
-            return sb.ToString();
-        }
-        sb.AppendLine($"vecteur XBMNote : {octets.Length} octets : {BitConverter.ToString(octets)}");
-        var entrees = EntreesBestiaire(octets);
-        if (entrees is null)
-        {
-            sb.AppendLine("entrées : forme inattendue");
-            return sb.ToString();
-        }
-        sb.AppendLine($"entrées : {entrees.Count}");
-        for (var i = 0; i + TailleEntreeNote <= octets.Length; i += TailleEntreeNote)
-            sb.AppendLine($"  {octets[i],3} {cat.Nom("beastmaster", octets[i])} : {octets[i + 1]} {octets[i + 2]}");
         var ids = cat.Ids.GetValueOrDefault("beastmaster") ?? [];
-        var absentes = ids.Where(id => !entrees.Contains(id)).ToList();
-        sb.AppendLine($"absentes du bestiaire : {absentes.Count} : " +
-                      string.Join(", ", absentes.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
+        var xbm = XBMManager.Instance();
+        if (xbm == null)
+        {
+            sb.AppendLine("XBMManager : absent");
+        }
+        else
+        {
+            sb.AppendLine($"XBMManager : état {xbm->State}, {xbm->NumUnlockedPets} bêtes capturées selon le serveur");
+            var capturees = BetesCapturees(ids);
+            if (capturees is null)
+            {
+                sb.AppendLine("liste du serveur : pas encore reçue");
+            }
+            else
+            {
+                var absentes = ids.Where(id => !capturees.Contains(id)).ToList();
+                sb.AppendLine($"capturées : {capturees.Count} sur {ids.Length}");
+                sb.AppendLine($"absentes : {absentes.Count} : " +
+                              string.Join(", ", absentes.Select(id => $"{id} {cat.Nom("beastmaster", id)}")));
+            }
+        }
+        var note = XBMNoteModule.Instance();
+        if (note == null)
+        {
+            sb.AppendLine("carnet du bestiaire : absent");
+        }
+        else
+        {
+            var lignes = note->PetSettings.AsSpan();
+            sb.AppendLine($"carnet du bestiaire : {lignes.Length} lignes (bêtes survolées ou réglées)");
+            foreach (var s in lignes)
+                sb.AppendLine($"  {s.Id,3} {cat.Nom("beastmaster", s.Id)} : taille {s.Size}, vue {s.IsNewPetSeen}, apparence {s.Mirage}");
+        }
         return sb.ToString();
     }
 
-    /// <summary>Le résumé pour le journal de discussion : les bêtes
-    /// enregistrées, avec leurs noms.</summary>
+    /// <summary>Le résumé pour le journal de discussion : les bêtes capturées,
+    /// avec leurs noms.</summary>
     public static string ResumeBestiaire(Catalogue cat)
     {
-        var octets = OctetsBestiaire();
         var ids = cat.Ids.GetValueOrDefault("beastmaster") ?? [];
-        if (octets is null) return Mots.BestiaireNonCharge;
-        var entrees = EntreesBestiaire(octets);
-        if (entrees is null) return Mots.BestiaireFormeInattendue;
-        var trouves = ids.Where(entrees.Contains).Select(id => cat.Nom("beastmaster", id)).ToList();
-        return Mots.BestiaireLu(trouves.Count, ids.Length, string.Join(", ", trouves));
-    }
-
-    private static unsafe string Hex(byte* p, int n)
-    {
-        if (p == null) return "null";
-        var sb = new System.Text.StringBuilder(n * 3);
-        for (var i = 0; i < n; i++)
-        {
-            if (i > 0 && i % 8 == 0) sb.Append(' ');
-            sb.Append(p[i].ToString("X2"));
-        }
-        return sb.ToString();
+        var capturees = BetesCapturees(ids);
+        if (capturees is null) return Mots.BestiaireNonCharge;
+        var noms = ids.Where(capturees.Contains).Select(id => cat.Nom("beastmaster", id)).ToList();
+        return Mots.BestiaireLu(noms.Count, ids.Length, string.Join(", ", noms));
     }
 
     /// <summary>
