@@ -44,9 +44,10 @@ public static class Tables
     /// couleur d'origine.</summary>
     private const uint PasDeTeinte = 12;
 
-    /// <summary>L'icône commune à tous les courants éthérés : celle que le jeu
-    /// donne au menu des courants (la commande principale 67).</summary>
-    private const uint IconeCourant = 64;
+    /// <summary>L'icône commune à tous les vents éthérés : celle que le jeu
+    /// montre pour un vent reçu en récompense de quête (deuxième ligne des
+    /// autres récompenses), la même qu'au catalogue du site.</summary>
+    private const uint IconeCourant = 60033;
 
     /// <summary>Le premier des cent cinquante-deux courants du terrain dans la
     /// table des noms d'objets. Tous portent ce nom-là, « vent éthéré » dans
