@@ -150,6 +150,20 @@ public static class Tables
                 ? null
                 : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
 
+        // Le carnet d'exploration : une vue par ligne nommée de la table des
+        // vues, sous son numéro dans le carnet en partant de un (sa ligne moins
+        // PremiereVue, plus un), comme au catalogue ; le jeu, lui, range ses
+        // découvertes à partir de zéro. L'icône est celle de la liste du
+        // carnet ; les deux autres colonnes sont l'illustration de la vue,
+        // découverte ou non, en 400 sur 240.
+        Poser(sortie, journal, "sightseeing", Feuille<Adventure>(donnees, journal), r =>
+        {
+            var nom = r.Name.ExtractText();
+            return r.RowId < Photo.PremiereVue || nom.Length == 0
+                ? null
+                : new Entree(r.RowId - Photo.PremiereVue + 1, nom, (uint)Math.Max(r.IconList, 0));
+        });
+
         var objets = Feuille<Item>(donnees, journal);
         if (objets is null) return new Jeu(sortie, ensembles, pieces, armoire);
 

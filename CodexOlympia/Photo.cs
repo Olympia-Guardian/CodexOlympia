@@ -81,6 +81,13 @@ public static class Photo
     /// poisson de la ligne.</summary>
     public const uint PremierHarpon = 20_000;
 
+    /// <summary>La ligne de la première vue dans la table des vues (0x210000).
+    /// Le jeu range ses découvertes à partir d'elle, au bit zéro. Le catalogue
+    /// numérote les vues à partir de un, le serveur refusant le zéro : la vue
+    /// d'id n est la ligne <c>PremiereVue + n - 1</c>, et son bit le
+    /// <c>n - 1</c>.</summary>
+    public const uint PremiereVue = 2_162_688;
+
     /// <summary>La façon de lire des collections que Dalamud sait demander
     /// (PLG-R55). Elles se lisaient par la ligne de l'objet qui les débloque,
     /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
@@ -181,6 +188,9 @@ public static class Photo
 
             case "fish":
                 return [Poissons(cat, ps)];
+
+            case "sightseeing":
+                return [Vues(cat, ps)];
 
             case "achievements":
             {
@@ -402,6 +412,16 @@ public static class Photo
                 if (!ps->IsLoaded) return null;
                 foreach (var x in entrees)
                     if (PoissonPris(ps, x.Id) == true) vus.Add(x.Id);
+                return vus;
+            }
+
+            case "sightseeing":
+            {
+                // Les vues découvertes, la même question que la
+                // synchronisation, avec la même prudence que les poissons.
+                if (!ps->IsLoaded) return null;
+                foreach (var x in entrees)
+                    if (VueDecouverte(ps, x.Id) == true) vus.Add(x.Id);
                 return vus;
             }
             default:
@@ -699,7 +719,7 @@ public static class Photo
     {
         const string cle = "fish";
         if (ps == null || !ps->IsLoaded)
-            return new Releve(cle, [], null, Total(cat, cle), Mots.PoissonsNonCharges);
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
         return ParLigne(cat, cle, id => PoissonPris(ps, id));
     }
 
@@ -714,6 +734,43 @@ public static class Photo
         var rang = harpon ? id - PremierHarpon : id;
         if (rang > int.MaxValue) return null;
         return bits.TryGet((int)rang, out var pris) ? pris : null;
+    }
+
+    /// <summary>
+    /// Le carnet d'exploration : les vues découvertes.
+    ///
+    /// Le jeu tient un bit par vue dans l'état du personnage, au numéro de sa
+    /// ligne dans la table des vues moins PremiereVue. L'id du catalogue est le
+    /// numéro de la vue en partant de un : son bit est l'id moins un. Ce bit
+    /// est l'index que Dalamud passe à IsAdventureComplete, et la fonction du
+    /// jeu ne fait rien d'autre que le lire, sans regarder si l'index tient
+    /// dans la rangée. On lit donc la rangée nous-mêmes, sans signature à
+    /// trouver. Ces bits vivent avec le personnage, carnet fermé compris :
+    /// Dalamud les relit dans son service des déblocages dès que le personnage
+    /// est chargé, sans attendre de fenêtre. Il n'y a donc rien à relire à
+    /// l'ouverture du carnet.
+    ///
+    /// La rangée a la longueur que FFXIVClientStructs lui connaît, trois cent
+    /// quarante bits, autant que la table compte de vues. Une vue plus loin
+    /// (un patch en avance sur cette description) sort de la portée : ni
+    /// découverte ni manquante, jusqu'à ce qu'elle grandisse.
+    /// </summary>
+    private static unsafe Releve Vues(Catalogue cat, PlayerState* ps)
+    {
+        const string cle = "sightseeing";
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
+        return ParLigne(cat, cle, id => VueDecouverte(ps, id));
+    }
+
+    /// <summary>Vrai si cette vue est découverte, faux si elle ne l'est pas,
+    /// rien quand la rangée de bits ne va pas jusqu'à elle ou pour l'id zéro,
+    /// qui n'est aucune vue. Le bit est l'id moins un. TryGet et jamais Get,
+    /// pour la même raison que les poissons.</summary>
+    private static unsafe bool? VueDecouverte(PlayerState* ps, uint id)
+    {
+        if (id == 0 || id - 1 > int.MaxValue) return null;
+        return ps->CompletedAdventuresBitArray.TryGet((int)(id - 1), out var vue) ? vue : null;
     }
 
     /// <summary>Les bêtes capturées parmi celles-ci, ou rien tant que le
