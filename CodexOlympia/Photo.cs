@@ -88,6 +88,17 @@ public static class Photo
     /// <c>n - 1</c>.</summary>
     public const uint PremiereVue = 2_162_688;
 
+    /// <summary>La ligne du premier courant éthéré dans la table des courants
+    /// (0x2B0000). Le jeu range ses harmonisations à partir d'elle, au bit
+    /// zéro : le bit d'un courant est sa ligne moins PremierCourant.</summary>
+    public const uint PremierCourant = 2_818_048;
+
+    /// <summary>L'id du premier courant éthéré au catalogue. Les vues et les
+    /// courants font une seule collection, l'exploration : une vue garde son
+    /// numéro à partir de un, un courant prend <c>IdCourants</c> plus son bit.
+    /// Un id de ce seuil ou plus est donc un courant.</summary>
+    public const uint IdCourants = 10_001;
+
     /// <summary>La façon de lire des collections que Dalamud sait demander
     /// (PLG-R55). Elles se lisaient par la ligne de l'objet qui les débloque,
     /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
@@ -189,8 +200,8 @@ public static class Photo
             case "fish":
                 return [Poissons(cat, ps)];
 
-            case "sightseeing":
-                return [Vues(cat, ps)];
+            case "exploration":
+                return [Exploration(cat, ps)];
 
             case "achievements":
             {
@@ -415,13 +426,14 @@ public static class Photo
                 return vus;
             }
 
-            case "sightseeing":
+            case "exploration":
             {
-                // Les vues découvertes, la même question que la
-                // synchronisation, avec la même prudence que les poissons.
+                // Les vues découvertes et les courants harmonisés, la même
+                // question que la synchronisation, avec la même prudence que
+                // les poissons.
                 if (!ps->IsLoaded) return null;
                 foreach (var x in entrees)
-                    if (VueDecouverte(ps, x.Id) == true) vus.Add(x.Id);
+                    if (Explore(ps, x.Id) == true) vus.Add(x.Id);
                 return vus;
             }
             default:
@@ -737,7 +749,8 @@ public static class Photo
     }
 
     /// <summary>
-    /// Le carnet d'exploration : les vues découvertes.
+    /// L'exploration : les vues du carnet découvertes et les courants éthérés
+    /// harmonisés, dans une même collection.
     ///
     /// Le jeu tient un bit par vue dans l'état du personnage, au numéro de sa
     /// ligne dans la table des vues moins PremiereVue. L'id du catalogue est le
@@ -745,23 +758,40 @@ public static class Photo
     /// est l'index que Dalamud passe à IsAdventureComplete, et la fonction du
     /// jeu ne fait rien d'autre que le lire, sans regarder si l'index tient
     /// dans la rangée. On lit donc la rangée nous-mêmes, sans signature à
-    /// trouver. Ces bits vivent avec le personnage, carnet fermé compris :
-    /// Dalamud les relit dans son service des déblocages dès que le personnage
-    /// est chargé, sans attendre de fenêtre. Il n'y a donc rien à relire à
-    /// l'ouverture du carnet.
+    /// trouver.
     ///
-    /// La rangée a la longueur que FFXIVClientStructs lui connaît, trois cent
-    /// quarante bits, autant que la table compte de vues. Une vue plus loin
-    /// (un patch en avance sur cette description) sort de la portée : ni
-    /// découverte ni manquante, jusqu'à ce qu'elle grandisse.
+    /// Les courants ont leur rangée à eux, un bit par ligne de la table des
+    /// courants moins PremierCourant, ceux du terrain comme ceux des quêtes.
+    /// L'id du catalogue est IdCourants plus ce bit. Dalamud passe la ligne
+    /// entière à IsAetherCurrentUnlocked, et FFXIVClientStructs en retire
+    /// PremierCourant puis lit le bit par Get : on fait la même soustraction,
+    /// et on lit par TryGet.
+    ///
+    /// Ces bits vivent avec le personnage, carnet et fenêtre des courants
+    /// fermés compris : Dalamud les relit dans son service des déblocages dès
+    /// que le personnage est chargé, sans attendre de fenêtre. Il n'y a donc
+    /// rien à relire à l'ouverture d'une fenêtre.
+    ///
+    /// Les deux rangées ont la longueur que FFXIVClientStructs leur connaît :
+    /// trois cent quarante bits pour les vues, autant que la table compte de
+    /// vues, et quatre cent quarante-huit pour les courants, autant que la
+    /// table compte de lignes. Une entrée plus loin (un patch en avance sur
+    /// cette description) sort de la portée : ni trouvée ni manquante, jusqu'à
+    /// ce que sa rangée grandisse.
     /// </summary>
-    private static unsafe Releve Vues(Catalogue cat, PlayerState* ps)
+    private static unsafe Releve Exploration(Catalogue cat, PlayerState* ps)
     {
-        const string cle = "sightseeing";
+        const string cle = "exploration";
         if (ps == null || !ps->IsLoaded)
             return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
-        return ParLigne(cat, cle, id => VueDecouverte(ps, id));
+        return ParLigne(cat, cle, id => Explore(ps, id));
     }
+
+    /// <summary>Vrai si cette vue est découverte ou ce courant harmonisé, faux
+    /// sinon, rien quand sa rangée de bits ne va pas jusqu'à lui. Un id de
+    /// IdCourants ou plus est un courant, un id plus petit une vue.</summary>
+    private static unsafe bool? Explore(PlayerState* ps, uint id) =>
+        id >= IdCourants ? CourantHarmonise(ps, id) : VueDecouverte(ps, id);
 
     /// <summary>Vrai si cette vue est découverte, faux si elle ne l'est pas,
     /// rien quand la rangée de bits ne va pas jusqu'à elle ou pour l'id zéro,
@@ -771,6 +801,17 @@ public static class Photo
     {
         if (id == 0 || id - 1 > int.MaxValue) return null;
         return ps->CompletedAdventuresBitArray.TryGet((int)(id - 1), out var vue) ? vue : null;
+    }
+
+    /// <summary>Vrai si ce courant est harmonisé, faux s'il ne l'est pas, rien
+    /// quand la rangée de bits ne va pas jusqu'à lui. Le bit est l'id moins
+    /// IdCourants. TryGet et jamais Get, ni IsAetherCurrentUnlocked qui lit
+    /// par Get : Get lève hors de la rangée, et laisse passer le rang qui la
+    /// suit, qui est le premier bit des zones complètes.</summary>
+    private static unsafe bool? CourantHarmonise(PlayerState* ps, uint id)
+    {
+        if (id < IdCourants || id - IdCourants > int.MaxValue) return null;
+        return ps->UnlockedAetherCurrentsBitArray.TryGet((int)(id - IdCourants), out var courant) ? courant : null;
     }
 
     /// <summary>Les bêtes capturées parmi celles-ci, ou rien tant que le

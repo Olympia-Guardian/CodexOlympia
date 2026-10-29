@@ -44,6 +44,15 @@ public static class Tables
     /// couleur d'origine.</summary>
     private const uint PasDeTeinte = 12;
 
+    /// <summary>L'icône commune à tous les courants éthérés : celle que le jeu
+    /// donne au menu des courants (la commande principale 67).</summary>
+    private const uint IconeCourant = 64;
+
+    /// <summary>Le premier des cent cinquante-deux courants du terrain dans la
+    /// table des noms d'objets. Tous portent ce nom-là, « vent éthéré » dans
+    /// le client français, que le jeu écrit en minuscule.</summary>
+    private const uint ObjetVentEthere = 2_005_536;
+
     /// <summary>Du numéro de brochure vers le lien de déverrouillage que le jeu
     /// sait interroger. Vide tant que les tables ne sont pas bâties.</summary>
     public static IReadOnlyDictionary<uint, uint> LiensCoiffures { get; private set; } =
@@ -150,18 +159,48 @@ public static class Tables
                 ? null
                 : new Entree(r.RowId, r.Name.ExtractText(), r.Icon));
 
-        // Le carnet d'exploration : une vue par ligne nommée de la table des
-        // vues, sous son numéro dans le carnet en partant de un (sa ligne moins
-        // PremiereVue, plus un), comme au catalogue ; le jeu, lui, range ses
-        // découvertes à partir de zéro. L'icône est celle de la liste du
-        // carnet ; les deux autres colonnes sont l'illustration de la vue,
-        // découverte ou non, en 400 sur 240.
-        Poser(sortie, journal, "sightseeing", Feuille<Adventure>(donnees, journal), r =>
+        // L'exploration, d'abord les vues du carnet : une par ligne nommée de
+        // la table des vues, sous son numéro dans le carnet en partant de un
+        // (sa ligne moins PremiereVue, plus un), comme au catalogue ; le jeu,
+        // lui, range ses découvertes à partir de zéro. L'icône est celle de la
+        // liste du carnet ; les deux autres colonnes sont l'illustration de la
+        // vue, découverte ou non, en 400 sur 240.
+        Poser(sortie, journal, "exploration", Feuille<Adventure>(donnees, journal), r =>
         {
             var nom = r.Name.ExtractText();
             return r.RowId < Photo.PremiereVue || nom.Length == 0
                 ? null
                 : new Entree(r.RowId - Photo.PremiereVue + 1, nom, (uint)Math.Max(r.IconList, 0));
+        });
+
+        // Puis les courants éthérés, à la suite des vues, sous IdCourants plus
+        // leur bit (leur ligne moins PremierCourant), comme au catalogue. Seuls
+        // ceux qu'une zone de la fenêtre des courants référence en sont : la
+        // table garde des lignes que plus aucune zone ne compte. La table des
+        // courants n'a ni nom ni icône. Le nom est celui que le jeu donne à
+        // l'objet du terrain, suivi de la zone ; l'icône, celle du menu qui
+        // ouvre la fenêtre des courants.
+        Essayer(journal, "exploration", () =>
+        {
+            var zones = Feuille<AetherCurrentCompFlgSet>(donnees, journal);
+            if (zones is null) return;
+            var mot = Majuscule(Feuille<EObjName>(donnees, journal)?.GetRowOrDefault(ObjetVentEthere)
+                ?.Singular.ExtractText() ?? string.Empty);
+            var courants = new List<Entree>();
+            var vus = new HashSet<uint>();
+            foreach (var z in zones)
+            {
+                var zone = z.Territory.ValueNullable?.PlaceName.ValueNullable?.Name.ExtractText() ?? string.Empty;
+                var nom = mot.Length == 0 ? zone : zone.Length == 0 ? mot : $"{mot} ({zone})";
+                foreach (var c in z.AetherCurrents)
+                {
+                    if (c.RowId < Photo.PremierCourant) continue;
+                    var id = c.RowId - Photo.PremierCourant + Photo.IdCourants;
+                    if (vus.Add(id)) courants.Add(new Entree(id, nom, IconeCourant));
+                }
+            }
+            if (courants.Count == 0) return;
+            sortie["exploration"] = sortie.TryGetValue("exploration", out var vues) ? [.. vues, .. courants] : courants;
         });
 
         var objets = Feuille<Item>(donnees, journal);
