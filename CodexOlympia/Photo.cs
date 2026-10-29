@@ -75,6 +75,12 @@ public static class Photo
     /// <summary>Les objets marchands portent un décalage qu'on retire.</summary>
     private const uint SeuilHq = 1_000_000;
 
+    /// <summary>Le numéro du premier poisson du harpon. La table du harpon
+    /// numérote ses poissons à partir de lui, le catalogue aussi, et le jeu
+    /// range leurs prises à partir de lui. Ce qui est en dessous est un
+    /// poisson de la ligne.</summary>
+    public const uint PremierHarpon = 20_000;
+
     /// <summary>La façon de lire des collections que Dalamud sait demander
     /// (PLG-R55). Elles se lisaient par la ligne de l'objet qui les débloque,
     /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
@@ -172,6 +178,9 @@ public static class Photo
 
             case "beastmaster":
                 return [Bestiaire(cat)];
+
+            case "fish":
+                return [Poissons(cat, ps)];
 
             case "achievements":
             {
@@ -382,6 +391,17 @@ public static class Photo
                 if (capturees is null) return null;
                 foreach (var x in entrees)
                     if (capturees.Contains(x.Id)) vus.Add(x.Id);
+                return vus;
+            }
+
+            case "fish":
+            {
+                // Les prises du personnage, la même question que la
+                // synchronisation. Personnage pas encore chargé : on ne conclut
+                // rien plutôt que de montrer tout manquant.
+                if (!ps->IsLoaded) return null;
+                foreach (var x in entrees)
+                    if (PoissonPris(ps, x.Id) == true) vus.Add(x.Id);
                 return vus;
             }
             default:
@@ -658,6 +678,42 @@ public static class Photo
             return new Releve(cle, [], null, ids.Length, Mots.BestiaireNonCharge, Maniere: LectureParDalamud);
         var trouves = ids.Where(capturees.Contains).ToList();
         return new Releve(cle, trouves, null, ids.Length, Maniere: LectureParDalamud);
+    }
+
+    /// <summary>
+    /// Les poissons du carnet de pêche, ceux de la ligne et ceux du harpon
+    /// dans une même collection.
+    ///
+    /// Le jeu tient un bit par poisson pris dans l'état du personnage : celui
+    /// d'un poisson de la ligne à son numéro dans la table des poissons, celui
+    /// d'un poisson du harpon à son numéro dans la table du harpon, moins
+    /// vingt mille. Ces bits vivent avec le personnage, pas avec la fenêtre du
+    /// carnet : AutoHook les lit en pleine pêche, carnet fermé. Il n'y a donc
+    /// rien à relire à l'ouverture du carnet.
+    ///
+    /// Les deux rangées ont la longueur que FFXIVClientStructs leur connaît.
+    /// Un poisson plus loin (un patch en avance sur cette description) sort
+    /// de la portée : ni pris ni manquant, jusqu'à ce qu'elle grandisse.
+    /// </summary>
+    private static unsafe Releve Poissons(Catalogue cat, PlayerState* ps)
+    {
+        const string cle = "fish";
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PoissonsNonCharges);
+        return ParLigne(cat, cle, id => PoissonPris(ps, id));
+    }
+
+    /// <summary>Vrai si ce poisson est pris, faux s'il ne l'est pas, rien quand
+    /// sa rangée de bits ne va pas jusqu'à lui. TryGet et jamais Get : Get lève
+    /// hors de la rangée (et laisse passer le rang qui la suit), et une erreur
+    /// ici annulerait toute la lecture.</summary>
+    private static unsafe bool? PoissonPris(PlayerState* ps, uint id)
+    {
+        var harpon = id >= PremierHarpon;
+        var bits = harpon ? ps->CaughtSpearfishBitArray : ps->CaughtFishBitArray;
+        var rang = harpon ? id - PremierHarpon : id;
+        if (rang > int.MaxValue) return null;
+        return bits.TryGet((int)rang, out var pris) ? pris : null;
     }
 
     /// <summary>Les bêtes capturées parmi celles-ci, ou rien tant que le

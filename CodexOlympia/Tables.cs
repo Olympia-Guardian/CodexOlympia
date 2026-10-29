@@ -176,6 +176,40 @@ public static class Tables
             if (coiffures.Count > 0) sortie["hairstyles"] = [.. coiffures.Values];
         });
 
+        // Les poissons du carnet de pêche, la ligne et le harpon ensemble,
+        // chacun sous le numéro de sa table, comme au catalogue et comme le jeu
+        // range ses prises. Seuls ceux que le carnet montre en sont. Le nom et
+        // l'icône sont ceux de l'objet pêché ; une ligne qui renverrait à un
+        // objet d'événement n'a pas d'objet à montrer, et on la laisse. Un
+        // numéro rangé du mauvais côté de PremierHarpon se lirait dans l'autre
+        // rangée de bits : il n'entre pas.
+        Essayer(journal, "fish", () =>
+        {
+            var poissons = new List<Entree>();
+            var ligne = Feuille<FishParameter>(donnees, journal);
+            if (ligne is not null)
+            {
+                foreach (var r in ligne)
+                {
+                    if (r.RowId == 0 || r.RowId >= Photo.PremierHarpon || !r.IsInLog || !r.Item.Is<Item>()) continue;
+                    if (Objet(objets, r.Item.RowId) is { } o) poissons.Add(o with { Id = r.RowId });
+                }
+            }
+            var harpon = Feuille<SpearfishingItem>(donnees, journal);
+            if (harpon is not null)
+            {
+                // La colonne que la description stable de Lumina nomme
+                // IsVisible est celle que l'expérimentale, à la même empreinte,
+                // nomme IsInLog : la présence au carnet.
+                foreach (var r in harpon)
+                {
+                    if (r.RowId < Photo.PremierHarpon || !r.IsVisible) continue;
+                    if (Objet(objets, r.Item.RowId) is { } o) poissons.Add(o with { Id = r.RowId });
+                }
+            }
+            if (poissons.Count > 0) sortie["fish"] = poissons;
+        });
+
         // Les tenues et leurs pièces. Une ligne d'ensemble mirage est un objet,
         // et ses onze emplacements sont les objets qui la composent.
         Essayer(journal, "outfits", () =>

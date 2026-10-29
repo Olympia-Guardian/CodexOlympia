@@ -115,6 +115,9 @@ public static class Mots
     public static string BestiaireNonCharge => D(
         "le jeu n'a pas encore reçu la liste de tes bêtes : ouvre ton bestiaire une fois, puis regarde à nouveau",
         "the game has not received your list of beasts yet: open your bestiary once, then look again");
+    public static string PoissonsNonCharges => D(
+        "le jeu n'a pas encore chargé ton personnage : regarde à nouveau dans un instant",
+        "the game has not loaded your character yet: look again in a moment");
     public static string BestiaireLu(int trouves, int total, string noms) => D(
         $"bestiaire : {trouves} bêtes lues sur {total}" + (noms.Length > 0 ? $" : {noms}" : "") +
         ". Le détail est dans le journal Dalamud (/xllog).",
