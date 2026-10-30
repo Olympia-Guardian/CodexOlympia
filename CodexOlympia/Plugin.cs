@@ -742,7 +742,8 @@ public sealed partial class Plugin : IDalamudPlugin
                 donnees.GetExcelSheet<BannerCondition>(),
                 deblocages,
                 memoire,
-                ref coffre);
+                ref coffre,
+                journal);
             if (memoire is not null && avant is not null &&
                 (avant.Count != memoire.Count || avant.Any(p => memoire[p.Key] != p.Value)))
                 Enregistrer();

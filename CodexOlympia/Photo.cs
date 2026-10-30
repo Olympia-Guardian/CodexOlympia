@@ -99,6 +99,21 @@ public static class Photo
     /// Un id de ce seuil ou plus est donc un courant.</summary>
     public const uint IdCourants = 10_001;
 
+    /// <summary>
+    /// Les lignes de la table des objets de récolte dont le jeu tient la marque
+    /// « déjà récolté », un bit chacune, de zéro à 831. Sa fonction répond non
+    /// pour toute ligne au-delà sans rien lire, et le jeu lui-même, quand il
+    /// remplit le carnet, retient à part qu'une ligne est sous cette borne. Les
+    /// lignes de dix mille et plus (les quêtes annexes des carnets, une partie
+    /// des objets collectionnables) n'ont donc pas de marque à lire.
+    ///
+    /// <para>La borne est celle du client du 16 octobre 2026 : cent quatre
+    /// octets. FFXIVClientStructs n'en décrit encore que cent deux, et ses bits
+    /// se lisent dans l'autre sens : on pose la question à la fonction du jeu,
+    /// pas à sa rangée.</para>
+    /// </summary>
+    public const uint LignesRecoltees = 832;
+
     /// <summary>La façon de lire des collections que Dalamud sait demander
     /// (PLG-R55). Elles se lisaient par la ligne de l'objet qui les débloque,
     /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
@@ -159,7 +174,8 @@ public static class Photo
         Lumina.Excel.ExcelSheet<BannerCondition> conditions,
         IUnlockState deblocages,
         Dictionary<uint, bool>? memoirePortraits,
-        ref Coffre? coffre)
+        ref Coffre? coffre,
+        IPluginLog journal)
     {
         var ps = PlayerState.Instance();
         var ui = UIState.Instance();
@@ -202,6 +218,10 @@ public static class Photo
 
             case "exploration":
                 return [Exploration(cat, ps)];
+
+            case "mining":
+            case "botany":
+                return [Recoltes(cat, cle, ps, journal)];
 
             case "achievements":
             {
@@ -434,6 +454,19 @@ public static class Photo
                 if (!ps->IsLoaded) return null;
                 foreach (var x in entrees)
                     if (Explore(ps, x.Id) == true) vus.Add(x.Id);
+                return vus;
+            }
+
+            case "mining":
+            case "botany":
+            {
+                // Les objets déjà récoltés, la même question que la
+                // synchronisation, avec la même prudence que les poissons. La
+                // fonction du jeu introuvable, la galerie retombe sur la
+                // dernière lecture.
+                if (!ps->IsLoaded || !RecolteLisible) return null;
+                foreach (var x in entrees)
+                    if (Recolte(x.Id) == true) vus.Add(x.Id);
                 return vus;
             }
             default:
@@ -812,6 +845,75 @@ public static class Photo
     {
         if (id < IdCourants || id - IdCourants > int.MaxValue) return null;
         return ps->UnlockedAetherCurrentsBitArray.TryGet((int)(id - IdCourants), out var courant) ? courant : null;
+    }
+
+    /// <summary>
+    /// Les carnets de récolte, celui du mineur et celui du botaniste, une
+    /// collection chacun.
+    ///
+    /// Le numéro d'une entrée est sa ligne dans la table des objets de
+    /// récolte, et le jeu sait dire, ligne par ligne, si l'objet a déjà été
+    /// récolté : c'est la marque du carnet. La question est statique et ne lit
+    /// qu'un bit dans le gestionnaire des quêtes, qui vit avec le personnage et
+    /// non avec la fenêtre du carnet : Questionable, GatherBuddy et HaselDebug
+    /// la posent carnet fermé. Il n'y a donc rien à relire à l'ouverture du
+    /// carnet.
+    ///
+    /// Un objet des deux carnets (les cristaux, entre autres) porte la même
+    /// ligne dans l'un et l'autre, donc la même marque : le récolter en mineur
+    /// le coche aussi pour le botaniste, comme dans le jeu.
+    ///
+    /// Une ligne que le jeu ne marque pas (LignesRecoltees) sort de la portée :
+    /// ni récoltée ni manquante, et l'infobulle de la tuile dit combien. Un
+    /// numéro qui ne tient pas sur seize bits n'est la ligne d'aucun objet de
+    /// récolte : c'est une erreur du catalogue, que le journal signale.
+    /// </summary>
+    private static unsafe Releve Recoltes(Catalogue cat, string cle, PlayerState* ps, IPluginLog journal)
+    {
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
+        // La fonction du jeu introuvable, un patch ayant déplacé sa signature :
+        // l'appeler lèverait, et emporterait la lecture de toutes les
+        // collections. Relire n'y changerait rien.
+        if (!RecolteLisible)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PasEncoreLisible, Illisible: true);
+
+        var horsDeLaTable = 0;
+        var sansMarque = 0;
+        var releve = ParLigne(cat, cle, id =>
+        {
+            if (id > ushort.MaxValue) horsDeLaTable++;
+            else if (id >= LignesRecoltees) sansMarque++;
+            return Recolte(id);
+        });
+        SignalerNumeros(journal, cle, horsDeLaTable);
+        return sansMarque > 0 ? releve with { Note = Mots.RecoltesIllisibles(sansMarque) } : releve;
+    }
+
+    /// <summary>Vrai si cet objet de récolte a déjà été récolté, faux s'il ne
+    /// l'a pas été, rien quand le jeu n'en tient pas de marque : la ligne zéro,
+    /// qui n'est aucun objet, et toute ligne à partir de LignesRecoltees, pour
+    /// laquelle la fonction du jeu répond non sans rien lire.</summary>
+    private static bool? Recolte(uint id) =>
+        id == 0 || id >= LignesRecoltees ? null : QuestManager.IsGatheringItemGathered((ushort)id);
+
+    /// <summary>Vrai si le plugin a trouvé dans le jeu la fonction qui dit un
+    /// objet récolté. FFXIVClientStructs la cherche par sa signature au
+    /// démarrage, et son appel lève quand elle est introuvable.</summary>
+    private static unsafe bool RecolteLisible =>
+        (nint)QuestManager.MemberFunctionPointers.IsGatheringItemGathered != 0;
+
+    /// <summary>Ce que le journal a déjà dit des numéros impossibles, par
+    /// collection : la synchronisation automatique relit toutes les cinq
+    /// minutes, et une fois suffit tant que leur nombre ne change pas.</summary>
+    private static readonly Dictionary<string, int> numerosSignales = new();
+
+    private static void SignalerNumeros(IPluginLog journal, string cle, int n)
+    {
+        if (numerosSignales.TryGetValue(cle, out var deja) && deja == n) return;
+        numerosSignales[cle] = n;
+        if (n > 0)
+            journal.Warning("catalogue {0} : {1} numéro(s) au-delà de seize bits, la ligne d'aucun objet de récolte : hors de la portée", cle, n);
     }
 
     /// <summary>Les bêtes capturées parmi celles-ci, ou rien tant que le

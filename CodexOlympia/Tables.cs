@@ -59,6 +59,29 @@ public static class Tables
     public static IReadOnlyDictionary<uint, uint> LiensCoiffures { get; private set; } =
         new Dictionary<uint, uint>();
 
+    /// <summary>Vrai pour un carnet de récolte, une collection par métier : la
+    /// table des objets de récolte ne dit pas à quel carnet une ligne
+    /// appartient, le catalogue si. Le code qui sait lire ces carnets, pas une
+    /// liste des collections (PLG-R63).</summary>
+    private static bool CarnetDeRecolte(string cle)
+    {
+        switch (cle)
+        {
+            case "mining":
+            case "botany":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Chaque ligne de la table des objets de récolte, sous son
+    /// numéro, avec le nom et l'icône de l'objet récolté. Vide tant que les
+    /// tables ne sont pas bâties ; les galeries des carnets s'y prennent une
+    /// fois le catalogue chargé (Completer).</summary>
+    private static IReadOnlyDictionary<uint, Entree> ObjetsDeRecolte { get; set; } =
+        new Dictionary<uint, Entree>();
+
     /// <summary>Les collections que le jeu sait décrire tout seul.</summary>
     public static Jeu Batir(IDataManager donnees, IPluginLog journal)
     {
@@ -264,6 +287,26 @@ public static class Tables
             if (poissons.Count > 0) sortie["fish"] = poissons;
         });
 
+        // Les objets de récolte, pour les carnets du mineur et du botaniste.
+        // Une entrée de carnet est une ligne de la table des objets de récolte,
+        // sous son numéro, comme au catalogue et comme le jeu tient sa marque ;
+        // le nom et l'icône sont ceux de l'objet récolté. Une ligne qui
+        // renverrait à un objet d'événement n'a pas d'objet à montrer, et on la
+        // laisse. Un objet des deux carnets n'a qu'une ligne, que chaque galerie
+        // reprend.
+        Essayer(journal, "mining, botany", () =>
+        {
+            var lignes = Feuille<GatheringItem>(donnees, journal);
+            if (lignes is null) return;
+            var recoltes = new Dictionary<uint, Entree>();
+            foreach (var r in lignes)
+            {
+                if (r.RowId == 0 || !r.Item.Is<Item>()) continue;
+                if (Objet(objets, r.Item.RowId) is { } o) recoltes[r.RowId] = o with { Id = r.RowId };
+            }
+            ObjetsDeRecolte = recoltes;
+        });
+
         // Les tenues et leurs pièces. Une ligne d'ensemble mirage est un objet,
         // et ses onze emplacements sont les objets qui la composent.
         Essayer(journal, "outfits", () =>
@@ -313,18 +356,36 @@ public static class Tables
     /// suffit à désaccorder sa description dans Lumina, et la demander échoue.
     /// Le catalogue en connaît les cinquante entrées, avec le même numéro que le
     /// jeu, et leur icône se déduit de ce numéro.
+    ///
+    /// Les carnets de récolte y passent toujours : leurs entrées sont des
+    /// lignes de la table des objets de récolte, mais c'est le catalogue qui
+    /// dit lesquelles sont à chaque carnet. La galerie en prend les numéros,
+    /// dans l'ordre du catalogue, et le nom et l'icône que le jeu leur donne.
+    /// Un numéro que le client ne connaît pas encore (un catalogue en avance
+    /// d'un patch) n'y entre pas.
     /// </summary>
     public static IReadOnlyDictionary<string, List<Entree>> Completer(
         IReadOnlyDictionary<string, List<Entree>> deja, Catalogue cat)
     {
-        if (deja.ContainsKey(ACompleter)) return deja;
-        if (!cat.Ids.TryGetValue(ACompleter, out var ids) || ids.Length == 0) return deja;
+        var sortie = new Dictionary<string, List<Entree>>(deja);
 
-        var betes = new List<Entree>(ids.Length);
-        foreach (var id in ids)
-            betes.Add(new Entree(id, cat.Nom(ACompleter, id), PlancheBete + id));
+        if (!sortie.ContainsKey(ACompleter) && cat.Ids.TryGetValue(ACompleter, out var ids) && ids.Length > 0)
+        {
+            var betes = new List<Entree>(ids.Length);
+            foreach (var id in ids)
+                betes.Add(new Entree(id, cat.Nom(ACompleter, id), PlancheBete + id));
+            sortie[ACompleter] = betes;
+        }
 
-        var sortie = new Dictionary<string, List<Entree>>(deja) { [ACompleter] = betes };
+        foreach (var (cle, numeros) in cat.Ids)
+        {
+            if (!CarnetDeRecolte(cle) || sortie.ContainsKey(cle)) continue;
+            var carnet = new List<Entree>(numeros.Length);
+            foreach (var id in numeros)
+                if (ObjetsDeRecolte.TryGetValue(id, out var e)) carnet.Add(e);
+            if (carnet.Count > 0) sortie[cle] = carnet;
+        }
+
         return sortie;
     }
 
@@ -334,7 +395,9 @@ public static class Tables
 
     /// <summary>Vrai si la galerie montre cette collection : le client la
     /// décrit, ou le catalogue la complète.</summary>
-    public static bool EnGalerie(Jeu jeu, string cle) => jeu.Collections.ContainsKey(cle) || cle == ACompleter;
+    public static bool EnGalerie(Jeu jeu, string cle) =>
+        jeu.Collections.ContainsKey(cle) || cle == ACompleter
+        || (CarnetDeRecolte(cle) && ObjetsDeRecolte.Count > 0);
 
     /// <summary>
     /// Une table du client, ou rien.

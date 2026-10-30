@@ -118,6 +118,11 @@ public static class Mots
     public static string PersoNonCharge => D(
         "le jeu n'a pas encore chargé ton personnage : regarde à nouveau dans un instant",
         "the game has not loaded your character yet: look again in a moment");
+    public static string RecoltesIllisibles(int n) => n == 1
+        ? D("1 entrée du carnet ne se lit pas dans le jeu : coche-la sur le site.",
+            "1 log entry cannot be read in game: tick it on the website.")
+        : D($"{n} entrées du carnet ne se lisent pas dans le jeu : coche-les sur le site.",
+            $"{n} log entries cannot be read in game: tick them on the website.");
     public static string BestiaireLu(int trouves, int total, string noms) => D(
         $"bestiaire : {trouves} bêtes lues sur {total}" + (noms.Length > 0 ? $" : {noms}" : "") +
         ". Le détail est dans le journal Dalamud (/xllog).",
