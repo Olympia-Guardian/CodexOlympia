@@ -118,6 +118,14 @@ public static class Mots
     public static string PersoNonCharge => D(
         "le jeu n'a pas encore chargé ton personnage : regarde à nouveau dans un instant",
         "the game has not loaded your character yet: look again in a moment");
+    public static string RecettesNonRecues => D(
+        "le jeu ne marque encore aucune recette pour ce personnage : soit il ne les a pas reçues, soit rien " +
+        "n'a encore été fabriqué. Ouvre ton carnet d'artisanat une fois, puis regarde à nouveau",
+        "the game marks no recipe for this character yet: either it has not received them, or nothing has " +
+        "been crafted so far. Open your crafting log once, then look again");
+    public static string CarnetDuPrecedent => D(
+        "le jeu montre encore le carnet du personnage précédent : ouvre ton carnet une fois, puis regarde à nouveau",
+        "the game still shows the previous character's log: open your log once, then look again");
     public static string RecoltesIllisibles(int n) => n == 1
         ? D("1 entrée du carnet ne se lit pas dans le jeu : coche-la sur le site.",
             "1 log entry cannot be read in game: tick it on the website.")

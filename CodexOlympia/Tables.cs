@@ -63,12 +63,33 @@ public static class Tables
     /// table des objets de récolte ne dit pas à quel carnet une ligne
     /// appartient, le catalogue si. Le code qui sait lire ces carnets, pas une
     /// liste des collections (PLG-R63).</summary>
-    private static bool CarnetDeRecolte(string cle)
+    public static bool CarnetDeRecolte(string cle)
     {
         switch (cle)
         {
             case "mining":
             case "botany":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Vrai pour un carnet d'artisanat, une collection par métier :
+    /// c'est le catalogue qui dit quelles recettes le carnet suit. Le code qui
+    /// sait lire ces carnets, pas une liste des collections (PLG-R63).</summary>
+    public static bool CarnetDArtisanat(string cle)
+    {
+        switch (cle)
+        {
+            case "carpenter":
+            case "blacksmith":
+            case "armorer":
+            case "goldsmith":
+            case "leatherworker":
+            case "weaver":
+            case "alchemist":
+            case "culinarian":
                 return true;
             default:
                 return false;
@@ -81,6 +102,18 @@ public static class Tables
     /// fois le catalogue chargé (Completer).</summary>
     private static IReadOnlyDictionary<uint, Entree> ObjetsDeRecolte { get; set; } =
         new Dictionary<uint, Entree>();
+
+    /// <summary>Chaque ligne de la table des recettes que le jeu sait dire
+    /// fabriquée, sous son numéro, avec le nom et l'icône de l'objet fabriqué.
+    /// Comme pour les objets de récolte, le catalogue y puise ses
+    /// galeries.</summary>
+    private static IReadOnlyDictionary<uint, Entree> ObjetsDeRecette { get; set; } =
+        new Dictionary<uint, Entree>();
+
+    /// <summary>Les lignes dans lesquelles se bâtit le carnet de cette
+    /// collection, ou rien pour une collection qui n'en est pas un.</summary>
+    private static IReadOnlyDictionary<uint, Entree>? LignesDuCarnet(string cle) =>
+        CarnetDeRecolte(cle) ? ObjetsDeRecolte : CarnetDArtisanat(cle) ? ObjetsDeRecette : null;
 
     /// <summary>Les collections que le jeu sait décrire tout seul.</summary>
     public static Jeu Batir(IDataManager donnees, IPluginLog journal)
@@ -307,6 +340,25 @@ public static class Tables
             ObjetsDeRecolte = recoltes;
         });
 
+        // Les recettes, pour les carnets d'artisanat. Une entrée de carnet est
+        // une ligne de la table des recettes, sous son numéro, comme au
+        // catalogue et comme le jeu tient sa marque ; le nom et l'icône sont
+        // ceux de l'objet fabriqué. Deux métiers qui fabriquent le même objet
+        // ont chacun leur ligne. Les lignes sans marque ne sont dans aucun
+        // carnet : on ne les garde pas.
+        Essayer(journal, "carnets d'artisanat", () =>
+        {
+            var lignes = Feuille<Recipe>(donnees, journal);
+            if (lignes is null) return;
+            var fabriques = new Dictionary<uint, Entree>();
+            foreach (var r in lignes)
+            {
+                if (r.RowId == 0 || r.RowId >= Photo.PremiereRecetteSansMarque) continue;
+                if (Objet(objets, r.ItemResult.RowId) is { } o) fabriques[r.RowId] = o with { Id = r.RowId };
+            }
+            ObjetsDeRecette = fabriques;
+        });
+
         // Les tenues et leurs pièces. Une ligne d'ensemble mirage est un objet,
         // et ses onze emplacements sont les objets qui la composent.
         Essayer(journal, "outfits", () =>
@@ -362,7 +414,8 @@ public static class Tables
     /// dit lesquelles sont à chaque carnet. La galerie en prend les numéros,
     /// dans l'ordre du catalogue, et le nom et l'icône que le jeu leur donne.
     /// Un numéro que le client ne connaît pas encore (un catalogue en avance
-    /// d'un patch) n'y entre pas.
+    /// d'un patch) n'y entre pas. Les carnets d'artisanat font de même avec les
+    /// lignes de la table des recettes.
     /// </summary>
     public static IReadOnlyDictionary<string, List<Entree>> Completer(
         IReadOnlyDictionary<string, List<Entree>> deja, Catalogue cat)
@@ -379,10 +432,10 @@ public static class Tables
 
         foreach (var (cle, numeros) in cat.Ids)
         {
-            if (!CarnetDeRecolte(cle) || sortie.ContainsKey(cle)) continue;
+            if (LignesDuCarnet(cle) is not { } lignes || sortie.ContainsKey(cle)) continue;
             var carnet = new List<Entree>(numeros.Length);
             foreach (var id in numeros)
-                if (ObjetsDeRecolte.TryGetValue(id, out var e)) carnet.Add(e);
+                if (lignes.TryGetValue(id, out var e)) carnet.Add(e);
             if (carnet.Count > 0) sortie[cle] = carnet;
         }
 
@@ -397,7 +450,7 @@ public static class Tables
     /// décrit, ou le catalogue la complète.</summary>
     public static bool EnGalerie(Jeu jeu, string cle) =>
         jeu.Collections.ContainsKey(cle) || cle == ACompleter
-        || (CarnetDeRecolte(cle) && ObjetsDeRecolte.Count > 0);
+        || LignesDuCarnet(cle) is { Count: > 0 };
 
     /// <summary>
     /// Une table du client, ou rien.

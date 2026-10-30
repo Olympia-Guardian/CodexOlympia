@@ -114,6 +114,20 @@ public static class Photo
     /// </summary>
     public const uint LignesRecoltees = 832;
 
+    /// <summary>
+    /// La première ligne de la table des recettes pour laquelle le jeu n'a
+    /// aucune marque « déjà fabriquée » : au-delà des lignes basses, il n'existe
+    /// aucune rangée, et les recettes de trente mille et plus (expertes, peuples
+    /// alliés, commandes spéciales, quêtes) ne se lisent pas.
+    ///
+    /// <para>Ce n'est pas la borne de la rangée, qui est de 6408 lignes sur le
+    /// client du 16 octobre 2026 et qui grandira : la fonction du jeu la connaît
+    /// et répond non au-delà sans rien lire. FFXIVClientStructs place cette
+    /// rangée deux octets trop tôt : on pose la question à la fonction du jeu,
+    /// jamais à sa rangée.</para>
+    /// </summary>
+    public const uint PremiereRecetteSansMarque = 30_000;
+
     /// <summary>La façon de lire des collections que Dalamud sait demander
     /// (PLG-R55). Elles se lisaient par la ligne de l'objet qui les débloque,
     /// et le client répondait « débloqué » pour toutes (PLG-R64).</summary>
@@ -222,6 +236,16 @@ public static class Photo
             case "mining":
             case "botany":
                 return [Recoltes(cat, cle, ps, journal)];
+
+            case "carpenter":
+            case "blacksmith":
+            case "armorer":
+            case "goldsmith":
+            case "leatherworker":
+            case "weaver":
+            case "alchemist":
+            case "culinarian":
+                return [Recettes(cat, cle, ps)];
 
             case "achievements":
             {
@@ -343,7 +367,7 @@ public static class Photo
     /// galerie retombe alors sur ce que la photo a trouvé.
     /// </summary>
     public static unsafe HashSet<uint>? Possedes(
-        string cle, IReadOnlyList<Entree> entrees, IDataManager donnees, IUnlockState deblocages)
+        string cle, IReadOnlyList<Entree> entrees, Catalogue? cat, IDataManager donnees, IUnlockState deblocages)
     {
         var ps = PlayerState.Instance();
         var ui = UIState.Instance();
@@ -464,11 +488,33 @@ public static class Photo
                 // synchronisation, avec la même prudence que les poissons. La
                 // fonction du jeu introuvable, la galerie retombe sur la
                 // dernière lecture.
-                if (!ps->IsLoaded || !RecolteLisible) return null;
+                if (cat is null || !ps->IsLoaded || !RecolteLisible
+                    || marquesRecoltes.Etat(cat, ps->ContentId) == EtatDesMarques.DuPrecedent) return null;
                 foreach (var x in entrees)
                     if (Recolte(x.Id) == true) vus.Add(x.Id);
                 return vus;
             }
+
+            case "carpenter":
+            case "blacksmith":
+            case "armorer":
+            case "goldsmith":
+            case "leatherworker":
+            case "weaver":
+            case "alchemist":
+            case "culinarian":
+            {
+                // Les recettes déjà fabriquées, la même question que la
+                // synchronisation, avec les mêmes gardes : tant que le jeu ne
+                // marque aucune recette, on ne conclut rien plutôt que de
+                // montrer tout manquant.
+                if (cat is null || !ps->IsLoaded || !RecetteLisible
+                    || marquesRecettes.Etat(cat, ps->ContentId) != EtatDesMarques.Siennes) return null;
+                foreach (var x in entrees)
+                    if (Recette(x.Id) == true) vus.Add(x.Id);
+                return vus;
+            }
+
             default:
                 return null;
         }
@@ -877,6 +923,11 @@ public static class Photo
         // collections. Relire n'y changerait rien.
         if (!RecolteLisible)
             return new Releve(cle, [], null, Total(cat, cle), Mots.PasEncoreLisible, Illisible: true);
+        // Les marques du personnage précédent ne sont pas les siennes (Marques).
+        // Aucune marque, en revanche, se lit : un personnage qui n'a jamais
+        // récolté a un carnet vide, comme un pêcheur qui n'a jamais pêché.
+        if (marquesRecoltes.Etat(cat, ps->ContentId) == EtatDesMarques.DuPrecedent)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.CarnetDuPrecedent);
 
         var horsDeLaTable = 0;
         var sansMarque = 0;
@@ -902,6 +953,172 @@ public static class Photo
     /// démarrage, et son appel lève quand elle est introuvable.</summary>
     private static unsafe bool RecolteLisible =>
         (nint)QuestManager.MemberFunctionPointers.IsGatheringItemGathered != 0;
+
+    /// <summary>
+    /// Les carnets d'artisanat, une collection par métier.
+    ///
+    /// Le numéro d'une entrée est sa ligne dans la table des recettes, et le
+    /// jeu sait dire, ligne par ligne, si la recette a déjà été fabriquée. La
+    /// question est statique et ne lit qu'un bit dans le gestionnaire des
+    /// quêtes.
+    ///
+    /// Ce bit n'existe pas tant que le serveur ne l'a pas envoyé. Le client
+    /// reçoit ces marques par un paquet réseau, d'un seul bloc, et ne retient
+    /// nulle part qu'il l'a reçu : avant lui, chaque recette répond non,
+    /// exactement comme une recette jamais fabriquée. Conclure à ce moment-là
+    /// fabriquerait des écarts sur tout le carnet : aucune recette marquée sur
+    /// les catalogues de tous les métiers, on ne conclut rien (Marques). Un
+    /// personnage qui n'a jamais rien fabriqué reste donc non lu, sans que rien
+    /// ne parte, jusqu'à sa première recette : rien ne le distingue d'un paquet
+    /// en retard.
+    ///
+    /// Le zéro d'un pêcheur qui n'a jamais pêché se traite autrement : il part
+    /// comme une lecture douteuse, relue puis tenue pour bonne (PLG-R33). Ici,
+    /// le zéro de tous les métiers ne part jamais.
+    ///
+    /// Une ligne que le jeu ne marque pas (PremiereRecetteSansMarque) sort de
+    /// la portée : ni fabriquée ni manquante.
+    /// </summary>
+    private static unsafe Releve Recettes(Catalogue cat, string cle, PlayerState* ps)
+    {
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
+        // La fonction du jeu introuvable, un patch ayant déplacé sa signature :
+        // l'appeler lèverait, et emporterait la lecture de toutes les
+        // collections. Relire n'y changerait rien.
+        if (!RecetteLisible)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PasEncoreLisible, Illisible: true);
+        var etat = marquesRecettes.Etat(cat, ps->ContentId);
+        if (etat != EtatDesMarques.Siennes)
+            return new Releve(cle, [], null, Total(cat, cle),
+                etat == EtatDesMarques.DuPrecedent ? Mots.CarnetDuPrecedent : Mots.RecettesNonRecues);
+
+        var sansMarque = 0;
+        var releve = ParLigne(cat, cle, id =>
+        {
+            if (id >= PremiereRecetteSansMarque) sansMarque++;
+            return Recette(id);
+        });
+        return sansMarque > 0 ? releve with { Note = Mots.RecoltesIllisibles(sansMarque) } : releve;
+    }
+
+    /// <summary>Vrai si cette recette a déjà été fabriquée, faux si elle ne l'a
+    /// pas été, rien quand le jeu n'en tient pas de marque : la ligne zéro, qui
+    /// n'est aucune recette, et toute ligne à partir de
+    /// PremiereRecetteSansMarque.</summary>
+    private static bool? Recette(uint id) =>
+        id == 0 || id >= PremiereRecetteSansMarque ? null : QuestManager.IsRecipeComplete(id);
+
+    /// <summary>Vrai si le plugin a trouvé dans le jeu la fonction qui dit une
+    /// recette fabriquée. FFXIVClientStructs la cherche par sa signature au
+    /// démarrage, et son appel lève quand elle est introuvable.</summary>
+    private static unsafe bool RecetteLisible =>
+        (nint)QuestManager.MemberFunctionPointers.IsRecipeComplete != 0;
+
+    /// <summary>Ce que les marques d'une famille de carnets valent, en ce moment,
+    /// pour le personnage connecté.</summary>
+    private enum EtatDesMarques
+    {
+        /// <summary>Elles sont les siennes.</summary>
+        Siennes,
+
+        /// <summary>Aucune n'est posée.</summary>
+        Aucune,
+
+        /// <summary>Ce sont encore celles du personnage précédent.</summary>
+        DuPrecedent,
+    }
+
+    /// <summary>
+    /// Les marques d'une famille de carnets, telles que le gestionnaire des
+    /// quêtes les tient : les recettes fabriquées, les objets récoltés.
+    ///
+    /// Le client les reçoit par un paquet réseau, un bloc entier puis un octet
+    /// à la fois, et seul ce paquet les écrit : rien ne dit qu'il est arrivé,
+    /// et rien ne les vide à la déconnexion. Après un changement de personnage
+    /// sans quitter le jeu, le suivant répond donc avec les marques du
+    /// précédent jusqu'à son propre paquet. Les envoyer les ajouterait à son
+    /// compte : c'est la lecture fausse qu'on ne peut pas se permettre.
+    ///
+    /// La seule preuve du paquet est que les marques ont changé. L'empreinte de
+    /// ce qu'un personnage laisse se prend à sa déconnexion, et pas à la
+    /// dernière lecture : une marque gagnée entre les deux la ferait passer
+    /// pour neuve. Un autre personnage ne conclut rien tant qu'elle n'a pas
+    /// bougé. Deux personnages aux marques rigoureusement égales restent non
+    /// lus jusqu'à la prochaine marque de l'un d'eux : mieux vaut une collection
+    /// absente qu'une collection fausse.
+    ///
+    /// Une fois les marques reconnues, la réponse se garde jusqu'à la
+    /// déconnexion. Sans marque, elle ne se garde pas : le paquet peut arriver
+    /// entre deux lectures.
+    /// </summary>
+    private sealed class Marques(Func<string, bool> carnet, Func<uint, bool?> marquee)
+    {
+        /// <summary>Le personnage dont les marques sont reconnues, zéro sinon.</summary>
+        private ulong reconnuesPour;
+
+        /// <summary>L'empreinte de ce que le dernier personnage a laissé.</summary>
+        private ulong laissees;
+
+        /// <summary>Le personnage à qui ces marques appartiennent, zéro sinon.</summary>
+        private ulong laisseesPar;
+
+        public EtatDesMarques Etat(Catalogue cat, ulong perso)
+        {
+            if (perso != 0 && perso == reconnuesPour) return EtatDesMarques.Siennes;
+            // Sans empreinte à comparer, la première marque suffit.
+            var comparer = laisseesPar != 0 && laisseesPar != perso;
+            var empreinte = Empreinte(cat, comparer);
+            if (empreinte == 0) return EtatDesMarques.Aucune;
+            if (comparer && empreinte == laissees) return EtatDesMarques.DuPrecedent;
+            reconnuesPour = perso;
+            return EtatDesMarques.Siennes;
+        }
+
+        /// <summary>La déconnexion. Des marques qui n'ont pas bougé restent à
+        /// celui qui les a laissées : le paquet de celui qui part n'est jamais
+        /// arrivé, et il ne faut pas lui attribuer les marques d'un autre, ni
+        /// bloquer leur vrai propriétaire à son retour.</summary>
+        public void Retenir(Catalogue? cat, ulong perso)
+        {
+            reconnuesPour = 0;
+            if (cat is null || perso == 0) return;
+            var empreinte = Empreinte(cat, true);
+            if (empreinte == laissees) return;
+            laissees = empreinte;
+            laisseesPar = perso;
+        }
+
+        /// <summary>Une somme, indépendante de l'ordre du catalogue ; zéro sans
+        /// aucune marque.</summary>
+        private ulong Empreinte(Catalogue cat, bool entiere)
+        {
+            var somme = 0UL;
+            foreach (var (cle, ids) in cat.Ids)
+            {
+                if (!carnet(cle)) continue;
+                foreach (var id in ids)
+                {
+                    if (marquee(id) != true) continue;
+                    var x = (id + 1UL) * 0x9E3779B97F4A7C15UL;
+                    somme += x ^ (x >> 31);
+                    if (!entiere) return somme;
+                }
+            }
+            return somme;
+        }
+    }
+
+    private static readonly Marques marquesRecettes = new(Tables.CarnetDArtisanat, Recette);
+    private static readonly Marques marquesRecoltes = new(Tables.CarnetDeRecolte, Recolte);
+
+    /// <summary>Retient ce que ce personnage laisse en se déconnectant. Une
+    /// fonction du jeu introuvable lèverait : elle n'a alors rien à laisser.</summary>
+    public static void RetenirMarques(Catalogue? cat, ulong perso)
+    {
+        if (RecetteLisible) marquesRecettes.Retenir(cat, perso);
+        if (RecolteLisible) marquesRecoltes.Retenir(cat, perso);
+    }
 
     /// <summary>Ce que le journal a déjà dit des numéros impossibles, par
     /// collection : la synchronisation automatique relit toutes les cinq

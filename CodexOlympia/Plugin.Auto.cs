@@ -54,9 +54,17 @@ public sealed partial class Plugin
     /// <summary>Rien n'a encore été envoyé depuis ce plugin pour ce personnage.</summary>
     public bool JamaisEnvoye => ContentId != 0 && !Reglages.Envoyes.ContainsKey(ContentId);
 
+    /// <summary>Le dernier personnage vu, retenu à chaque image : à la
+    /// déconnexion, le jeu peut déjà ne plus le dire.</summary>
+    private ulong dernierPerso;
+
     private void SurConnexion() => prochaineLecture = chrono.Elapsed.TotalSeconds + DelaiConnexion;
 
-    private void SurDeconnexion(int type, int code) => prochaineLecture = 0;
+    private void SurDeconnexion(int type, int code)
+    {
+        prochaineLecture = 0;
+        Photo.RetenirMarques(Catalogue, dernierPerso);
+    }
 
     private void SurZone(uint zone)
     {
@@ -80,6 +88,7 @@ public sealed partial class Plugin
     private void Tour(IFramework _)
     {
         var maintenant = chrono.Elapsed.TotalSeconds;
+        if (ContentId != 0) dernierPerso = ContentId;
         // Le courrier d'abord : ce qu'un fil de fond a depose, execute ici, sur
         // le fil du jeu. Une lettre qui echoue n'emporte pas les suivantes.
         while (boite.TryDequeue(out var lettre))
