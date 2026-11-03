@@ -67,6 +67,12 @@ public sealed record Coffre(HashSet<uint> Coiffeuse, HashSet<uint> Armoire, bool
 /// demande était partie : il n'affichait plus rien jusqu'au changement de
 /// zone. Ce qui n'est pas chargé se demande au joueur, pas au client.
 ///
+/// Une exception, le rapport du front bozjien (PLG-R78) : rien n'y est écrit
+/// non plus, mais une demande part. Le client ne garde pas ce rapport d'une
+/// session à l'autre et ne le redemande au serveur qu'à l'infobulle d'une
+/// note du front ; le plugin fait ce même geste, celui du jeu, au début d'une
+/// lecture et une fois par connexion (Bozja).
+///
 /// Chaque collection se lit en posant au jeu la même question pour chaque
 /// entrée du catalogue. Rien n'est deviné ni déduit d'ailleurs.
 /// </summary>
@@ -186,6 +192,7 @@ public static class Photo
         Lumina.Excel.ExcelSheet<Item> objets,
         Lumina.Excel.ExcelSheet<BuddyEquip> bardes,
         Lumina.Excel.ExcelSheet<BannerCondition> conditions,
+        Lumina.Excel.ExcelSheet<MKDLore>? calepin,
         IUnlockState deblocages,
         Dictionary<uint, bool>? memoirePortraits,
         ref Coffre? coffre,
@@ -232,6 +239,15 @@ public static class Photo
 
             case "exploration":
                 return [Exploration(cat, ps)];
+
+            case "survey_records":
+                return [Journaux(cat, ps)];
+
+            case "occult_records":
+                return [Calepin(cat, calepin, deblocages, ps)];
+
+            case "field_records":
+                return [Rapport(cat, ps, journal)];
 
             case "mining":
             case "botany":
@@ -478,6 +494,40 @@ public static class Photo
                 if (!ps->IsLoaded) return null;
                 foreach (var x in entrees)
                     if (Explore(ps, x.Id) == true) vus.Add(x.Id);
+                return vus;
+            }
+
+            case "survey_records":
+            {
+                // Les journaux des donjons à embranchements, la même question
+                // que la synchronisation, avec la même prudence que les vues.
+                if (!ps->IsLoaded) return null;
+                foreach (var x in entrees)
+                    if (JournalComplete(ps, x.Id) == true) vus.Add(x.Id);
+                return vus;
+            }
+
+            case "occult_records":
+            {
+                // Le calepin du croissant, demandé à Dalamud comme pour la
+                // synchronisation (PLG-R55). Personnage pas encore chargé,
+                // Dalamud répondrait non pour tout : on ne conclut rien.
+                if (!ps->IsLoaded || Feuille<MKDLore>(donnees) is not { } calepin) return null;
+                foreach (var x in entrees)
+                    if (calepin.GetRowOrDefault(x.Id) is { } ligne && deblocages.IsMKDLoreUnlocked(ligne))
+                        vus.Add(x.Id);
+                return vus;
+            }
+
+            case "field_records":
+            {
+                // Le rapport du front bozjien, lu sans rien demander : la
+                // galerie se dessine, et la demande au serveur ne part qu'au
+                // début d'une lecture. Pas encore reçu, ou encore celui du
+                // personnage précédent : on ne conclut rien.
+                if (!ps->IsLoaded || Bozja.Etat(ps->ContentId) != EtatDuRapport.Pret) return null;
+                foreach (var x in entrees)
+                    if (Bozja.Enregistree(x.Id) == true) vus.Add(x.Id);
                 return vus;
             }
 
@@ -891,6 +941,113 @@ public static class Photo
     {
         if (id < IdCourants || id - IdCourants > int.MaxValue) return null;
         return ps->UnlockedAetherCurrentsBitArray.TryGet((int)(id - IdCourants), out var courant) ? courant : null;
+    }
+
+    /// <summary>
+    /// Les journaux d'exploration des donjons à embranchements (PLG-R76).
+    ///
+    /// Le numéro d'une entrée est sa ligne dans la table des journaux, et le
+    /// jeu tient un bit par journal dans l'état du personnage, au rang de la
+    /// ligne moins un : quarante-neuf bits pour les quarante-neuf lignes
+    /// nommées. FFXIVCollectExport, qui remplit la même collection chez
+    /// Collect, les lit ainsi. Ces bits vivent avec le personnage, comme les
+    /// vues : il n'y a rien à relire à l'ouverture d'une fenêtre.
+    ///
+    /// Un journal plus loin que la rangée (un patch en avance sur cette
+    /// description) sort de la portée : ni complété ni manquant, jusqu'à ce
+    /// qu'elle grandisse.
+    /// </summary>
+    private static unsafe Releve Journaux(Catalogue cat, PlayerState* ps)
+    {
+        const string cle = "survey_records";
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
+        return ParLigne(cat, cle, id => JournalComplete(ps, id));
+    }
+
+    /// <summary>Vrai si ce journal est complété, faux s'il ne l'est pas, rien
+    /// quand la rangée de bits ne va pas jusqu'à lui ou pour l'id zéro, qui
+    /// n'est aucun journal. Le bit est l'id moins un. TryGet et jamais Get,
+    /// pour la même raison que les poissons.</summary>
+    private static unsafe bool? JournalComplete(PlayerState* ps, uint id)
+    {
+        if (id == 0 || id - 1 > int.MaxValue) return null;
+        return ps->CompletedVVDNotebookContentsBitArray.TryGet((int)(id - 1), out var fait) ? fait : null;
+    }
+
+    /// <summary>
+    /// Le calepin du croissant de l'île de Lunule (PLG-R77).
+    ///
+    /// Le numéro d'une entrée est sa ligne dans la table du calepin, et
+    /// Dalamud tient la question dans son service des déblocages : c'est à lui
+    /// qu'on la pose, avec la ligne lue par Lumina (PLG-R55). Il la ramène au
+    /// lien de déverrouillage de la ligne, que le jeu garde avec le
+    /// personnage. Tant que le personnage n'est pas chargé, Dalamud répond non
+    /// pour tout : on ne conclut rien.
+    ///
+    /// Une ligne que le client ne connaît pas encore sort de la portée. La
+    /// table illisible, un patch ayant désaccordé sa description, le calepin
+    /// se dit illisible plutôt que d'emporter la lecture des autres.
+    /// </summary>
+    private static unsafe Releve Calepin(
+        Catalogue cat, Lumina.Excel.ExcelSheet<MKDLore>? table, IUnlockState deblocages, PlayerState* ps)
+    {
+        const string cle = "occult_records";
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
+        if (table is null)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PasEncoreLisible, Illisible: true);
+        return ParLigne(cat, cle, id => table.GetRowOrDefault(id) is { } ligne
+            ? deblocages.IsMKDLoreUnlocked(ligne)
+            : null);
+    }
+
+    /// <summary>
+    /// Le rapport du front bozjien (PLG-R78).
+    ///
+    /// Le numéro d'une entrée est celui de la note dans le rapport, et le jeu
+    /// marque ses notes par ligne : Bozja fait le pont, et lit l'octet de la
+    /// ligne. Ce rapport ne vit pas avec le personnage mais avec la session :
+    /// le serveur l'envoie quand on le demande. La demande part au début de la
+    /// lecture (Bozja.Demander) ; tant que la réponse n'est pas arrivée,
+    /// chaque note se lirait absente, et rien ne se conclut. La lecture
+    /// suivante, ou un clic sur la tuile, la reprend.
+    ///
+    /// Le rapport reçu, mais toujours celui du personnage précédent (Bozja.Etat),
+    /// ne se conclut pas non plus. Les places du rapport introuvables dans le
+    /// jeu, un patch ayant déplacé leurs signatures, il se dit illisible.
+    /// </summary>
+    private static unsafe Releve Rapport(Catalogue cat, PlayerState* ps, IPluginLog journal)
+    {
+        const string cle = "field_records";
+        if (ps == null || !ps->IsLoaded)
+            return new Releve(cle, [], null, Total(cat, cle), Mots.PersoNonCharge);
+        switch (Bozja.Etat(ps->ContentId, journal))
+        {
+            case EtatDuRapport.Illisible:
+                return new Releve(cle, [], null, Total(cat, cle), Mots.PasEncoreLisible, Illisible: true);
+            case EtatDuRapport.EnAttente:
+                return new Releve(cle, [], null, Total(cat, cle), Mots.RapportEnAttente);
+            case EtatDuRapport.DuPrecedent:
+                return new Releve(cle, [], null, Total(cat, cle), Mots.RapportDuPrecedent);
+        }
+        return ParLigne(cat, cle, Bozja.Enregistree);
+    }
+
+    /// <summary>Une table du client, ou rien quand sa description ne
+    /// correspond plus à ce qu'il contient : un patch suffit, et l'erreur
+    /// emporterait toute la lecture (Tables.Feuille).</summary>
+    public static Lumina.Excel.ExcelSheet<T>? Feuille<T>(IDataManager donnees)
+        where T : struct, Lumina.Excel.IExcelRow<T>
+    {
+        try
+        {
+            return donnees.GetExcelSheet<T>();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>

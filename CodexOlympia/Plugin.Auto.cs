@@ -64,6 +64,9 @@ public sealed partial class Plugin
     {
         prochaineLecture = 0;
         Photo.RetenirMarques(Catalogue, dernierPerso);
+        // Le rapport du front bozjien aussi : ce que ce personnage laisse se
+        // retient, et la demande se refera à la connexion suivante (PLG-R78).
+        Bozja.Deconnexion(dernierPerso);
     }
 
     private void SurZone(uint zone)

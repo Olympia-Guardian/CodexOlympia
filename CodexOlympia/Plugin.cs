@@ -352,7 +352,8 @@ public sealed partial class Plugin : IDalamudPlugin
         ICondition condition,
         IFramework cadre,
         IUnlockState deblocages,
-        IAddonLifecycle cycle)
+        IAddonLifecycle cycle,
+        ISigScanner signatures)
     {
         Textures = textures;
         this.deblocages = deblocages;
@@ -381,6 +382,10 @@ public sealed partial class Plugin : IDalamudPlugin
         Visage = new Visage(http, textures, journal, SurLeFilDuJeu);
         Lieux = new Lieux(donnees, journal);
         Lieux.Batir();
+        // Le rapport du front bozjien vit là où FFXIVClientStructs ne décrit
+        // rien : ses deux places se cherchent une fois, par leurs signatures
+        // (PLG-R78).
+        Bozja.Trouver(signatures, journal);
         try
         {
             // Chaque collection se batit pour son compte : une table que le
@@ -725,6 +730,10 @@ public sealed partial class Plugin : IDalamudPlugin
             return;
         }
         var cle = file.Peek();
+        // Au début d'une passe qui lit le rapport du front bozjien, sa demande
+        // au serveur, s'il le faut : ici, sur le fil du jeu, et jamais pendant
+        // le dessin de la fenêtre (PLG-R78). Elle ne lève jamais.
+        if (Faites == 0 && file.Contains(Bozja.Cle)) Bozja.Demander(journal);
         try
         {
             var coffre = Coffre;
@@ -740,6 +749,7 @@ public sealed partial class Plugin : IDalamudPlugin
                 donnees.GetExcelSheet<Item>(),
                 donnees.GetExcelSheet<BuddyEquip>(),
                 donnees.GetExcelSheet<BannerCondition>(),
+                Photo.Feuille<MKDLore>(donnees),
                 deblocages,
                 memoire,
                 ref coffre,

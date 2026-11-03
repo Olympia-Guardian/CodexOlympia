@@ -126,6 +126,12 @@ public static class Mots
     public static string CarnetDuPrecedent => D(
         "le jeu montre encore le carnet du personnage précédent : ouvre ton carnet une fois, puis regarde à nouveau",
         "the game still shows the previous character's log: open your log once, then look again");
+    public static string RapportEnAttente => D(
+        "en attente du serveur : le jeu n'a pas encore reçu ton rapport du front bozjien, regarde à nouveau dans un instant",
+        "waiting for the server: the game has not received your Bozjan field records yet, look again in a moment");
+    public static string RapportDuPrecedent => D(
+        "le jeu montre encore le rapport du front bozjien du personnage précédent : regarde à nouveau après ta prochaine connexion",
+        "the game still shows the previous character's field records: look again after your next login");
     public static string RecoltesIllisibles(int n) => n == 1
         ? D("1 entrée du carnet ne se lit pas dans le jeu : coche-la sur le site.",
             "1 log entry cannot be read in game: tick it on the website.")

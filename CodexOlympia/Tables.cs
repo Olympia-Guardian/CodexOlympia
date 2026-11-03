@@ -59,6 +59,17 @@ public static class Tables
     public static IReadOnlyDictionary<uint, uint> LiensCoiffures { get; private set; } =
         new Dictionary<uint, uint>();
 
+    /// <summary>Du numéro d'une note du front bozjien, celui du catalogue,
+    /// vers sa ligne dans la table du rapport, celle que le jeu marque (Bozja).
+    /// Vide tant que les tables ne sont pas bâties.</summary>
+    public static IReadOnlyDictionary<uint, uint> LignesDuRapport { get; private set; } =
+        new Dictionary<uint, uint>();
+
+    /// <summary>Les objets « Notes du front bozjien », ceux que le plugin peut
+    /// montrer au jeu pour qu'il demande le rapport au serveur (Bozja). Vide
+    /// tant que les tables ne sont pas bâties.</summary>
+    public static IReadOnlyList<uint> NotesDuFront { get; private set; } = [];
+
     /// <summary>Vrai pour un carnet de récolte, une collection par métier : la
     /// table des objets de récolte ne dit pas à quel carnet une ligne
     /// appartient, le catalogue si. Le code qui sait lire ces carnets, pas une
@@ -260,8 +271,66 @@ public static class Tables
             sortie["exploration"] = sortie.TryGetValue("exploration", out var vues) ? [.. vues, .. courants] : courants;
         });
 
+        // Les journaux d'exploration des donjons à embranchements (PLG-R76) :
+        // une entrée par ligne nommée de leur table, sous son numéro, comme au
+        // catalogue. Le jeu en tient un bit par ligne, au rang de la ligne
+        // moins un.
+        Poser(sortie, journal, "survey_records", Feuille<VVDNotebookContents>(donnees, journal), r =>
+        {
+            var nom = r.Name.ExtractText();
+            return nom.Length == 0 ? null : new Entree(r.RowId, nom, (uint)Math.Max(r.Icon, 0));
+        });
+
+        // Le calepin du croissant de l'île de Lunule (PLG-R77) : une entrée par
+        // ligne nommée de sa table, sous son numéro, comme au catalogue. La
+        // table n'a pas d'icône ; l'image de la page du calepin en tient lieu.
+        Poser(sortie, journal, "occult_records", Feuille<MKDLore>(donnees, journal), r =>
+        {
+            var nom = r.Name.ExtractText();
+            return nom.Length == 0 ? null : new Entree(r.RowId, nom, r.Image);
+        });
+
+        // Le rapport du front bozjien (PLG-R78) : une entrée par ligne nommée de
+        // sa table, sous son numéro dans le rapport (la colonne Number), comme
+        // au catalogue et dans l'ordre du rapport. Le jeu, lui, marque ses
+        // notes par ligne, et dix-sept des cinquante numéros ne sont pas leur
+        // ligne : la table qui va de l'un à l'autre se bâtit ici. Un numéro
+        // déjà pris ne se prend pas deux fois.
+        Essayer(journal, "field_records", () =>
+        {
+            var rapport = Feuille<MYCWarResultNotebook>(donnees, journal);
+            if (rapport is null) return;
+            var notes = new List<Entree>();
+            var lignes = new Dictionary<uint, uint>();
+            foreach (var r in rapport)
+            {
+                var nom = r.Name.ExtractText();
+                if (r.RowId == 0 || r.Number == 0 || nom.Length == 0 || lignes.ContainsKey(r.Number)) continue;
+                lignes[r.Number] = r.RowId;
+                notes.Add(new Entree(r.Number, nom, (uint)Math.Max(r.Icon, 0)));
+            }
+            LignesDuRapport = lignes;
+            notes.Sort((a, b) => a.Id.CompareTo(b.Id));
+            if (notes.Count > 0) sortie["field_records"] = notes;
+        });
+
         var objets = Feuille<Item>(donnees, journal);
         if (objets is null) return new Jeu(sortie, ensembles, pieces, armoire);
+
+        // Les notes du front bozjien, les objets : ceux dont l'action est du
+        // type des notes, que Dalamud nomme FieldNotes. Le plugin en montre
+        // une au jeu pour qu'il demande le rapport au serveur (Bozja).
+        Essayer(journal, "field_records", () =>
+        {
+            var trouvees = new List<uint>();
+            foreach (var o in objets)
+            {
+                if (o.ItemAction.RowId == 0) continue;
+                if (o.ItemAction.ValueNullable is { } action && (ushort)action.Action.RowId == Bozja.ActionDesNotes)
+                    trouvees.Add(o.RowId);
+            }
+            NotesDuFront = trouvees;
+        });
 
         // Les coiffures. La table des apparences en compte une ligne par race et
         // par sexe ; ce qui distingue une coiffure, c'est la brochure qui
